@@ -1,0 +1,40 @@
+# Rust
+/target/
+**/Cargo.lock
+**/Cargo.toml.orig
+.cargo/
+/rust-toolchain.toml
+
+# Bevy Specific
+/assets/
+/crates/*/assets/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*.swp
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.vim/
+.vimrc.local
+.history
+*.user
+*.bak
+*.tmp
