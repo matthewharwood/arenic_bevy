@@ -1,0 +1,6 @@
+# Instructions
+
+ReadManyFiles from the path pattern: ./bevy-website/release-content/*/migration-guides/**.md and commit to context memory.
+ReadManyFiles from the path pattern: ./bevy/examples/**/*.rs and commit to context memory.
+ReadManyFiles from the path pattern: ./arenic_bevy/src/**/*.rs and commit to context memory.
+ReadManyFiles from the path pattern: ./arenic_bevy/_docs/**/*.md and commit to context memory.

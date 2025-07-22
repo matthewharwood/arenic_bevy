@@ -1,6 +1,77 @@
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
+#[derive(Component)]
+pub struct CurrentArena(pub u8);
+
+#[derive(Component)]
+pub struct ArenaGizmo;
+
+#[derive(Component)]
+pub struct CharacterSelected;
+
+#[derive(Component)]
+pub struct Character;
+
+// Arena name enum and component
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArenaName {
+    Labyrinth = 0,
+    GuildHouse = 1,
+    Sanctum = 2,
+    Mountain = 3,
+    Bastion = 4,
+    Pawnshop = 5,
+    Crucible = 6,
+    Casino = 7,
+    Gala = 8,
+}
+
+impl ArenaName {
+    pub fn from_index(index: u8) -> ArenaName {
+        match index {
+            0 => ArenaName::Labyrinth,
+            1 => ArenaName::GuildHouse,
+            2 => ArenaName::Sanctum,
+            3 => ArenaName::Mountain,
+            4 => ArenaName::Bastion,
+            5 => ArenaName::Pawnshop,
+            6 => ArenaName::Crucible,
+            7 => ArenaName::Casino,
+            8 => ArenaName::Gala,
+            _ => panic!("Invalid arena index: {}", index),
+        }
+    }
+    
+    pub fn to_index(&self) -> u8 {
+        *self as u8
+    }
+    
+    pub fn name(&self) -> &'static str {
+        match self {
+            ArenaName::Labyrinth => "Labyrinth",
+            ArenaName::GuildHouse => "Guild House",
+            ArenaName::Sanctum => "Sanctum",
+            ArenaName::Mountain => "Mountain",
+            ArenaName::Bastion => "Bastion",
+            ArenaName::Pawnshop => "Pawnshop",
+            ArenaName::Crucible => "Crucible",
+            ArenaName::Casino => "Casino",
+            ArenaName::Gala => "Gala",
+        }
+    }
+}
+
+impl CurrentArena {
+    pub fn inc(value: u8) -> u8 {
+        (value + 1) % 9
+    }
+
+    pub fn dec(value: u8) -> u8 {
+        if value == 0 { 8 } else { value - 1 }
+    }
+}
+
 pub const TILE_SIZE: f32 = 19.0;
 pub const WINDOW_WIDTH: f32 = 1280.0;
 pub const WINDOW_HEIGHT: f32 = 720.0;
@@ -9,6 +80,11 @@ pub const HALF_WINDOW_HEIGHT: f32 = WINDOW_HEIGHT / 2.0;
 pub const HALF_TILE_SIZE: f32 = TILE_SIZE / 2.0;
 pub const GRID_WIDTH: usize = 65;
 pub const GRID_HEIGHT: usize = 31;
+pub const ARENA_WIDTH: f32 = GRID_WIDTH as f32 * TILE_SIZE;
+pub const ARENA_HEIGHT: f32 = GRID_HEIGHT as f32 * TILE_SIZE;
+
+pub const CAMERA_PADDING_X: f32 = -22.0;
+pub const CAMERA_PADDING_Y: f32 = 36.0;
 
 fn main() {
     App::new()
@@ -20,23 +96,358 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Startup, setup)
+        .add_systems(Startup, (setup, spawn_player_selected))
+        .add_systems(
+            Update,
+            (
+                active_arena,
+                draw_arena_gizmo,
+                move_selected_player,
+                cycle_selected_character,
+                update_character_sprites,
+                update_character_arena_markers,
+                sync_current_arena_with_selected_character,
+                debug_character_arena_changes,
+            ),
+        )
         .run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2d);
+    let arena_col_x = 0 % 3;
+    let arena_row_x = 2 / 3;
+    commands.spawn(CurrentArena(1));
     commands
-        .spawn(Transform::from_xyz(
-            -HALF_WINDOW_WIDTH + HALF_TILE_SIZE,
-            HALF_WINDOW_HEIGHT - HALF_TILE_SIZE,
+        .spawn(Camera2d)
+        .insert(Transform::from_xyz(
+            CAMERA_PADDING_X + (1.0 * ARENA_WIDTH),
+            CAMERA_PADDING_Y - (0.0 * ARENA_HEIGHT),
             0.0,
         ))
-        .with_children(|parent| {
-            parent.spawn(Sprite {
-                image: asset_server.load("default_grid_tile.png"),
-                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-                ..default()
-            });
-        });
+        .insert(Projection::Orthographic(OrthographicProjection {
+            near: -1000.0,
+            scale: 1.0,
+            far: 1000.0,
+            viewport_origin: Vec2::new(0.5, 0.5),
+            area: Rect::new(-1.0, -1.0, 1.0, 1.0),
+            scaling_mode: Default::default(),
+        }));
+
+    for arena_index in 0..9 {
+        let arenas_per_row = 3;
+        let arena_col = arena_index % arenas_per_row;
+        let arena_row = arena_index / arenas_per_row;
+
+        let x_offset = arena_col as f32 * ARENA_WIDTH;
+        let y_offset = arena_row as f32 * ARENA_HEIGHT;
+
+        let mut arena = commands.spawn(Transform::from_xyz(
+            -HALF_WINDOW_WIDTH + HALF_TILE_SIZE + x_offset,
+            HALF_WINDOW_HEIGHT - HALF_TILE_SIZE - y_offset,
+            0.0,
+        ));
+        let image_path = format!("Grid_{}.png", arena_index);
+        for row in 0..GRID_HEIGHT {
+            for col in 0..GRID_WIDTH {
+                arena
+                    .insert(InheritedVisibility::default())
+                    .with_children(|parent| {
+                        parent
+                            .spawn(Sprite {
+                                image: asset_server.load(image_path.clone()),
+                                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+                                ..default()
+                            })
+                            .insert(Transform::from_xyz(
+                                col as f32 * TILE_SIZE,
+                                -(row as f32 * TILE_SIZE),
+                                0.0,
+                            ));
+                    });
+            }
+        }
+    }
+}
+
+fn active_arena(
+    mut arena_query: Query<&mut CurrentArena>,
+    mut camera_query: Query<(&mut Transform, &mut Projection), With<Camera>>,
+    input: Res<ButtonInput<KeyCode>>,
+) {
+    // Check if camera is at scale 3.0
+    let is_zoomed_out = camera_query.iter().any(|(_, projection)| {
+        if let Projection::Orthographic(ortho) = projection {
+            ortho.scale == 3.0
+        } else {
+            false
+        }
+    });
+
+    // Only allow arena navigation when not zoomed out
+
+    if input.just_pressed(KeyCode::BracketRight) {
+        for mut arena in &mut arena_query {
+            arena.0 = CurrentArena::inc(arena.0);
+
+            let arena_col = arena.0 % 3;
+            let arena_row = arena.0 / 3;
+            if !is_zoomed_out {
+                for (mut transform, _) in &mut camera_query {
+                    transform.translation.x = CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
+                    transform.translation.y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
+                }
+            }
+        }
+    }
+    if input.just_pressed(KeyCode::BracketLeft) {
+        for mut arena in &mut arena_query {
+            arena.0 = CurrentArena::dec(arena.0);
+
+            let arena_col = arena.0 % 3;
+            let arena_row = arena.0 / 3;
+            if !is_zoomed_out {
+                for (mut transform, _) in &mut camera_query {
+                    transform.translation.x = CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
+                    transform.translation.y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
+                }
+            }
+        }
+    }
+
+    if input.just_pressed(KeyCode::KeyP) {
+        for (mut transform, mut projection) in &mut camera_query {
+            if let Projection::Orthographic(ortho) = &mut *projection {
+                if ortho.scale == 1.0 {
+                    ortho.scale = 3.0;
+                    // Center on arena index 4 for zoom out
+                    let arena_col = 4 % 3;
+                    let arena_row = 4 / 3;
+                    transform.translation.x = CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
+                    transform.translation.y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
+                } else {
+                    ortho.scale = 1.0;
+                    // Return to current arena position
+                    for arena in &arena_query {
+                        let arena_col = arena.0 % 3;
+                        let arena_row = arena.0 / 3;
+                        transform.translation.x =
+                            CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
+                        transform.translation.y =
+                            CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn draw_arena_gizmo(
+    mut gizmos: Gizmos,
+    arena_query: Query<&CurrentArena>,
+    camera_query: Query<&Projection, With<Camera>>,
+) {
+    for projection in &camera_query {
+        if let Projection::Orthographic(ortho) = projection {
+            if ortho.scale == 3.0 {
+                // Only draw gizmo when zoomed out
+                for arena in &arena_query {
+                    let arena_col = arena.0 % 3;
+                    let arena_row = arena.0 / 3;
+
+                    // Calculate the center of the current arena in world coordinates
+                    let arena_center_x =
+                        -HALF_WINDOW_WIDTH + (arena_col as f32 * ARENA_WIDTH) + ARENA_WIDTH / 2.0;
+                    let arena_center_y =
+                        HALF_WINDOW_HEIGHT - (arena_row as f32 * ARENA_HEIGHT) - ARENA_HEIGHT / 2.0;
+                    let arena_center = Vec2::new(arena_center_x, arena_center_y);
+
+                    let border_thickness = 10.0; // Desired total border thickness
+                    let border_color = Color::BLACK; // Your desired border color
+                    let inner_color = Color::WHITE; // The color inside the border, matching your arena background
+
+                    // Draw the border using a loop
+                    for i in 0..border_thickness as u32 {
+                        let current_thickness_offset = i as f32;
+                        gizmos.rect_2d(
+                            arena_center,
+                            Vec2::new(
+                                ARENA_WIDTH + current_thickness_offset * 2.0,
+                                ARENA_HEIGHT + current_thickness_offset * 2.0,
+                            ),
+                            border_color,
+                        );
+                    }
+
+                    // Draw the innermost rectangle to fill the center with the arena's background color
+                    gizmos.rect_2d(
+                        arena_center,
+                        Vec2::new(ARENA_WIDTH, ARENA_HEIGHT),
+                        inner_color,
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn spawn_player_selected(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // Arena index 1 positioning
+    let arena_col = 1 % 3;
+    let arena_row = 1 / 3;
+
+    // Calculate arena position
+    let arena_x = -HALF_WINDOW_WIDTH + (arena_col as f32 * ARENA_WIDTH);
+    let arena_y = HALF_WINDOW_HEIGHT - (arena_row as f32 * ARENA_HEIGHT);
+
+    // Calculate center of arena
+    let center_x_1 = arena_x + ARENA_WIDTH / 2.0;
+    let center_y_1 = arena_y - ARENA_HEIGHT / 2.0;
+
+    commands
+        .spawn(Sprite {
+            image: asset_server.load("player_selected.png"),
+            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+            ..default()
+        })
+        .insert(Transform::from_xyz(center_x_1, center_y_1, 1.0))
+        .insert(Character)
+        .insert(CharacterSelected);
+
+    let center_x_2 = arena_x + (ARENA_WIDTH / 2.0) - (TILE_SIZE * 2.0);
+
+    commands
+        .spawn(Sprite {
+            image: asset_server.load("player_unselected.png"),
+            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+            ..default()
+        })
+        .insert(Transform::from_xyz(center_x_2, center_y_1, 1.0))
+        .insert(Character);
+}
+
+fn move_selected_player(
+    mut player_query: Query<&mut Transform, With<CharacterSelected>>,
+    input: Res<ButtonInput<KeyCode>>,
+) {
+    for mut transform in &mut player_query {
+        if input.just_pressed(KeyCode::KeyA) {
+            // Move left
+            transform.translation.x -= TILE_SIZE;
+        }
+        if input.just_pressed(KeyCode::KeyS) {
+            // Move down
+            transform.translation.y -= TILE_SIZE;
+        }
+        if input.just_pressed(KeyCode::KeyD) {
+            // Move right
+            transform.translation.x += TILE_SIZE;
+        }
+        if input.just_pressed(KeyCode::KeyW) {
+            // Move up
+            transform.translation.y += TILE_SIZE;
+        }
+    }
+}
+
+fn cycle_selected_character(
+    mut commands: Commands,
+    characters_query: Query<Entity, With<Character>>,
+    selected_query: Query<Entity, With<CharacterSelected>>,
+    input: Res<ButtonInput<KeyCode>>,
+) {
+    if input.just_pressed(KeyCode::Tab) {
+        // Get all character entities as a Vec
+        let characters: Vec<Entity> = characters_query.iter().collect();
+
+        if characters.len() <= 1 {
+            return; // No cycling needed with 0 or 1 characters
+        }
+
+        // Find current selected character index
+        let current_selected = selected_query.get_single();
+
+        let next_index = match current_selected {
+            Ok(selected_entity) => {
+                // Find the current index and get next index cyclically
+                if let Some(current_index) = characters.iter().position(|&e| e == selected_entity) {
+                    (current_index + 1) % characters.len()
+                } else {
+                    0 // Default to first if not found
+                }
+            }
+            Err(_) => 0, // No current selection, start with first
+        };
+
+        // Remove CharacterSelected from all characters
+        for entity in &characters {
+            commands.entity(*entity).remove::<CharacterSelected>();
+        }
+
+        // Add CharacterSelected to next character
+        commands
+            .entity(characters[next_index])
+            .insert(CharacterSelected);
+    }
+}
+
+fn update_character_sprites(
+    mut character_query: Query<(Entity, &mut Sprite), With<Character>>,
+    selected_query: Query<Entity, With<CharacterSelected>>,
+    asset_server: Res<AssetServer>,
+) {
+    let selected_entity = selected_query.get_single().ok();
+
+    for (entity, mut sprite) in &mut character_query {
+        if Some(entity) == selected_entity {
+            sprite.image = asset_server.load("player_selected.png");
+        } else {
+            sprite.image = asset_server.load("player_unselected.png");
+        }
+    }
+}
+
+fn update_character_arena_markers(
+    mut commands: Commands,
+    mut character_query: Query<(Entity, &Transform, Option<&ArenaName>), With<Character>>,
+) {
+    for (entity, transform, current_arena_name) in &mut character_query {
+        let x = transform.translation.x;
+        let y = transform.translation.y;
+        
+        // Calculate which arena this character is in based on position
+        let arena_col = ((x + HALF_WINDOW_WIDTH) / ARENA_WIDTH).floor() as i32;
+        let arena_row = ((HALF_WINDOW_HEIGHT - y) / ARENA_HEIGHT).floor() as i32;
+        
+        // Clamp to valid arena bounds (0-2 for both col and row)
+        let arena_col = arena_col.clamp(0, 2) as u8;
+        let arena_row = arena_row.clamp(0, 2) as u8;
+        
+        let arena_index = arena_row * 3 + arena_col;
+        let new_arena_name = ArenaName::from_index(arena_index);
+        
+        // Only update if the arena has changed
+        if current_arena_name != Some(&new_arena_name) {
+            commands.entity(entity).insert(new_arena_name);
+        }
+    }
+}
+
+fn sync_current_arena_with_selected_character(
+    mut arena_query: Query<&mut CurrentArena>,
+    selected_character_query: Query<&ArenaName, (With<CharacterSelected>, Changed<ArenaName>)>,
+) {
+    if let Ok(arena_name) = selected_character_query.get_single() {
+        for mut current_arena in &mut arena_query {
+            current_arena.0 = arena_name.to_index();
+            println!("CurrentArena updated to: {} (index: {})", arena_name.name(), arena_name.to_index());
+        }
+    }
+}
+
+fn debug_character_arena_changes(
+    query: Query<&ArenaName, (With<CharacterSelected>, Changed<ArenaName>)>,
+) {
+    if let Ok(arena_name) = query.get_single() {
+        println!("CharacterSelected entered arena: {}", arena_name.name());
+    }
 }
