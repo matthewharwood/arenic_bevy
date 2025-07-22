@@ -42,11 +42,11 @@ impl ArenaName {
             _ => panic!("Invalid arena index: {}", index),
         }
     }
-    
+
     pub fn to_index(&self) -> u8 {
         *self as u8
     }
-    
+
     pub fn name(&self) -> &'static str {
         match self {
             ArenaName::Labyrinth => "Labyrinth",
@@ -100,13 +100,16 @@ fn main() {
         .add_systems(
             Update,
             (
-                active_arena,
+                handle_arena_navigation_keys,
+                update_camera_on_arena_change,
+                handle_zoom_toggle,
                 draw_arena_gizmo,
                 move_selected_player,
                 cycle_selected_character,
                 update_character_sprites,
                 update_character_arena_markers,
                 sync_current_arena_with_selected_character,
+                ensure_character_selected_in_current_arena,
                 debug_character_arena_changes,
             ),
         )
@@ -169,13 +172,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     }
 }
 
-fn active_arena(
+fn handle_arena_navigation_keys(
     mut arena_query: Query<&mut CurrentArena>,
-    mut camera_query: Query<(&mut Transform, &mut Projection), With<Camera>>,
+    camera_query: Query<&Projection, With<Camera>>,
     input: Res<ButtonInput<KeyCode>>,
 ) {
     // Check if camera is at scale 3.0
-    let is_zoomed_out = camera_query.iter().any(|(_, projection)| {
+    let is_zoomed_out = camera_query.iter().any(|projection| {
         if let Projection::Orthographic(ortho) = projection {
             ortho.scale == 3.0
         } else {
@@ -183,37 +186,43 @@ fn active_arena(
         }
     });
 
-    // Only allow arena navigation when not zoomed out
-
     if input.just_pressed(KeyCode::BracketRight) {
         for mut arena in &mut arena_query {
             arena.0 = CurrentArena::inc(arena.0);
-
-            let arena_col = arena.0 % 3;
-            let arena_row = arena.0 / 3;
-            if !is_zoomed_out {
-                for (mut transform, _) in &mut camera_query {
-                    transform.translation.x = CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
-                    transform.translation.y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
-                }
-            }
         }
     }
     if input.just_pressed(KeyCode::BracketLeft) {
         for mut arena in &mut arena_query {
             arena.0 = CurrentArena::dec(arena.0);
+        }
+    }
+}
 
-            let arena_col = arena.0 % 3;
-            let arena_row = arena.0 / 3;
-            if !is_zoomed_out {
-                for (mut transform, _) in &mut camera_query {
+fn update_camera_on_arena_change(
+    arena_query: Query<&CurrentArena, Changed<CurrentArena>>,
+    mut camera_query: Query<(&mut Transform, &Projection), With<Camera>>,
+) {
+    if let Ok(current_arena) = arena_query.get_single() {
+        let arena_col = current_arena.0 % 3;
+        let arena_row = current_arena.0 / 3;
+
+        for (mut transform, projection) in &mut camera_query {
+            // Only move camera if not zoomed out (scale 1.0)
+            if let Projection::Orthographic(ortho) = projection {
+                if ortho.scale == 1.0 {
                     transform.translation.x = CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
                     transform.translation.y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
                 }
             }
         }
     }
+}
 
+fn handle_zoom_toggle(
+    arena_query: Query<&CurrentArena>,
+    mut camera_query: Query<(&mut Transform, &mut Projection), With<Camera>>,
+    input: Res<ButtonInput<KeyCode>>,
+) {
     if input.just_pressed(KeyCode::KeyP) {
         for (mut transform, mut projection) in &mut camera_query {
             if let Projection::Orthographic(ortho) = &mut *projection {
@@ -413,18 +422,18 @@ fn update_character_arena_markers(
     for (entity, transform, current_arena_name) in &mut character_query {
         let x = transform.translation.x;
         let y = transform.translation.y;
-        
+
         // Calculate which arena this character is in based on position
         let arena_col = ((x + HALF_WINDOW_WIDTH) / ARENA_WIDTH).floor() as i32;
         let arena_row = ((HALF_WINDOW_HEIGHT - y) / ARENA_HEIGHT).floor() as i32;
-        
+
         // Clamp to valid arena bounds (0-2 for both col and row)
         let arena_col = arena_col.clamp(0, 2) as u8;
         let arena_row = arena_row.clamp(0, 2) as u8;
-        
+
         let arena_index = arena_row * 3 + arena_col;
         let new_arena_name = ArenaName::from_index(arena_index);
-        
+
         // Only update if the arena has changed
         if current_arena_name != Some(&new_arena_name) {
             commands.entity(entity).insert(new_arena_name);
@@ -439,7 +448,11 @@ fn sync_current_arena_with_selected_character(
     if let Ok(arena_name) = selected_character_query.get_single() {
         for mut current_arena in &mut arena_query {
             current_arena.0 = arena_name.to_index();
-            println!("CurrentArena updated to: {} (index: {})", arena_name.name(), arena_name.to_index());
+            println!(
+                "CurrentArena updated to: {} (index: {})",
+                arena_name.name(),
+                arena_name.to_index()
+            );
         }
     }
 }
@@ -449,5 +462,42 @@ fn debug_character_arena_changes(
 ) {
     if let Ok(arena_name) = query.get_single() {
         println!("CharacterSelected entered arena: {}", arena_name.name());
+    }
+}
+
+fn ensure_character_selected_in_current_arena(
+    mut commands: Commands,
+    current_arena_query: Query<&CurrentArena, Changed<CurrentArena>>,
+    selected_character_query: Query<&ArenaName, With<CharacterSelected>>,
+    all_characters_query: Query<(Entity, &ArenaName), With<Character>>,
+) {
+    if let Ok(current_arena) = current_arena_query.get_single() {
+        let target_arena = ArenaName::from_index(current_arena.0);
+        
+        // Check if there's already a selected character in the current arena
+        let has_selected_in_arena = selected_character_query
+            .get_single()
+            .map(|arena_name| *arena_name == target_arena)
+            .unwrap_or(false);
+        
+        if !has_selected_in_arena {
+            // Find the first character in the target arena
+            let first_character_in_arena = all_characters_query
+                .iter()
+                .find(|(_, arena_name)| **arena_name == target_arena)
+                .map(|(entity, _)| entity);
+            
+            if let Some(character_entity) = first_character_in_arena {
+                // Remove CharacterSelected from all characters first
+                for (entity, _) in all_characters_query.iter() {
+                    commands.entity(entity).remove::<CharacterSelected>();
+                }
+                
+                // Add CharacterSelected to the found character
+                commands.entity(character_entity).insert(CharacterSelected);
+                
+                println!("Auto-selected character in arena: {}", target_arena.name());
+            }
+        }
     }
 }
