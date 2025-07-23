@@ -6,7 +6,7 @@
 use bevy::prelude::*;
 use crate::components::{
     Character, CharacterSelected, ArenaTimer, CharacterTimer, RecordedActions, 
-    ActionEvent, ArenaName, SessionVersion
+    ActionEvent, ArenaName
 };
 use crate::movement::CharacterMoveEvent;
 
@@ -31,7 +31,7 @@ fn handle_character_deselection(
     selected_query: Query<Entity, With<CharacterSelected>>,
     mut character_timer_query: Query<&mut CharacterTimer>,
     mut recorded_actions_query: Query<&mut RecordedActions>,
-    time: Res<Time>,
+    _time: Res<Time>,
 ) {
     // Handle characters that are no longer selected (stop their active recordings)
     for (entity, character, arena_name) in character_query.iter() {
@@ -40,24 +40,20 @@ fn handle_character_deselection(
             if character_timer.is_recording {
                 // Check if this character is still selected
                 if selected_query.get(entity).is_err() {
-                    // Character is no longer selected, implement revert logic
+                    // Character is no longer selected, clear draft recording
                     if let Ok(mut recorded_actions) = recorded_actions_query.get_mut(entity) {
-                        let _timestamp = time.elapsed_secs_f64();
                         let arena_index = arena_name.to_index();
                         
-                        // Check if there was a saved session
+                        // Clear the draft recording
+                        recorded_actions.clear_draft();
+                        
+                        // Show appropriate message based on whether there's a saved session
                         if recorded_actions.has_saved_session(arena_index) {
-                            // Revert to saved session
-                            if recorded_actions.revert_to_saved_session(arena_index) {
-                                println!("Tab pressed: Reverted to saved session for {} in arena {}", 
-                                        character.name, arena_name.name());
-                            }
+                            println!("Tab pressed: Reverted to saved session for {} in arena {}", 
+                                    character.name, arena_name.name());
                         } else {
-                            // No saved session, revert to empty state
-                            if recorded_actions.revert_to_saved_session(arena_index) {
-                                println!("Tab pressed: Reverted to empty state (no saved session) for {} in arena {}", 
-                                        character.name, arena_name.name());
-                            }
+                            println!("Tab pressed: Reverted to empty state (no saved session) for {} in arena {}", 
+                                    character.name, arena_name.name());
                         }
                     }
                     
@@ -75,20 +71,17 @@ fn handle_arena_transitions(
     character_query: Query<(Entity, &Character, &ArenaName), (With<Character>, Changed<ArenaName>)>,
     mut character_timer_query: Query<&mut CharacterTimer>,
     mut recorded_actions_query: Query<&mut RecordedActions>,
-    time: Res<Time>,
+    _time: Res<Time>,
 ) {
     for (entity, character, new_arena) in character_query.iter() {
         // Character transitioned to a new arena, cancel any active recording
         if let Ok(character_timer) = character_timer_query.get(entity) {
             if character_timer.is_recording {
                 if let Ok(mut recorded_actions) = recorded_actions_query.get_mut(entity) {
-                    let timestamp = time.elapsed_secs_f64();
-                    
-                    // Stop the current recording
-                    if recorded_actions.stop_recording(timestamp) {
-                        println!("Arena transition: Cancelled active recording for character {} entering {}", 
-                                character.name, new_arena.name());
-                    }
+                    // Clear the draft recording
+                    recorded_actions.clear_draft();
+                    println!("Arena transition: Cancelled active recording for character {} entering {}", 
+                            character.name, new_arena.name());
                 }
                 
                 // Stop the character timer
@@ -133,15 +126,13 @@ fn handle_recording_toggle(
                         // Start new recording for this arena and record initial position
                         let arena_index = arena_name.to_index();
                         let had_previous = recorded_actions.start_recording(arena_index, timestamp);
-                        let current_version = recorded_actions.get_arena_recording_version(arena_index)
-                            .map(|v| v.name()).unwrap_or("Unknown");
                         
                         if had_previous {
-                            println!("R pressed: Started new Recording Session '{}' for arena {} (replaced previous)", 
-                                    current_version, arena_name.name());
+                            println!("R pressed: Started new recording for arena {} (replaced previous)", 
+                                    arena_name.name());
                         } else {
-                            println!("R pressed: Started new Recording Session '{}' for arena {}", 
-                                    current_version, arena_name.name());
+                            println!("R pressed: Started new recording for arena {}", 
+                                    arena_name.name());
                         }
                         
                         recorded_actions.add_action(ActionEvent::Position {
@@ -157,21 +148,24 @@ fn handle_recording_toggle(
                         character_timer.stop_recording();
                         
                         let arena_index = arena_name.to_index();
+                        
+                        // Save the recording session BEFORE stopping (while still active)
+                        let saved_successfully = recorded_actions.save_current_session(arena_index);
                         let stopped_successfully = recorded_actions.stop_recording(timestamp);
                         
                         if stopped_successfully {
-                            // Save the completed recording session
-                            let _saved_successfully = recorded_actions.save_current_session(arena_index);
                             
-                            let has_recording = recorded_actions.has_recording_for_arena(arena_index);
                             let total_recorded_arenas = recorded_actions.count_recorded_arenas();
-                            let session_version = recorded_actions.get_arena_recording_version(arena_index)
-                                .map(|v| v.name()).unwrap_or("Unknown");
-                            println!("Stopped and saved Recording Session '{}' in arena {}. Total recorded arenas: {}", 
-                                    session_version, arena_name.name(), total_recorded_arenas);
+                            if saved_successfully {
+                                println!("Stopped and saved recording in arena {}. Total recorded arenas: {}", 
+                                        arena_name.name(), total_recorded_arenas);
+                            } else {
+                                println!("Stopped recording in arena {} (save failed). Total recorded arenas: {}", 
+                                        arena_name.name(), total_recorded_arenas);
+                            }
                             
-                            // Print summary of the recording for this arena
-                            if let Some(recording) = recorded_actions.get_arena_recording(arena_index) {
+                            // Print summary of the just-completed recording (now saved)
+                            if let Some(recording) = recorded_actions.get_saved_recording(arena_index) {
                                 println!("Recording for {} in arena {}: {} actions (start: {:.2}s, end: {:.2}s)", 
                                         character.name, arena_name.name(),
                                         recording.actions.len(),
@@ -224,11 +218,9 @@ fn handle_recording_toggle(
                     // Start new recording for this arena and record initial position
                     let arena_index = arena_name.to_index();
                     let _had_previous = new_actions.start_recording(arena_index, timestamp);
-                    let current_version = new_actions.get_arena_recording_version(arena_index)
-                        .map(|v| v.name()).unwrap_or("Unknown");
                     
-                    println!("R pressed: Started first Recording Session '{}' for arena {}", 
-                            current_version, arena_name.name());
+                    println!("R pressed: Started first recording for arena {}", 
+                            arena_name.name());
                     
                     new_actions.add_action(ActionEvent::Position {
                         x: transform.translation.x,
