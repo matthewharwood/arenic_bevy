@@ -1,133 +1,16 @@
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
-#[derive(Component)]
-pub struct CurrentArena(pub u8);
+// Module declarations
+mod components;
+mod config;
+mod utils;
+mod bundles;
 
-#[derive(Component)]
-pub struct ArenaGizmo;
-
-#[derive(Component)]
-pub struct CharacterSelected;
-
-#[derive(Component)]
-pub struct Character;
-
-#[derive(Component)]
-pub struct TopNavBar;
-
-#[derive(Component)]
-pub struct SideNavBar;
-
-#[derive(Component)]
-pub struct BottomNavBar;
-
-// Arena name enum and component
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ArenaName {
-    Labyrinth = 0,
-    GuildHouse = 1,
-    Sanctum = 2,
-    Mountain = 3,
-    Bastion = 4,
-    Pawnshop = 5,
-    Crucible = 6,
-    Casino = 7,
-    Gala = 8,
-}
-
-impl ArenaName {
-    pub fn from_index(index: u8) -> ArenaName {
-        match index {
-            0 => ArenaName::Labyrinth,
-            1 => ArenaName::GuildHouse,
-            2 => ArenaName::Sanctum,
-            3 => ArenaName::Mountain,
-            4 => ArenaName::Bastion,
-            5 => ArenaName::Pawnshop,
-            6 => ArenaName::Crucible,
-            7 => ArenaName::Casino,
-            8 => ArenaName::Gala,
-            _ => panic!("Invalid arena index: {}", index),
-        }
-    }
-
-    pub fn to_index(&self) -> u8 {
-        *self as u8
-    }
-
-    pub fn name(&self) -> &'static str {
-        match self {
-            ArenaName::Labyrinth => "Labyrinth",
-            ArenaName::GuildHouse => "Guild House",
-            ArenaName::Sanctum => "Sanctum",
-            ArenaName::Mountain => "Mountain",
-            ArenaName::Bastion => "Bastion",
-            ArenaName::Pawnshop => "Pawnshop",
-            ArenaName::Crucible => "Crucible",
-            ArenaName::Casino => "Casino",
-            ArenaName::Gala => "Gala",
-        }
-    }
-}
-
-impl CurrentArena {
-    pub fn inc(value: u8) -> u8 {
-        (value + 1) % 9
-    }
-
-    pub fn dec(value: u8) -> u8 {
-        if value == 0 { 8 } else { value - 1 }
-    }
-}
-
-pub const TILE_SIZE: f32 = 19.0;
-pub const WINDOW_WIDTH: f32 = 1280.0;
-pub const WINDOW_HEIGHT: f32 = 720.0;
-pub const HALF_WINDOW_WIDTH: f32 = WINDOW_WIDTH / 2.0;
-pub const HALF_WINDOW_HEIGHT: f32 = WINDOW_HEIGHT / 2.0;
-pub const HALF_TILE_SIZE: f32 = TILE_SIZE / 2.0;
-pub const GRID_WIDTH: usize = 66;
-pub const GRID_HEIGHT: usize = 31;
-pub const ARENA_WIDTH: f32 = GRID_WIDTH as f32 * TILE_SIZE;
-pub const ARENA_HEIGHT: f32 = GRID_HEIGHT as f32 * TILE_SIZE;
-
-pub const CAMERA_PADDING_X: f32 = -22.0;
-pub const CAMERA_PADDING_Y: f32 = 36.0;
-pub const SIDEBAR_WIDTH: f32 = 13.5;
-
-// Helper function to calculate camera position to center on arena
-fn calculate_camera_position(arena_index: u8) -> (f32, f32) {
-    let arena_col = arena_index % 3;
-    let arena_row = arena_index / 3;
-
-    // Calculate arena top-left corner (matching setup positioning)
-    let arena_x = -SIDEBAR_WIDTH + (arena_col as f32 * ARENA_WIDTH);
-    let arena_y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
-
-    // Calculate arena center by adding half arena dimensions
-    let center_x = arena_x;
-    let center_y = arena_y;
-
-    // Shift right by one tile size to correct alignment
-    (center_x, center_y)
-}
-
-// Helper function to calculate character position within an arena
-fn calculate_character_position(arena_index: u8, tile_x: usize, tile_y: usize) -> (f32, f32) {
-    let arena_col = arena_index % 3;
-    let arena_row = arena_index / 3;
-
-    // Calculate arena top-left corner (matching setup positioning)
-    let arena_x = -HALF_WINDOW_WIDTH + HALF_TILE_SIZE + (arena_col as f32 * ARENA_WIDTH);
-    let arena_y = HALF_WINDOW_HEIGHT - HALF_TILE_SIZE - (arena_row as f32 * ARENA_HEIGHT);
-
-    // Calculate character position within the arena
-    let char_x = arena_x + (tile_x as f32 * TILE_SIZE);
-    let char_y = arena_y - (tile_y as f32 * TILE_SIZE);
-
-    (char_x, char_y)
-}
+// Re-exports for convenience
+use components::*;
+use config::{display::*, arena::*, ui::*, assets::*};
+use utils::*;
 
 fn main() {
     App::new()
@@ -237,12 +120,12 @@ fn handle_arena_navigation_keys(
 
     if input.just_pressed(KeyCode::BracketRight) {
         for mut arena in &mut arena_query {
-            arena.0 = CurrentArena::inc(arena.0);
+            arena.0 = CurrentArena::increment(arena.0);
         }
     }
     if input.just_pressed(KeyCode::BracketLeft) {
         for mut arena in &mut arena_query {
-            arena.0 = CurrentArena::dec(arena.0);
+            arena.0 = CurrentArena::decrement(arena.0);
         }
     }
 }
@@ -336,28 +219,15 @@ fn draw_arena_gizmo(
 }
 
 fn spawn_player_selected(mut commands: Commands, asset_server: Res<AssetServer>) {
+    use crate::bundles::{SelectedCharacterBundle, CharacterBundle};
+    
     // Spawn first character at tile position (33, 15) in arena 1 (center of the arena)
     let (char1_x, char1_y) = calculate_character_position(1, 33, 15);
-    commands
-        .spawn(Sprite {
-            image: asset_server.load("player_selected.png"),
-            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-            ..default()
-        })
-        .insert(Transform::from_xyz(char1_x, char1_y, 1.0))
-        .insert(Character)
-        .insert(CharacterSelected);
+    commands.spawn(SelectedCharacterBundle::new(&asset_server, char1_x, char1_y));
 
     // Spawn second character at tile position (30, 15) in arena 1 (3 tiles to the left)
     let (char2_x, char2_y) = calculate_character_position(1, 30, 15);
-    commands
-        .spawn(Sprite {
-            image: asset_server.load("player_unselected.png"),
-            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-            ..default()
-        })
-        .insert(Transform::from_xyz(char2_x, char2_y, 1.0))
-        .insert(Character);
+    commands.spawn(CharacterBundle::new(&asset_server, char2_x, char2_y, false));
 }
 
 fn move_selected_player(
@@ -385,19 +255,12 @@ fn move_selected_player(
             new_y += TILE_SIZE;
         }
         
-        // Calculate boundaries of the entire 3x3 arena grid
-        let grid_left = -HALF_WINDOW_WIDTH + HALF_TILE_SIZE;
-        let grid_right = grid_left + (3.0 * ARENA_WIDTH) - TILE_SIZE;
-        let grid_top = HALF_WINDOW_HEIGHT - HALF_TILE_SIZE;
-        let grid_bottom = grid_top - (3.0 * ARENA_HEIGHT) + TILE_SIZE;
-        
         // Clamp position to stay within the 3x3 grid boundaries
-        new_x = new_x.clamp(grid_left, grid_right);
-        new_y = new_y.clamp(grid_bottom, grid_top);
+        let (clamped_x, clamped_y) = clamp_to_grid_boundaries(new_x, new_y);
         
         // Apply the clamped position
-        transform.translation.x = new_x;
-        transform.translation.y = new_y;
+        transform.translation.x = clamped_x;
+        transform.translation.y = clamped_y;
     }
 }
 
@@ -451,9 +314,9 @@ fn update_character_sprites(
 
     for (entity, mut sprite) in &mut character_query {
         if Some(entity) == selected_entity {
-            sprite.image = asset_server.load("player_selected.png");
+            sprite.image = asset_server.load(PLAYER_SELECTED);
         } else {
-            sprite.image = asset_server.load("player_unselected.png");
+            sprite.image = asset_server.load(PLAYER_UNSELECTED);
         }
     }
 }
