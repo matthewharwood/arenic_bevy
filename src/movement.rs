@@ -49,6 +49,21 @@ impl Plugin for MovementPlugin {
     }
 }
 
+/// Maps keyboard input to movement direction
+fn get_movement_direction_from_input(input: &ButtonInput<KeyCode>) -> Option<MovementDirection> {
+    if input.just_pressed(KeyCode::KeyW) {
+        Some(MovementDirection::Up)
+    } else if input.just_pressed(KeyCode::KeyS) {
+        Some(MovementDirection::Down)
+    } else if input.just_pressed(KeyCode::KeyA) {
+        Some(MovementDirection::Left)
+    } else if input.just_pressed(KeyCode::KeyD) {
+        Some(MovementDirection::Right)
+    } else {
+        None
+    }
+}
+
 /// System that handles input and emits movement events
 pub fn handle_movement_input(
     selected_query: Query<Entity, With<CharacterSelected>>,
@@ -56,18 +71,19 @@ pub fn handle_movement_input(
     mut move_events: EventWriter<CharacterMoveEvent>,
 ) {
     if let Ok(selected_entity) = selected_query.single() {
-        if input.just_pressed(KeyCode::KeyA) {
-            move_events.write(CharacterMoveEvent::new(selected_entity, MovementDirection::Left));
+        if let Some(direction) = get_movement_direction_from_input(&input) {
+            move_events.write(CharacterMoveEvent::new(selected_entity, direction));
         }
-        if input.just_pressed(KeyCode::KeyS) {
-            move_events.write(CharacterMoveEvent::new(selected_entity, MovementDirection::Down));
-        }
-        if input.just_pressed(KeyCode::KeyD) {
-            move_events.write(CharacterMoveEvent::new(selected_entity, MovementDirection::Right));
-        }
-        if input.just_pressed(KeyCode::KeyW) {
-            move_events.write(CharacterMoveEvent::new(selected_entity, MovementDirection::Up));
-        }
+    }
+}
+
+/// Calculate new position based on movement direction
+fn calculate_new_position(current_x: f32, current_y: f32, direction: MovementDirection) -> (f32, f32) {
+    match direction {
+        MovementDirection::Left => (current_x - TILE_SIZE, current_y),
+        MovementDirection::Down => (current_x, current_y - TILE_SIZE),
+        MovementDirection::Right => (current_x + TILE_SIZE, current_y),
+        MovementDirection::Up => (current_x, current_y + TILE_SIZE),
     }
 }
 
@@ -75,33 +91,28 @@ pub fn handle_movement_input(
 fn process_movement_events(
     mut move_events: EventReader<CharacterMoveEvent>,
     mut character_query: Query<&mut Transform, With<Character>>,
+    #[cfg(debug_assertions)]
     character_info_query: Query<&Character>,
 ) {
     for event in move_events.read() {
         if let Ok(mut transform) = character_query.get_mut(event.entity) {
-            let old_x = transform.translation.x;
-            let old_y = transform.translation.y;
-            let mut new_x = old_x;
-            let mut new_y = old_y;
-
-            match event.direction {
-                MovementDirection::Left => new_x -= TILE_SIZE,
-                MovementDirection::Down => new_y -= TILE_SIZE,
-                MovementDirection::Right => new_x += TILE_SIZE,
-                MovementDirection::Up => new_y += TILE_SIZE,
-            }
-
-            // Clamp position to stay within the 3x3 grid boundaries
+            let (old_x, old_y) = (transform.translation.x, transform.translation.y);
+            let (new_x, new_y) = calculate_new_position(old_x, old_y, event.direction);
+            
+            // Clamp position to stay within grid boundaries
             let (clamped_x, clamped_y) = clamp_to_grid_boundaries(new_x, new_y);
-
-            // Apply the clamped position
+            
+            // Apply the new position
             transform.translation.x = clamped_x;
             transform.translation.y = clamped_y;
             
-            // Debug output
+            // Debug output (only in debug builds)
+            #[cfg(debug_assertions)]
             if let Ok(character) = character_info_query.get(event.entity) {
-                println!("Movement processed for {}: {:?} from ({:.0}, {:.0}) to ({:.0}, {:.0})", 
-                         character.name, event.direction, old_x, old_y, clamped_x, clamped_y);
+                println!(
+                    "Movement processed for {}: {:?} from ({:.0}, {:.0}) to ({:.0}, {:.0})", 
+                    character.name, event.direction, old_x, old_y, clamped_x, clamped_y
+                );
             }
         }
     }

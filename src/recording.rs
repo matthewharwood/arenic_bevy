@@ -31,6 +31,183 @@ fn setup_arena_for_recording(
     }
 }
 
+/// Helper function to start recording for a character
+fn start_character_recording(
+    character_timer: &mut CharacterTimer,
+    recorded_actions: &mut RecordedActions,
+    arena_timer_query: &mut Query<&mut ArenaTimer>,
+    arena_name: &ArenaName,
+    transform: &Transform,
+    timestamp: f64,
+) {
+    character_timer.start_recording();
+    setup_arena_for_recording(arena_timer_query, arena_name);
+
+    let arena_index = arena_name.to_index();
+    let had_previous = recorded_actions.start_recording(arena_index, timestamp);
+
+    if had_previous {
+        println!(
+            "R pressed: Started new recording for arena {} (replaced previous)",
+            arena_name.name()
+        );
+    } else {
+        println!(
+            "R pressed: Started new recording for arena {}",
+            arena_name.name()
+        );
+    }
+
+    recorded_actions.add_action(ActionEvent::Position {
+        x: transform.translation.x,
+        y: transform.translation.y,
+        timestamp,
+    });
+
+    println!(
+        "Started recording for character at position ({}, {})",
+        transform.translation.x, transform.translation.y
+    );
+}
+
+/// Helper function to stop recording for a character
+fn stop_character_recording(
+    character_timer: &mut CharacterTimer,
+    recorded_actions: &mut RecordedActions,
+    arena_timer_query: &mut Query<&mut ArenaTimer>,
+    arena_name: &ArenaName,
+    character_name: &str,
+    timestamp: f64,
+) {
+    character_timer.stop_recording();
+
+    // Set arena status back to Paused
+    if let Some(mut arena_timer) = arena_timer_query
+        .iter_mut()
+        .find(|at| at.arena == *arena_name)
+    {
+        arena_timer.set_status(ArenaStatus::Paused);
+        println!("Arena {} status changed to Paused", arena_name.name());
+    }
+
+    let arena_index = arena_name.to_index();
+    let saved_successfully = recorded_actions.save_current_session(arena_index);
+    let stopped_successfully = recorded_actions.stop_recording(timestamp);
+
+    if stopped_successfully {
+        let total_recorded_arenas = recorded_actions.count_recorded_arenas();
+        if saved_successfully {
+            println!(
+                "Stopped and saved recording in arena {}. Total recorded arenas: {}",
+                arena_name.name(),
+                total_recorded_arenas
+            );
+        } else {
+            println!(
+                "Stopped recording in arena {} (save failed). Total recorded arenas: {}",
+                arena_name.name(),
+                total_recorded_arenas
+            );
+        }
+
+        // Print summary of the just-completed recording
+        if let Some(recording) = recorded_actions.get_saved_recording(arena_index) {
+            print_recording_summary(character_name, arena_name, recording);
+            print_recorded_arenas(recorded_actions);
+        }
+    }
+}
+
+/// Helper function to print recording summary
+fn print_recording_summary(
+    character_name: &str,
+    arena_name: &ArenaName,
+    recording: &crate::components::RecordingSession,
+) {
+    const MAX_ACTIONS_TO_SHOW: usize = 5;
+
+    println!(
+        "Recording for {} in arena {}: {} actions (start: {:.2}s, end: {:.2}s)",
+        character_name,
+        arena_name.name(),
+        recording.actions.len(),
+        recording.session_start_time,
+        recording.session_end_time.unwrap_or(0.0)
+    );
+
+    // Print the first few actions
+    for (i, action) in recording
+        .actions
+        .iter()
+        .take(MAX_ACTIONS_TO_SHOW)
+        .enumerate()
+    {
+        match action {
+            ActionEvent::Position { x, y, timestamp } => {
+                println!("  {}: Position ({}, {}) at t={:.2}s", i, x, y, timestamp);
+            }
+            ActionEvent::Move {
+                direction,
+                timestamp,
+            } => {
+                println!("  {}: Move {:?} at t={:.2}s", i, direction, timestamp);
+            }
+        }
+    }
+
+    if recording.actions.len() > MAX_ACTIONS_TO_SHOW {
+        println!(
+            "  ... {} more actions",
+            recording.actions.len() - MAX_ACTIONS_TO_SHOW
+        );
+    }
+}
+
+/// Helper function to print all recorded arenas
+fn print_recorded_arenas(recorded_actions: &RecordedActions) {
+    let recorded_arenas = recorded_actions.get_recorded_arena_indices();
+    if !recorded_arenas.is_empty() {
+        println!("Character has recordings in arenas: {:?}", recorded_arenas);
+    }
+}
+
+/// Helper function to print preview of playback actions
+fn print_playback_actions_preview(recording: &crate::components::RecordingSession) {
+    const MAX_PLAYBACK_ACTIONS_TO_SHOW: usize = 3;
+
+    for (i, action) in recording
+        .actions
+        .iter()
+        .take(MAX_PLAYBACK_ACTIONS_TO_SHOW)
+        .enumerate()
+    {
+        match action {
+            ActionEvent::Position { x, y, timestamp } => {
+                println!(
+                    "  Action {}: Position ({}, {}) at t={:.2}s (relative: {:.2}s)",
+                    i,
+                    x,
+                    y,
+                    timestamp,
+                    timestamp - recording.session_start_time
+                );
+            }
+            ActionEvent::Move {
+                direction,
+                timestamp,
+            } => {
+                println!(
+                    "  Action {}: Move {:?} at t={:.2}s (relative: {:.2}s)",
+                    i,
+                    direction,
+                    timestamp,
+                    timestamp - recording.session_start_time
+                );
+            }
+        }
+    }
+}
+
 impl Plugin for RecordingPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
@@ -157,120 +334,23 @@ fn handle_recording_toggle(
                 (Ok(mut character_timer), Ok(mut recorded_actions)) => {
                     // Both components exist, handle normal toggle logic
                     if !character_timer.is_recording {
-                        // Start recording
-                        character_timer.start_recording();
-
-                        // Set arena status to Recording and reset the timer
-                        setup_arena_for_recording(&mut arena_timer_query, arena_name);
-
-                        // Start a new recording for this arena and record an initial position
-                        let arena_index = arena_name.to_index();
-                        let had_previous = recorded_actions.start_recording(arena_index, timestamp);
-
-                        if had_previous {
-                            println!(
-                                "R pressed: Started new recording for arena {} (replaced previous)",
-                                arena_name.name()
-                            );
-                        } else {
-                            println!(
-                                "R pressed: Started new recording for arena {}",
-                                arena_name.name()
-                            );
-                        }
-
-                        recorded_actions.add_action(ActionEvent::Position {
-                            x: transform.translation.x,
-                            y: transform.translation.y,
+                        start_character_recording(
+                            &mut character_timer,
+                            &mut recorded_actions,
+                            &mut arena_timer_query,
+                            arena_name,
+                            transform,
                             timestamp,
-                        });
-
-                        println!(
-                            "Started recording for character at position ({}, {})",
-                            transform.translation.x, transform.translation.y
                         );
                     } else {
-                        // Stop recording
-                        character_timer.stop_recording();
-
-                        // Set arena status back to Paused
-                        if let Some(mut arena_timer) = arena_timer_query
-                            .iter_mut()
-                            .find(|at| at.arena == *arena_name)
-                        {
-                            arena_timer.set_status(ArenaStatus::Paused);
-                            println!("Arena {} status changed to Paused", arena_name.name());
-                        }
-
-                        let arena_index = arena_name.to_index();
-
-                        // Save the recording session BEFORE stopping (while still active)
-                        let saved_successfully = recorded_actions.save_current_session(arena_index);
-                        let stopped_successfully = recorded_actions.stop_recording(timestamp);
-
-                        if stopped_successfully {
-                            let total_recorded_arenas = recorded_actions.count_recorded_arenas();
-                            if saved_successfully {
-                                println!(
-                                    "Stopped and saved recording in arena {}. Total recorded arenas: {}",
-                                    arena_name.name(),
-                                    total_recorded_arenas
-                                );
-                            } else {
-                                println!(
-                                    "Stopped recording in arena {} (save failed). Total recorded arenas: {}",
-                                    arena_name.name(),
-                                    total_recorded_arenas
-                                );
-                            }
-
-                            // Print summary of the just-completed recording (now saved)
-                            if let Some(recording) =
-                                recorded_actions.get_saved_recording(arena_index)
-                            {
-                                println!(
-                                    "Recording for {} in arena {}: {} actions (start: {:.2}s, end: {:.2}s)",
-                                    character.name,
-                                    arena_name.name(),
-                                    recording.actions.len(),
-                                    recording.session_start_time,
-                                    recording.session_end_time.unwrap_or(0.0)
-                                );
-
-                                // Print the first few actions
-                                for (i, action) in recording.actions.iter().take(5).enumerate() {
-                                    match action {
-                                        ActionEvent::Position { x, y, timestamp } => {
-                                            println!(
-                                                "  {}: Position ({}, {}) at t={:.2}s",
-                                                i, x, y, timestamp
-                                            );
-                                        }
-                                        ActionEvent::Move {
-                                            direction,
-                                            timestamp,
-                                        } => {
-                                            println!(
-                                                "  {}: Move {:?} at t={:.2}s",
-                                                i, direction, timestamp
-                                            );
-                                        }
-                                    }
-                                }
-                                if recording.actions.len() > 5 {
-                                    println!("  ... {} more actions", recording.actions.len() - 5);
-                                }
-                            }
-
-                            // Print all arenas with recordings
-                            let recorded_arenas = recorded_actions.get_recorded_arena_indices();
-                            if !recorded_arenas.is_empty() {
-                                println!(
-                                    "Character has recordings in arenas: {:?}",
-                                    recorded_arenas
-                                );
-                            }
-                        }
+                        stop_character_recording(
+                            &mut character_timer,
+                            &mut recorded_actions,
+                            &mut arena_timer_query,
+                            arena_name,
+                            &character.name,
+                            timestamp,
+                        );
                     }
                 }
                 _ => {
@@ -279,41 +359,23 @@ fn handle_recording_toggle(
                         "Adding recording components and starting first recording for character"
                     );
 
-                    // Create new components
                     let mut new_timer = CharacterTimer::new();
                     let mut new_actions = RecordedActions::default();
 
-                    // Start recording immediately
-                    new_timer.start_recording();
-
-                    // Set arena status to Recording and reset the timer
-                    setup_arena_for_recording(&mut arena_timer_query, arena_name);
-
-                    // Start a new recording for this arena and record an initial position
-                    let arena_index = arena_name.to_index();
-                    let _had_previous = new_actions.start_recording(arena_index, timestamp);
-
-                    println!(
-                        "R pressed: Started first recording for arena {}",
-                        arena_name.name()
-                    );
-
-                    new_actions.add_action(ActionEvent::Position {
-                        x: transform.translation.x,
-                        y: transform.translation.y,
+                    start_character_recording(
+                        &mut new_timer,
+                        &mut new_actions,
+                        &mut arena_timer_query,
+                        arena_name,
+                        transform,
                         timestamp,
-                    });
+                    );
 
                     // Insert components into the entity
                     commands
                         .entity(selected_entity)
                         .insert(new_timer)
                         .insert(new_actions);
-
-                    println!(
-                        "Started first recording for character at position ({}, {})",
-                        transform.translation.x, transform.translation.y
-                    );
                 }
             }
         }
@@ -472,34 +534,7 @@ fn start_playback_for_arena(
                                 );
 
                                 // Debug: show first few actions
-                                for (i, action) in
-                                    saved_recording.actions.iter().take(3).enumerate()
-                                {
-                                    match action {
-                                        ActionEvent::Position { x, y, timestamp } => {
-                                            println!(
-                                                "  Action {}: Position ({}, {}) at t={:.2}s (relative: {:.2}s)",
-                                                i,
-                                                x,
-                                                y,
-                                                timestamp,
-                                                timestamp - saved_recording.session_start_time
-                                            );
-                                        }
-                                        ActionEvent::Move {
-                                            direction,
-                                            timestamp,
-                                        } => {
-                                            println!(
-                                                "  Action {}: Move {:?} at t={:.2}s (relative: {:.2}s)",
-                                                i,
-                                                direction,
-                                                timestamp,
-                                                timestamp - saved_recording.session_start_time
-                                            );
-                                        }
-                                    }
-                                }
+                                print_playback_actions_preview(saved_recording);
                             }
                         } else {
                             println!(
