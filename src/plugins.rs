@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use crate::{
-    setup, spawn_player_selected, spawn_top_nav_bar, spawn_side_nav_bars, spawn_bottom_nav_bar,
+    setup, spawn_player_selected,
     handle_arena_navigation_keys, update_camera_on_arena_change, handle_zoom_toggle, draw_arena_gizmo,
     move_selected_player, cycle_selected_character, update_character_sprites,
     update_character_arena_markers, sync_current_arena_with_selected_character,
@@ -59,18 +59,3 @@ impl Plugin for CharacterPlugin {
     }
 }
 
-/// Plugin responsible for UI elements including navigation bars.
-pub struct UIPlugin;
-
-impl Plugin for UIPlugin {
-    fn build(&self, app: &mut App) {
-        app.add_systems(
-            Startup,
-            (
-                spawn_top_nav_bar,
-                spawn_side_nav_bars,
-                spawn_bottom_nav_bar,
-            ),
-        );
-    }
-}

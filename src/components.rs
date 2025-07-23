@@ -127,16 +127,4 @@ impl From<ArenaName> for u8 {
     }
 }
 
-// UI component markers
-/// Marker component for the top navigation bar
-#[derive(Component, Debug)]
-pub struct TopNavBar;
-
-/// Marker component for side navigation bars
-#[derive(Component, Debug)]
-pub struct SideNavBar;
-
-/// Marker component for the bottom navigation bar
-#[derive(Component, Debug)]
-pub struct BottomNavBar;
 
