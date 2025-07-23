@@ -94,7 +94,7 @@ pub const ARENA_HEIGHT: f32 = GRID_HEIGHT as f32 * TILE_SIZE;
 
 pub const CAMERA_PADDING_X: f32 = -22.0;
 pub const CAMERA_PADDING_Y: f32 = 36.0;
-pub const SIDEBAR_WIDTH: f32 = 12.0;
+pub const SIDEBAR_WIDTH: f32 = 13.5;
 
 // Helper function to calculate camera position to center on arena
 fn calculate_camera_position(arena_index: u8) -> (f32, f32) {
@@ -102,8 +102,8 @@ fn calculate_camera_position(arena_index: u8) -> (f32, f32) {
     let arena_row = arena_index / 3;
 
     // Calculate arena top-left corner (matching setup positioning)
-    let arena_x = -13.5 + (arena_col as f32 * ARENA_WIDTH);
-    let arena_y = 36.0 - (arena_row as f32 * ARENA_HEIGHT);
+    let arena_x = -SIDEBAR_WIDTH + (arena_col as f32 * ARENA_WIDTH);
+    let arena_y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
 
     // Calculate arena center by adding half arena dimensions
     let center_x = arena_x;
@@ -117,15 +117,15 @@ fn calculate_camera_position(arena_index: u8) -> (f32, f32) {
 fn calculate_character_position(arena_index: u8, tile_x: usize, tile_y: usize) -> (f32, f32) {
     let arena_col = arena_index % 3;
     let arena_row = arena_index / 3;
-    
+
     // Calculate arena top-left corner (matching setup positioning)
     let arena_x = -HALF_WINDOW_WIDTH + HALF_TILE_SIZE + (arena_col as f32 * ARENA_WIDTH);
     let arena_y = HALF_WINDOW_HEIGHT - HALF_TILE_SIZE - (arena_row as f32 * ARENA_HEIGHT);
-    
+
     // Calculate character position within the arena
     let char_x = arena_x + (tile_x as f32 * TILE_SIZE);
     let char_y = arena_y - (tile_y as f32 * TILE_SIZE);
-    
+
     (char_x, char_y)
 }
 
