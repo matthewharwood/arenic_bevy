@@ -5,73 +5,48 @@
 
 use bevy::prelude::*;
 use std::fmt::{self, Display};
+use crate::const_grid::StandardArenaIndex;
 
-/// Trait for types that support cyclic navigation (wrapping around at boundaries)
-pub trait CyclicNavigation: Sized + Copy {
-    /// The underlying value type (must support arithmetic and conversion)
-    type Value: Into<usize> + TryFrom<usize> + Copy + PartialOrd;
-    
-    /// Get the current value
-    fn current_value(&self) -> Self::Value;
-    /// Create an instance with the given value
-    fn with_value(value: Self::Value) -> Self;
-    /// Get the maximum value for the cycle
-    fn max_value() -> Self::Value;
-    
-    /// Move to the next item cyclically
-    fn increment(&self) -> Self {
-        let current: usize = self.current_value().into();
-        let max: usize = Self::max_value().into();
-        let next = (current + 1) % max;
-        
-        Self::with_value(
-            Self::Value::try_from(next)
-                .unwrap_or_else(|_| panic!("Failed to convert {} to value type", next))
-        )
-    }
-    
-    /// Move to the previous item cyclically  
-    fn decrement(&self) -> Self {
-        let current: usize = self.current_value().into();
-        let max: usize = Self::max_value().into();
-        let prev = if current == 0 { max - 1 } else { current - 1 };
-        
-        Self::with_value(
-            Self::Value::try_from(prev)
-                .unwrap_or_else(|_| panic!("Failed to convert {} to value type", prev))
-        )
-    }
+
+/// Tracks the currently active arena with const generic type safety
+#[derive(Component, Debug, Copy, Clone)]
+pub struct CurrentArena<const TOTAL_ARENAS: usize = 9> {
+    arena: StandardArenaIndex,
 }
 
-/// Tracks the currently active arena (0-8)
-#[derive(Component, Debug, Copy, Clone)]
-pub struct CurrentArena(pub u8);
-
-impl CyclicNavigation for CurrentArena {
-    type Value = u8;
-    
-    fn current_value(&self) -> Self::Value {
-        self.0
+impl<const TOTAL_ARENAS: usize> CurrentArena<TOTAL_ARENAS> {
+    /// Create CurrentArena without bounds checking (when index is guaranteed valid)
+    pub const fn new_unchecked(index: usize) -> Self {
+        Self { 
+            arena: StandardArenaIndex::new_unchecked(index) 
+        }
     }
     
-    fn with_value(value: Self::Value) -> Self {
-        CurrentArena(value)
+    /// Get the arena index as u8 for legacy compatibility
+    pub const fn get_index_u8(self) -> u8 {
+        self.arena.get() as u8
     }
     
-    fn max_value() -> Self::Value {
-        9
+    /// Navigate to next arena with compile-time bounds checking
+    pub const fn next(self) -> Self {
+        Self { arena: self.arena.next() }
+    }
+    
+    /// Navigate to previous arena with compile-time bounds checking
+    pub const fn prev(self) -> Self {
+        Self { arena: self.arena.prev() }
     }
 }
 
 impl CurrentArena {
-    /// Increment arena index cyclically (0-8) - legacy method for compatibility
-    pub fn increment(value: u8) -> u8 {
-        (value + 1) % 9
+    /// Mutable increment using const generic navigation
+    pub fn increment_mut(&mut self) {
+        *self = self.next();
     }
-
-    /// Decrement arena index cyclically (0-8) - legacy method for compatibility
-    pub fn decrement(value: u8) -> u8 {
-        if value == 0 { 8 } else { value - 1 }
+    
+    /// Mutable decrement using const generic navigation
+    pub fn decrement_mut(&mut self) {
+        *self = self.prev();
     }
 }
 

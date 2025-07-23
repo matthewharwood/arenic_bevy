@@ -9,8 +9,6 @@ use crate::config::{arena::*, display::*};
 #[derive(Debug, Clone, Copy)]
 pub struct ArenaPosition {
     pub index: usize,
-    pub x_offset: f32,
-    pub y_offset: f32,
     pub world_x: f32,
     pub world_y: f32,
 }
@@ -33,8 +31,6 @@ pub gen fn arena_positions() -> ArenaPosition {
 
         yield ArenaPosition {
             index: arena_index,
-            x_offset,
-            y_offset,
             world_x,
             world_y,
         };
@@ -44,8 +40,6 @@ pub gen fn arena_positions() -> ArenaPosition {
 /// Grid tile position information
 #[derive(Debug, Clone, Copy)]
 pub struct TilePosition {
-    pub row: usize,
-    pub col: usize,
     pub world_x: f32,
     pub world_y: f32,
 }
@@ -58,8 +52,6 @@ pub gen fn arena_tile_positions() -> TilePosition {
             let world_y = -(row as f32 * TILE_SIZE);
 
             yield TilePosition {
-                row,
-                col,
                 world_x,
                 world_y,
             };

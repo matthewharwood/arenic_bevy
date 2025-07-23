@@ -6,7 +6,8 @@
 use bevy::prelude::*;
 use crate::{
     components::CurrentArena,
-    config::{arena::*, camera::*, display::*},
+    config::display::*,
+    const_camera::TypedCameraBundle,
     generators::{arena_positions, arena_tile_positions},
 };
 
@@ -19,30 +20,23 @@ impl Plugin for InitializationPlugin {
     }
 }
 
-/// Sets up the game camera with proper positioning and projection
+/// Sets up the game camera using const generic type-safe camera bundle
 fn setup_camera(mut commands: Commands) {
-    let (camera_x, camera_y) = crate::utils::calculate_camera_position(1);
-    commands
-        .spawn(Camera2d)
-        .insert(Transform::from_xyz(camera_x, camera_y, 0.0))
-        .insert(Projection::Orthographic(OrthographicProjection {
-            near: -1000.0,
-            scale: SCALE_NORMAL,
-            far: 1000.0,
-            viewport_origin: Vec2::new(0.5, 0.5),
-            area: Rect::new(-1.0, -1.0, 1.0, 1.0),
-            scaling_mode: Default::default(),
-        }));
+    // Use const generic typed camera bundle for arena 1 (starting position)
+    commands.spawn(TypedCameraBundle::normal_for_arena(1));
 }
 
 /// Sets up all arenas in the 3x3 grid using generators
 fn setup_arenas(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Use Rust 2024 generator for cleaner arena setup
     for arena_pos in arena_positions() {
-        let mut arena = commands.spawn(Transform::from_xyz(
-            arena_pos.world_x,
-            arena_pos.world_y,
-            0.0,
+        let mut arena = commands.spawn((
+            Transform::from_xyz(
+                arena_pos.world_x,
+                arena_pos.world_y,
+                0.0,
+            ),
+            Visibility::default(),
         ));
         
         let image_path = format!("Grid_{}.png", arena_pos.index);
@@ -67,7 +61,8 @@ fn setup_arenas(mut commands: Commands, asset_server: Res<AssetServer>) {
     }
 }
 
-/// Sets up initial game state
+/// Sets up initial game state using const generic type-safe arena
 fn setup_initial_state(mut commands: Commands) {
-    commands.spawn(CurrentArena(1));
+    // Use const generic CurrentArena with explicit type parameter
+    commands.spawn(CurrentArena::<9>::new_unchecked(1));
 }

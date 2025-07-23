@@ -20,27 +20,19 @@ pub struct CameraAnimation {
     pub progress: f32,
     /// Total duration of the animation in seconds
     pub duration: f32,
-    /// Whether this is a zoom transition (affects Y offset)
-    pub is_zoom_transition: bool,
-    /// The arena index this animation is targeting
-    pub target_arena: u8,
 }
 
 impl CameraAnimation {
     /// Create a new camera animation from current position to target
     pub fn new(
         start_position: Vec3, 
-        target_position: Vec3, 
-        target_arena: u8,
-        is_zoom_transition: bool
+        target_position: Vec3
     ) -> Self {
         Self {
             start_position,
             target_position,
             progress: 0.0,
             duration: CAMERA_TRANSITION_DURATION,
-            is_zoom_transition,
-            target_arena,
         }
     }
 
@@ -115,7 +107,7 @@ pub fn animate_camera_on_arena_change(
             }
             
             // Only animate when zoomed in (normal scale)
-            let (target_x, target_y) = crate::utils::calculate_camera_position(current_arena.0);
+            let (target_x, target_y) = crate::utils::calculate_camera_position(current_arena.get_index_u8());
             let target_position = Vec3::new(target_x, target_y, transform.translation.z);
 
             // Only animate if the target position is different from current position
@@ -127,8 +119,6 @@ pub fn animate_camera_on_arena_change(
                 let animation = CameraAnimation::new(
                     current_pos,
                     target_position,
-                    current_arena.0,
-                    false, // This is not a zoom transition
                 );
                 
                 commands.entity(entity).insert(animation);
@@ -161,7 +151,7 @@ pub fn animate_zoom_transitions(
                     // Zooming in - return to current arena position
                     ortho.scale = SCALE_NORMAL;
                     if let Ok(arena) = arena_query.single() {
-                        let (camera_x, camera_y) = crate::utils::calculate_camera_position(arena.0);
+                        let (camera_x, camera_y) = crate::utils::calculate_camera_position(arena.get_index_u8());
                         Vec3::new(camera_x, camera_y, current_pos.z)
                     } else {
                         // Fallback to arena 1 if no current arena found
@@ -174,8 +164,6 @@ pub fn animate_zoom_transitions(
                 let animation = CameraAnimation::new(
                     current_pos,
                     target_position,
-                    4, // Zoom out always goes to arena 4
-                    true, // This is a zoom transition
                 );
                 
                 commands.entity(entity).insert(animation);

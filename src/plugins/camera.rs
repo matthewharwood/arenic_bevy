@@ -4,11 +4,7 @@
 //! zoom, and animations.
 
 use bevy::prelude::*;
-use crate::{
-    animation::{update_camera_animations, animate_camera_on_arena_change, animate_zoom_transitions},
-    components::CurrentArena,
-    config::{arena::*, camera::*, display::*},
-};
+use crate::animation::{update_camera_animations, animate_camera_on_arena_change, animate_zoom_transitions};
 
 /// Plugin responsible for camera management and animations
 pub struct CameraPlugin;

@@ -10,6 +10,8 @@ mod animation;
 mod bundles;
 mod components;
 mod config;
+mod const_camera;
+mod const_grid;
 mod generators;
 mod input;
 mod plugins;
@@ -17,7 +19,7 @@ mod ui;
 mod utils;
 
 // Re-exports for convenience
-use config::display::{WINDOW_WIDTH, WINDOW_HEIGHT};
+use config::display::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use plugins::{ArenaPlugin, CameraPlugin, CharacterPlugin, InitializationPlugin, InputPlugin};
 use ui::UIPlugin;
 

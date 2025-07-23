@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use crate::{
-    components::{ArenaName, Character, CharacterSelected, CurrentArena, CyclicNavigation},
+    components::{ArenaName, Character, CharacterSelected, CurrentArena},
     config::{arena::*, camera::*, display::*},
     plugins::input::ArenaActionEvent,
 };
@@ -29,7 +29,7 @@ impl Plugin for ArenaPlugin {
     }
 }
 
-/// System that handles arena navigation events
+/// System that handles arena navigation events using const generic navigation
 fn handle_arena_navigation_events(
     mut arena_events: EventReader<ArenaActionEvent>,
     mut arena_query: Query<&mut CurrentArena>,
@@ -38,12 +38,14 @@ fn handle_arena_navigation_events(
         match event {
             ArenaActionEvent::NextArena => {
                 for mut arena in &mut arena_query {
-                    *arena = arena.increment();
+                    // Use const generic type-safe navigation
+                    arena.increment_mut();
                 }
             }
             ArenaActionEvent::PreviousArena => {
                 for mut arena in &mut arena_query {
-                    *arena = arena.decrement();
+                    // Use const generic type-safe navigation
+                    arena.decrement_mut();
                 }
             }
             ArenaActionEvent::ToggleZoom => {
@@ -62,8 +64,8 @@ fn draw_arena_gizmo(
     for projection in &camera_query {
         if matches!(projection, Projection::Orthographic(ortho) if ortho.scale == SCALE_ZOOMED_OUT) {
             for arena in &arena_query {
-                let arena_col = arena.0 % 3;
-                let arena_row = arena.0 / 3;
+                let arena_col = arena.get_index_u8() % 3;
+                let arena_row = arena.get_index_u8() / 3;
 
                 let arena_center_x =
                     -HALF_WINDOW_WIDTH + (arena_col as f32 * ARENA_WIDTH) + ARENA_WIDTH / 2.0;
@@ -125,7 +127,7 @@ fn sync_current_arena_with_selected_character(
 ) {
     if let Ok(arena_name) = selected_character_query.single() {
         for mut current_arena in &mut arena_query {
-            current_arena.0 = arena_name.to_index();
+            *current_arena = CurrentArena::<9>::new_unchecked(arena_name.to_index() as usize);
             println!(
                 "CurrentArena updated to: {} (index: {})",
                 arena_name.name(),
@@ -143,7 +145,7 @@ fn ensure_character_selected_in_current_arena(
     all_characters_query: Query<(Entity, &ArenaName), With<Character>>,
 ) {
     if let Ok(current_arena) = current_arena_query.single() {
-        let target_arena = ArenaName::from_index(current_arena.0);
+        let target_arena = ArenaName::from_index(current_arena.get_index_u8());
 
         // Check if there's already a selected character in the current arena
         let has_selected_in_arena = selected_character_query
