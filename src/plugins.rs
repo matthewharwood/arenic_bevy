@@ -6,10 +6,11 @@
 use bevy::prelude::*;
 use crate::{
     setup, spawn_player_selected,
-    handle_arena_navigation_keys, update_camera_on_arena_change, handle_zoom_toggle, draw_arena_gizmo,
+    handle_arena_navigation_keys, draw_arena_gizmo,
     move_selected_player, cycle_selected_character, update_character_sprites,
     update_character_arena_markers, sync_current_arena_with_selected_character,
     ensure_character_selected_in_current_arena, debug_character_arena_changes,
+    animation::{update_camera_animations, animate_camera_on_arena_change, animate_zoom_transitions},
 };
 
 /// Plugin responsible for arena-related functionality including navigation,
@@ -26,8 +27,9 @@ impl Plugin for ArenaPlugin {
             Update,
             (
                 handle_arena_navigation_keys,
-                update_camera_on_arena_change,
-                handle_zoom_toggle,
+                update_camera_animations,
+                animate_camera_on_arena_change,
+                animate_zoom_transitions,
                 draw_arena_gizmo,
             ),
         );

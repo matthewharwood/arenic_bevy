@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
 // Module declarations
+mod animation;
 mod bundles;
 mod components;
 mod config;
@@ -113,52 +114,6 @@ fn handle_arena_navigation_keys(
     }
 }
 
-fn update_camera_on_arena_change(
-    arena_query: Query<&CurrentArena, Changed<CurrentArena>>,
-    mut camera_query: Query<(&mut Transform, &Projection), With<Camera>>,
-) {
-    if let Ok(current_arena) = arena_query.single() {
-        let (camera_x, camera_y) = calculate_camera_position(current_arena.0);
-
-        for (mut transform, projection) in &mut camera_query {
-            // Only move camera if not zoomed out (scale 1.0)
-            if let Projection::Orthographic(ortho) = projection {
-                if ortho.scale == SCALE_NORMAL {
-                    transform.translation.x = camera_x;
-                    transform.translation.y = camera_y;
-                }
-            }
-        }
-    }
-}
-
-fn handle_zoom_toggle(
-    arena_query: Query<&CurrentArena>,
-    mut camera_query: Query<(&mut Transform, &mut Projection), With<Camera>>,
-    input: Res<ButtonInput<KeyCode>>,
-) {
-    if input.just_pressed(KeyCode::KeyP) {
-        for (mut transform, mut projection) in &mut camera_query {
-            if let Projection::Orthographic(ortho) = &mut *projection {
-                if ortho.scale == SCALE_NORMAL {
-                    ortho.scale = SCALE_ZOOMED_OUT;
-                    // Center on arena index 4 for zoom out and move down by TILE_SIZE * 3
-                    let (camera_x, camera_y) = calculate_camera_position(4);
-                    transform.translation.x = camera_x;
-                    transform.translation.y = camera_y - (TILE_SIZE * ZOOM_OUT_Y_OFFSET_TILES);
-                } else {
-                    ortho.scale = SCALE_NORMAL;
-                    // Return to current arena position (without Y offset)
-                    for arena in &arena_query {
-                        let (camera_x, camera_y) = calculate_camera_position(arena.0);
-                        transform.translation.x = camera_x;
-                        transform.translation.y = camera_y;
-                    }
-                }
-            }
-        }
-    }
-}
 
 fn draw_arena_gizmo(
     mut gizmos: Gizmos,
