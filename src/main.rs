@@ -2,14 +2,14 @@ use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
 // Module declarations
+mod bundles;
 mod components;
 mod config;
 mod utils;
-mod bundles;
 
 // Re-exports for convenience
 use components::*;
-use config::{display::*, arena::*, ui::*, assets::*};
+use config::{arena::*, assets::*, display::*, ui::*};
 use utils::*;
 
 fn main() {
@@ -52,8 +52,6 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let arena_col_x = 0 % 3;
-    let arena_row_x = 2 / 3;
     commands.spawn(CurrentArena(1));
     let (camera_x, camera_y) = calculate_camera_position(1);
     commands
@@ -110,7 +108,7 @@ fn handle_arena_navigation_keys(
     input: Res<ButtonInput<KeyCode>>,
 ) {
     // Check if camera is at scale 3.0
-    let is_zoomed_out = camera_query.iter().any(|projection| {
+    let _is_zoomed_out = camera_query.iter().any(|projection| {
         if let Projection::Orthographic(ortho) = projection {
             ortho.scale == 3.0
         } else {
@@ -219,11 +217,15 @@ fn draw_arena_gizmo(
 }
 
 fn spawn_player_selected(mut commands: Commands, asset_server: Res<AssetServer>) {
-    use crate::bundles::{SelectedCharacterBundle, CharacterBundle};
-    
+    use crate::bundles::{CharacterBundle, SelectedCharacterBundle};
+
     // Spawn first character at tile position (33, 15) in arena 1 (center of the arena)
     let (char1_x, char1_y) = calculate_character_position(1, 33, 15);
-    commands.spawn(SelectedCharacterBundle::new(&asset_server, char1_x, char1_y));
+    commands.spawn(SelectedCharacterBundle::new(
+        &asset_server,
+        char1_x,
+        char1_y,
+    ));
 
     // Spawn second character at tile position (30, 15) in arena 1 (3 tiles to the left)
     let (char2_x, char2_y) = calculate_character_position(1, 30, 15);
@@ -237,7 +239,7 @@ fn move_selected_player(
     for mut transform in &mut player_query {
         let mut new_x = transform.translation.x;
         let mut new_y = transform.translation.y;
-        
+
         if input.just_pressed(KeyCode::KeyA) {
             // Move left
             new_x -= TILE_SIZE;
@@ -254,10 +256,10 @@ fn move_selected_player(
             // Move up
             new_y += TILE_SIZE;
         }
-        
+
         // Clamp position to stay within the 3x3 grid boundaries
         let (clamped_x, clamped_y) = clamp_to_grid_boundaries(new_x, new_y);
-        
+
         // Apply the clamped position
         transform.translation.x = clamped_x;
         transform.translation.y = clamped_y;

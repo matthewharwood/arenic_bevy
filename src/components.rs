@@ -97,6 +97,3 @@ pub struct SideNavBar;
 #[derive(Component, Debug)]
 pub struct BottomNavBar;
 
-/// Marker component for arena gizmos (debugging visuals)
-#[derive(Component, Debug)]
-pub struct ArenaGizmo;

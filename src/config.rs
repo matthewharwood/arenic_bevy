@@ -40,20 +40,10 @@ pub mod arena {
     /// Total height of a single arena in pixels
     pub const ARENA_HEIGHT: f32 = GRID_HEIGHT as f32 * TILE_SIZE;
     
-    /// Number of arenas in the grid (3x3)
-    pub const TOTAL_ARENAS: u8 = 9;
-    
-    /// Number of arena columns in the grid
-    pub const ARENA_COLUMNS: u8 = 3;
-    
-    /// Number of arena rows in the grid
-    pub const ARENA_ROWS: u8 = 3;
 }
 
 /// Camera and UI positioning constants
 pub mod ui {
-    /// Camera horizontal padding
-    pub const CAMERA_PADDING_X: f32 = -22.0;
     
     /// Camera vertical padding
     pub const CAMERA_PADDING_Y: f32 = 36.0;
@@ -70,6 +60,4 @@ pub mod assets {
     /// Unselected player sprite asset path
     pub const PLAYER_UNSELECTED: &str = "player_unselected.png";
     
-    /// Format string for arena grid assets
-    pub const ARENA_GRID_FORMAT: &str = "Grid_{}.png";
 }
