@@ -13,6 +13,15 @@ pub struct CharacterSelected;
 #[derive(Component)]
 pub struct Character;
 
+#[derive(Component)]
+pub struct TopNavBar;
+
+#[derive(Component)]
+pub struct SideNavBar;
+
+#[derive(Component)]
+pub struct BottomNavBar;
+
 // Arena name enum and component
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArenaName {
@@ -96,7 +105,16 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Startup, (setup, spawn_player_selected))
+        .add_systems(
+            Startup,
+            (
+                setup,
+                spawn_player_selected,
+                spawn_top_nav_bar,
+                spawn_side_nav_bars,
+                spawn_bottom_nav_bar,
+            ),
+        )
         .add_systems(
             Update,
             (
@@ -228,14 +246,15 @@ fn handle_zoom_toggle(
             if let Projection::Orthographic(ortho) = &mut *projection {
                 if ortho.scale == 1.0 {
                     ortho.scale = 3.0;
-                    // Center on arena index 4 for zoom out
+                    // Center on arena index 4 for zoom out and move down by TILE_SIZE * 3
                     let arena_col = 4 % 3;
                     let arena_row = 4 / 3;
                     transform.translation.x = CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
-                    transform.translation.y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
+                    transform.translation.y =
+                        CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT) - (TILE_SIZE * 3.0);
                 } else {
                     ortho.scale = 1.0;
-                    // Return to current arena position
+                    // Return to current arena position (without Y offset)
                     for arena in &arena_query {
                         let arena_col = arena.0 % 3;
                         let arena_row = arena.0 / 3;
@@ -272,27 +291,19 @@ fn draw_arena_gizmo(
 
                     let border_thickness = 10.0; // Desired total border thickness
                     let border_color = Color::BLACK; // Your desired border color
-                    let inner_color = Color::WHITE; // The color inside the border, matching your arena background
 
-                    // Draw the border using a loop
+                    // Draw the border using a loop, building inwardly
                     for i in 0..border_thickness as u32 {
                         let current_thickness_offset = i as f32;
                         gizmos.rect_2d(
                             arena_center,
                             Vec2::new(
-                                ARENA_WIDTH + current_thickness_offset * 2.0,
-                                ARENA_HEIGHT + current_thickness_offset * 2.0,
+                                ARENA_WIDTH - current_thickness_offset * 2.0,
+                                ARENA_HEIGHT - current_thickness_offset * 2.0,
                             ),
                             border_color,
                         );
                     }
-
-                    // Draw the innermost rectangle to fill the center with the arena's background color
-                    gizmos.rect_2d(
-                        arena_center,
-                        Vec2::new(ARENA_WIDTH, ARENA_HEIGHT),
-                        inner_color,
-                    );
                 }
             }
         }
@@ -473,31 +484,99 @@ fn ensure_character_selected_in_current_arena(
 ) {
     if let Ok(current_arena) = current_arena_query.get_single() {
         let target_arena = ArenaName::from_index(current_arena.0);
-        
+
         // Check if there's already a selected character in the current arena
         let has_selected_in_arena = selected_character_query
             .get_single()
             .map(|arena_name| *arena_name == target_arena)
             .unwrap_or(false);
-        
+
         if !has_selected_in_arena {
             // Find the first character in the target arena
             let first_character_in_arena = all_characters_query
                 .iter()
                 .find(|(_, arena_name)| **arena_name == target_arena)
                 .map(|(entity, _)| entity);
-            
+
             if let Some(character_entity) = first_character_in_arena {
                 // Remove CharacterSelected from all characters first
                 for (entity, _) in all_characters_query.iter() {
                     commands.entity(entity).remove::<CharacterSelected>();
                 }
-                
+
                 // Add CharacterSelected to the found character
                 commands.entity(character_entity).insert(CharacterSelected);
-                
+
                 println!("Auto-selected character in arena: {}", target_arena.name());
             }
         }
     }
+}
+
+fn spawn_top_nav_bar(mut commands: Commands) {
+    // Calculate the navigation bar height based on CAMERA_PADDING_Y + 1 pixel
+    let nav_bar_height = CAMERA_PADDING_Y.abs() + 1.0;
+
+    commands
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(0.0),
+            left: Val::Px(0.0),
+            width: Val::Percent(100.0),
+            height: Val::Px(nav_bar_height),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        })
+        .insert(BackgroundColor(Color::WHITE))
+        .insert(TopNavBar);
+}
+
+fn spawn_side_nav_bars(mut commands: Commands) {
+    // Calculate the sidebar width based on CAMERA_PADDING_Y + 1 pixel
+    let sidebar_width = CAMERA_PADDING_Y.abs();
+
+    // Spawn left sidebar
+    commands
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(0.0),
+            left: Val::Px(0.0),
+            width: Val::Px(sidebar_width),
+            height: Val::Percent(100.0),
+            ..default()
+        })
+        .insert(BackgroundColor(Color::WHITE.with_alpha(0.5)))
+        .insert(SideNavBar);
+
+    // Spawn right sidebar
+    commands
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(0.0),
+            right: Val::Px(0.0),
+            width: Val::Px(sidebar_width),
+            height: Val::Percent(100.0),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        })
+        .insert(BackgroundColor(Color::WHITE.with_alpha(0.5)))
+        .insert(SideNavBar);
+}
+
+fn spawn_bottom_nav_bar(mut commands: Commands) {
+    // Calculate the bottom navigation bar height based on TILE_SIZE * 5
+    let nav_bar_height = TILE_SIZE * 5.0;
+
+    commands
+        .spawn(Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(0.0),
+            left: Val::Px(0.0),
+            width: Val::Percent(100.0),
+            height: Val::Px(nav_bar_height),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        })
+        .insert(BackgroundColor(Color::WHITE.with_alpha(0.5)))
+        .insert(BottomNavBar);
 }
