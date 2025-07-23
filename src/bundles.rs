@@ -7,6 +7,15 @@ use bevy::prelude::*;
 use crate::components::{Character, CharacterSelected};
 use crate::config::{display::TILE_SIZE, assets};
 
+/// Trait for types that can be spawned at specific positions
+pub trait Spawnable {
+    /// The bundle type this spawner creates
+    type Bundle: Bundle;
+    
+    /// Create a bundle at the specified world position
+    fn spawn_at(asset_server: &AssetServer, x: f32, y: f32) -> Self::Bundle;
+}
+
 /// Bundle for spawning a game character
 #[derive(Bundle)]
 pub struct CharacterBundle {
@@ -58,5 +67,27 @@ impl SelectedCharacterBundle {
             character: Character,
             selected: CharacterSelected,
         }
+    }
+}
+
+/// Spawner for regular character bundles
+pub struct CharacterSpawner;
+
+impl Spawnable for CharacterSpawner {
+    type Bundle = CharacterBundle;
+    
+    fn spawn_at(asset_server: &AssetServer, x: f32, y: f32) -> Self::Bundle {
+        CharacterBundle::new(asset_server, x, y, false)
+    }
+}
+
+/// Spawner for selected character bundles
+pub struct SelectedCharacterSpawner;
+
+impl Spawnable for SelectedCharacterSpawner {
+    type Bundle = SelectedCharacterBundle;
+    
+    fn spawn_at(asset_server: &AssetServer, x: f32, y: f32) -> Self::Bundle {
+        SelectedCharacterBundle::new(asset_server, x, y)
     }
 }

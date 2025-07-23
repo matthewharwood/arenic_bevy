@@ -5,50 +5,32 @@ use bevy::window::WindowResolution;
 mod bundles;
 mod components;
 mod config;
+mod input;
+mod plugins;
 mod utils;
 
 // Re-exports for convenience
 use bundles::{CharacterBundle, SelectedCharacterBundle};
 use components::*;
 use config::{arena::*, assets::*, camera::*, display::*, ui::*};
+use plugins::{ArenaPlugin, CharacterPlugin, UIPlugin};
 use utils::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Arenic".to_string(),
-                resolution: WindowResolution::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Arenic".to_string(),
+                    resolution: WindowResolution::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
-        .add_systems(
-            Startup,
-            (
-                setup,
-                spawn_player_selected,
-                spawn_top_nav_bar,
-                spawn_side_nav_bars,
-                spawn_bottom_nav_bar,
-            ),
-        )
-        .add_systems(
-            Update,
-            (
-                handle_arena_navigation_keys,
-                update_camera_on_arena_change,
-                handle_zoom_toggle,
-                draw_arena_gizmo,
-                move_selected_player,
-                cycle_selected_character,
-                update_character_sprites,
-                update_character_arena_markers,
-                sync_current_arena_with_selected_character,
-                ensure_character_selected_in_current_arena,
-                debug_character_arena_changes,
-            ),
-        )
+            ArenaPlugin,
+            CharacterPlugin,
+            UIPlugin,
+        ))
         .run();
 }
 

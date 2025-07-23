@@ -4,18 +4,43 @@
 //! Components represent data that can be attached to entities.
 
 use bevy::prelude::*;
+use std::fmt::{self, Display};
+
+/// Trait for types that support cyclic navigation (wrapping around at boundaries)
+pub trait CyclicNavigation {
+    /// Move to the next item cyclically
+    fn increment(&self) -> Self;
+    /// Move to the previous item cyclically  
+    fn decrement(&self) -> Self;
+    /// Get the maximum value for the cycle
+    fn max_value() -> u8;
+}
 
 /// Tracks the currently active arena (0-8)
 #[derive(Component, Debug)]
 pub struct CurrentArena(pub u8);
 
+impl CyclicNavigation for CurrentArena {
+    fn increment(&self) -> Self {
+        CurrentArena((self.0 + 1) % Self::max_value())
+    }
+
+    fn decrement(&self) -> Self {
+        CurrentArena(if self.0 == 0 { Self::max_value() - 1 } else { self.0 - 1 })
+    }
+
+    fn max_value() -> u8 {
+        9
+    }
+}
+
 impl CurrentArena {
-    /// Increment arena index cyclically (0-8)
+    /// Increment arena index cyclically (0-8) - legacy method for compatibility
     pub fn increment(value: u8) -> u8 {
         (value + 1) % 9
     }
 
-    /// Decrement arena index cyclically (0-8)  
+    /// Decrement arena index cyclically (0-8) - legacy method for compatibility
     pub fn decrement(value: u8) -> u8 {
         if value == 0 { 8 } else { value - 1 }
     }
@@ -81,6 +106,24 @@ impl ArenaName {
             ArenaName::Casino => "Casino",
             ArenaName::Gala => "Gala",
         }
+    }
+}
+
+impl Display for ArenaName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
+impl From<u8> for ArenaName {
+    fn from(index: u8) -> Self {
+        Self::from_index(index)
+    }
+}
+
+impl From<ArenaName> for u8 {
+    fn from(arena: ArenaName) -> Self {
+        arena.to_index()
     }
 }
 
