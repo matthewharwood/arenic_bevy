@@ -31,14 +31,7 @@ fn main() {
         .add_plugins(MovementPlugin)
         .add_plugins(RecordingPlugin)
         .add_plugins(UiPlugin)
-        .add_systems(
-            Startup,
-            (
-                setup,
-                setup_arena_timers,
-                spawn_player_selected,
-            ),
-        )
+        .add_systems(Startup, (setup, setup_arena_timers, spawn_player_selected))
         .add_systems(
             Update,
             (
@@ -87,7 +80,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             HALF_WINDOW_HEIGHT - HALF_TILE_SIZE - y_offset,
             0.0,
         ));
-        let image_path = format!("Grid_{}.png", arena_index);
+        let image_path = format!("{}.png", "default_grid_tile");
         for row in 0..GRID_HEIGHT {
             for col in 0..GRID_WIDTH {
                 arena
@@ -238,9 +231,14 @@ fn spawn_player_selected(mut commands: Commands, asset_server: Res<AssetServer>)
 
     // Spawn second character at tile position (30, 15) in arena 1 (3 tiles to the left)
     let (char2_x, char2_y) = calculate_character_position(1, 30, 15);
-    commands.spawn(CharacterBundle::new(&asset_server, char2_x, char2_y, false, "Matt"));
+    commands.spawn(CharacterBundle::new(
+        &asset_server,
+        char2_x,
+        char2_y,
+        false,
+        "Matt",
+    ));
 }
-
 
 fn cycle_selected_character(
     mut commands: Commands,
@@ -386,7 +384,6 @@ fn ensure_character_selected_in_current_arena(
     }
 }
 
-
 fn setup_arena_timers(mut commands: Commands) {
     // Spawn a timer entity for each arena
     for arena_index in 0..9 {
@@ -405,29 +402,35 @@ fn activate_arena_timers_on_character_entry(
             // Only change status if currently paused
             if arena_timer.is_paused() {
                 // Keep the timer paused but log entry
-                println!("Selected character entered arena: {} (status: {:?})", 
-                    arena_name.name(), arena_timer.get_status());
+                println!(
+                    "Selected character entered arena: {} (status: {:?})",
+                    arena_name.name(),
+                    arena_timer.get_status()
+                );
             } else {
                 // Timer is already in Recording or Playback mode
-                println!("Selected character entered arena: {} (status: {:?} - continuing)", 
-                    arena_name.name(), arena_timer.get_status());
+                println!(
+                    "Selected character entered arena: {} (status: {:?} - continuing)",
+                    arena_name.name(),
+                    arena_timer.get_status()
+                );
             }
         }
     }
 }
 
-fn update_arena_timers(
-    mut timer_query: Query<&mut ArenaTimer>,
-    time: Res<Time>,
-) {
+fn update_arena_timers(mut timer_query: Query<&mut ArenaTimer>, time: Res<Time>) {
     for mut arena_timer in &mut timer_query {
         // Only tick the timer if it's not paused
         if !arena_timer.timer.paused() {
             arena_timer.timer.tick(time.delta());
-            
+
             // Check if timer finished (2 minutes elapsed)
             if arena_timer.timer.just_finished() {
-                println!("Timer finished for arena: {} - Restarting...", arena_timer.arena.name());
+                println!(
+                    "Timer finished for arena: {} - Restarting...",
+                    arena_timer.arena.name()
+                );
             }
         }
     }
