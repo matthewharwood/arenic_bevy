@@ -87,13 +87,47 @@ pub const WINDOW_HEIGHT: f32 = 720.0;
 pub const HALF_WINDOW_WIDTH: f32 = WINDOW_WIDTH / 2.0;
 pub const HALF_WINDOW_HEIGHT: f32 = WINDOW_HEIGHT / 2.0;
 pub const HALF_TILE_SIZE: f32 = TILE_SIZE / 2.0;
-pub const GRID_WIDTH: usize = 65;
+pub const GRID_WIDTH: usize = 66;
 pub const GRID_HEIGHT: usize = 31;
 pub const ARENA_WIDTH: f32 = GRID_WIDTH as f32 * TILE_SIZE;
 pub const ARENA_HEIGHT: f32 = GRID_HEIGHT as f32 * TILE_SIZE;
 
 pub const CAMERA_PADDING_X: f32 = -22.0;
 pub const CAMERA_PADDING_Y: f32 = 36.0;
+pub const SIDEBAR_WIDTH: f32 = 12.0;
+
+// Helper function to calculate camera position to center on arena
+fn calculate_camera_position(arena_index: u8) -> (f32, f32) {
+    let arena_col = arena_index % 3;
+    let arena_row = arena_index / 3;
+
+    // Calculate arena top-left corner (matching setup positioning)
+    let arena_x = -13.5 + (arena_col as f32 * ARENA_WIDTH);
+    let arena_y = 36.0 - (arena_row as f32 * ARENA_HEIGHT);
+
+    // Calculate arena center by adding half arena dimensions
+    let center_x = arena_x;
+    let center_y = arena_y;
+
+    // Shift right by one tile size to correct alignment
+    (center_x, center_y)
+}
+
+// Helper function to calculate character position within an arena
+fn calculate_character_position(arena_index: u8, tile_x: usize, tile_y: usize) -> (f32, f32) {
+    let arena_col = arena_index % 3;
+    let arena_row = arena_index / 3;
+    
+    // Calculate arena top-left corner (matching setup positioning)
+    let arena_x = -HALF_WINDOW_WIDTH + HALF_TILE_SIZE + (arena_col as f32 * ARENA_WIDTH);
+    let arena_y = HALF_WINDOW_HEIGHT - HALF_TILE_SIZE - (arena_row as f32 * ARENA_HEIGHT);
+    
+    // Calculate character position within the arena
+    let char_x = arena_x + (tile_x as f32 * TILE_SIZE);
+    let char_y = arena_y - (tile_y as f32 * TILE_SIZE);
+    
+    (char_x, char_y)
+}
 
 fn main() {
     App::new()
@@ -138,13 +172,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let arena_col_x = 0 % 3;
     let arena_row_x = 2 / 3;
     commands.spawn(CurrentArena(1));
+    let (camera_x, camera_y) = calculate_camera_position(1);
     commands
         .spawn(Camera2d)
-        .insert(Transform::from_xyz(
-            CAMERA_PADDING_X + (1.0 * ARENA_WIDTH),
-            CAMERA_PADDING_Y - (0.0 * ARENA_HEIGHT),
-            0.0,
-        ))
+        .insert(Transform::from_xyz(camera_x, camera_y, 0.0))
         .insert(Projection::Orthographic(OrthographicProjection {
             near: -1000.0,
             scale: 1.0,
@@ -220,16 +251,15 @@ fn update_camera_on_arena_change(
     arena_query: Query<&CurrentArena, Changed<CurrentArena>>,
     mut camera_query: Query<(&mut Transform, &Projection), With<Camera>>,
 ) {
-    if let Ok(current_arena) = arena_query.get_single() {
-        let arena_col = current_arena.0 % 3;
-        let arena_row = current_arena.0 / 3;
+    if let Ok(current_arena) = arena_query.single() {
+        let (camera_x, camera_y) = calculate_camera_position(current_arena.0);
 
         for (mut transform, projection) in &mut camera_query {
             // Only move camera if not zoomed out (scale 1.0)
             if let Projection::Orthographic(ortho) = projection {
                 if ortho.scale == 1.0 {
-                    transform.translation.x = CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
-                    transform.translation.y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
+                    transform.translation.x = camera_x;
+                    transform.translation.y = camera_y;
                 }
             }
         }
@@ -247,21 +277,16 @@ fn handle_zoom_toggle(
                 if ortho.scale == 1.0 {
                     ortho.scale = 3.0;
                     // Center on arena index 4 for zoom out and move down by TILE_SIZE * 3
-                    let arena_col = 4 % 3;
-                    let arena_row = 4 / 3;
-                    transform.translation.x = CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
-                    transform.translation.y =
-                        CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT) - (TILE_SIZE * 3.0);
+                    let (camera_x, camera_y) = calculate_camera_position(4);
+                    transform.translation.x = camera_x;
+                    transform.translation.y = camera_y - (TILE_SIZE * 3.0);
                 } else {
                     ortho.scale = 1.0;
                     // Return to current arena position (without Y offset)
                     for arena in &arena_query {
-                        let arena_col = arena.0 % 3;
-                        let arena_row = arena.0 / 3;
-                        transform.translation.x =
-                            CAMERA_PADDING_X + (arena_col as f32 * ARENA_WIDTH);
-                        transform.translation.y =
-                            CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
+                        let (camera_x, camera_y) = calculate_camera_position(arena.0);
+                        transform.translation.x = camera_x;
+                        transform.translation.y = camera_y;
                     }
                 }
             }
@@ -311,37 +336,27 @@ fn draw_arena_gizmo(
 }
 
 fn spawn_player_selected(mut commands: Commands, asset_server: Res<AssetServer>) {
-    // Arena index 1 positioning
-    let arena_col = 1 % 3;
-    let arena_row = 1 / 3;
-
-    // Calculate arena position
-    let arena_x = -HALF_WINDOW_WIDTH + (arena_col as f32 * ARENA_WIDTH);
-    let arena_y = HALF_WINDOW_HEIGHT - (arena_row as f32 * ARENA_HEIGHT);
-
-    // Calculate center of arena
-    let center_x_1 = arena_x + ARENA_WIDTH / 2.0;
-    let center_y_1 = arena_y - ARENA_HEIGHT / 2.0;
-
+    // Spawn first character at tile position (33, 15) in arena 1 (center of the arena)
+    let (char1_x, char1_y) = calculate_character_position(1, 33, 15);
     commands
         .spawn(Sprite {
             image: asset_server.load("player_selected.png"),
             custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
             ..default()
         })
-        .insert(Transform::from_xyz(center_x_1, center_y_1, 1.0))
+        .insert(Transform::from_xyz(char1_x, char1_y, 1.0))
         .insert(Character)
         .insert(CharacterSelected);
 
-    let center_x_2 = arena_x + (ARENA_WIDTH / 2.0) - (TILE_SIZE * 2.0);
-
+    // Spawn second character at tile position (30, 15) in arena 1 (3 tiles to the left)
+    let (char2_x, char2_y) = calculate_character_position(1, 30, 15);
     commands
         .spawn(Sprite {
             image: asset_server.load("player_unselected.png"),
             custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
             ..default()
         })
-        .insert(Transform::from_xyz(center_x_2, center_y_1, 1.0))
+        .insert(Transform::from_xyz(char2_x, char2_y, 1.0))
         .insert(Character);
 }
 
@@ -384,7 +399,7 @@ fn cycle_selected_character(
         }
 
         // Find current selected character index
-        let current_selected = selected_query.get_single();
+        let current_selected = selected_query.single();
 
         let next_index = match current_selected {
             Ok(selected_entity) => {
@@ -415,7 +430,7 @@ fn update_character_sprites(
     selected_query: Query<Entity, With<CharacterSelected>>,
     asset_server: Res<AssetServer>,
 ) {
-    let selected_entity = selected_query.get_single().ok();
+    let selected_entity = selected_query.single().ok();
 
     for (entity, mut sprite) in &mut character_query {
         if Some(entity) == selected_entity {
@@ -456,7 +471,7 @@ fn sync_current_arena_with_selected_character(
     mut arena_query: Query<&mut CurrentArena>,
     selected_character_query: Query<&ArenaName, (With<CharacterSelected>, Changed<ArenaName>)>,
 ) {
-    if let Ok(arena_name) = selected_character_query.get_single() {
+    if let Ok(arena_name) = selected_character_query.single() {
         for mut current_arena in &mut arena_query {
             current_arena.0 = arena_name.to_index();
             println!(
@@ -471,7 +486,7 @@ fn sync_current_arena_with_selected_character(
 fn debug_character_arena_changes(
     query: Query<&ArenaName, (With<CharacterSelected>, Changed<ArenaName>)>,
 ) {
-    if let Ok(arena_name) = query.get_single() {
+    if let Ok(arena_name) = query.single() {
         println!("CharacterSelected entered arena: {}", arena_name.name());
     }
 }
@@ -482,12 +497,12 @@ fn ensure_character_selected_in_current_arena(
     selected_character_query: Query<&ArenaName, With<CharacterSelected>>,
     all_characters_query: Query<(Entity, &ArenaName), With<Character>>,
 ) {
-    if let Ok(current_arena) = current_arena_query.get_single() {
+    if let Ok(current_arena) = current_arena_query.single() {
         let target_arena = ArenaName::from_index(current_arena.0);
 
         // Check if there's already a selected character in the current arena
         let has_selected_in_arena = selected_character_query
-            .get_single()
+            .single()
             .map(|arena_name| *arena_name == target_arena)
             .unwrap_or(false);
 
@@ -533,7 +548,7 @@ fn spawn_top_nav_bar(mut commands: Commands) {
 
 fn spawn_side_nav_bars(mut commands: Commands) {
     // Calculate the sidebar width based on CAMERA_PADDING_Y + 1 pixel
-    let sidebar_width = CAMERA_PADDING_Y.abs();
+    let sidebar_width = SIDEBAR_WIDTH;
 
     // Spawn left sidebar
     commands
