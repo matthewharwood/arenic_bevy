@@ -1,3 +1,7 @@
+#![feature(gen_blocks)]
+#![feature(yield_expr)]
+#![feature(associated_type_defaults)]
+
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
@@ -6,6 +10,7 @@ mod animation;
 mod bundles;
 mod components;
 mod config;
+mod generators;
 mod input;
 mod plugins;
 mod ui;
@@ -15,6 +20,7 @@ mod utils;
 use bundles::{CharacterBundle, SelectedCharacterBundle};
 use components::*;
 use config::{arena::*, assets::*, camera::*, display::*};
+use generators::{arena_positions, arena_tile_positions};
 use plugins::{ArenaPlugin, CharacterPlugin};
 use ui::UIPlugin;
 use utils::*;
@@ -52,38 +58,33 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             scaling_mode: Default::default(),
         }));
 
-    for arena_index in 0..9 {
-        let arenas_per_row = 3;
-        let arena_col = arena_index % arenas_per_row;
-        let arena_row = arena_index / arenas_per_row;
-
-        let x_offset = arena_col as f32 * ARENA_WIDTH;
-        let y_offset = arena_row as f32 * ARENA_HEIGHT;
-
+    // Use Rust 2024 generator for cleaner arena setup
+    for arena_pos in arena_positions() {
         let mut arena = commands.spawn(Transform::from_xyz(
-            -HALF_WINDOW_WIDTH + HALF_TILE_SIZE + x_offset,
-            HALF_WINDOW_HEIGHT - HALF_TILE_SIZE - y_offset,
+            arena_pos.world_x,
+            arena_pos.world_y,
             0.0,
         ));
-        let image_path = format!("Grid_{}.png", arena_index);
-        for row in 0..GRID_HEIGHT {
-            for col in 0..GRID_WIDTH {
-                arena
-                    .insert(InheritedVisibility::default())
-                    .with_children(|parent| {
-                        parent
-                            .spawn(Sprite {
-                                image: asset_server.load(image_path.clone()),
-                                custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
-                                ..default()
-                            })
-                            .insert(Transform::from_xyz(
-                                col as f32 * TILE_SIZE,
-                                -(row as f32 * TILE_SIZE),
-                                0.0,
-                            ));
-                    });
-            }
+        
+        let image_path = format!("Grid_{}.png", arena_pos.index);
+        
+        // Use generator for tile positions too
+        for tile_pos in arena_tile_positions() {
+            arena
+                .insert(InheritedVisibility::default())
+                .with_children(|parent| {
+                    parent
+                        .spawn(Sprite {
+                            image: asset_server.load(image_path.clone()),
+                            custom_size: Some(Vec2::new(TILE_SIZE, TILE_SIZE)),
+                            ..default()
+                        })
+                        .insert(Transform::from_xyz(
+                            tile_pos.world_x,
+                            tile_pos.world_y,
+                            0.0,
+                        ));
+                });
         }
     }
 }
@@ -95,11 +96,7 @@ fn handle_arena_navigation_keys(
 ) {
     // Check if camera is at scale 3.0
     let _is_zoomed_out = camera_query.iter().any(|projection| {
-        if let Projection::Orthographic(ortho) = projection {
-            ortho.scale == SCALE_ZOOMED_OUT
-        } else {
-            false
-        }
+        matches!(projection, Projection::Orthographic(ortho) if ortho.scale == SCALE_ZOOMED_OUT)
     });
 
     if input.just_pressed(KeyCode::BracketRight) {
@@ -218,20 +215,13 @@ fn cycle_selected_character(
             return; // No cycling needed with 0 or 1 characters
         }
 
-        // Find current selected character index
-        let current_selected = selected_query.single();
-
-        let next_index = match current_selected {
-            Ok(selected_entity) => {
-                // Find the current index and get next index cyclically
-                if let Some(current_index) = characters.iter().position(|&e| e == selected_entity) {
-                    (current_index + 1) % characters.len()
-                } else {
-                    0 // Default to first if not found
-                }
-            }
-            Err(_) => 0, // No current selection, start with first
-        };
+        // Find current selected character index using cleaner Rust 2024 patterns
+        let next_index = selected_query
+            .single()
+            .ok()
+            .and_then(|selected_entity| characters.iter().position(|&e| e == selected_entity))
+            .map(|current_index| (current_index + 1) % characters.len())
+            .unwrap_or(0);
 
         // Remove CharacterSelected from all characters
         for entity in &characters {

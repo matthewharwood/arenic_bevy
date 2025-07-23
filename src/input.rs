@@ -9,9 +9,24 @@ use bevy::prelude::*;
 pub trait InputHandler {
     /// The type of action this handler produces
     type Action;
+    /// The input context type this handler works with
+    type Context<'a> = &'a ButtonInput<KeyCode>;
+    /// Optional state that can be maintained between input handling calls
+    type State: Default = ();
     
     /// Process input and return an optional action
-    fn handle_input(&self, input: &ButtonInput<KeyCode>) -> Option<Self::Action>;
+    fn handle_input(&self, input: Self::Context<'_>) -> Option<Self::Action> {
+        self.handle_input_with_state(input, &Self::State::default())
+    }
+    
+    /// Process input with persistent state
+    fn handle_input_with_state(
+        &self, 
+        input: Self::Context<'_>, 
+        _state: &Self::State
+    ) -> Option<Self::Action> {
+        self.handle_input(input)
+    }
 }
 
 /// Actions that can be performed for arena navigation

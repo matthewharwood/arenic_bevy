@@ -7,29 +7,58 @@ use bevy::prelude::*;
 use std::fmt::{self, Display};
 
 /// Trait for types that support cyclic navigation (wrapping around at boundaries)
-pub trait CyclicNavigation {
-    /// Move to the next item cyclically
-    fn increment(&self) -> Self;
-    /// Move to the previous item cyclically  
-    fn decrement(&self) -> Self;
+pub trait CyclicNavigation: Sized + Copy {
+    /// The underlying value type (must support arithmetic and conversion)
+    type Value: Into<usize> + TryFrom<usize> + Copy + PartialOrd;
+    
+    /// Get the current value
+    fn current_value(&self) -> Self::Value;
+    /// Create an instance with the given value
+    fn with_value(value: Self::Value) -> Self;
     /// Get the maximum value for the cycle
-    fn max_value() -> u8;
+    fn max_value() -> Self::Value;
+    
+    /// Move to the next item cyclically
+    fn increment(&self) -> Self {
+        let current: usize = self.current_value().into();
+        let max: usize = Self::max_value().into();
+        let next = (current + 1) % max;
+        
+        Self::with_value(
+            Self::Value::try_from(next)
+                .unwrap_or_else(|_| panic!("Failed to convert {} to value type", next))
+        )
+    }
+    
+    /// Move to the previous item cyclically  
+    fn decrement(&self) -> Self {
+        let current: usize = self.current_value().into();
+        let max: usize = Self::max_value().into();
+        let prev = if current == 0 { max - 1 } else { current - 1 };
+        
+        Self::with_value(
+            Self::Value::try_from(prev)
+                .unwrap_or_else(|_| panic!("Failed to convert {} to value type", prev))
+        )
+    }
 }
 
 /// Tracks the currently active arena (0-8)
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Copy, Clone)]
 pub struct CurrentArena(pub u8);
 
 impl CyclicNavigation for CurrentArena {
-    fn increment(&self) -> Self {
-        CurrentArena((self.0 + 1) % Self::max_value())
+    type Value = u8;
+    
+    fn current_value(&self) -> Self::Value {
+        self.0
     }
-
-    fn decrement(&self) -> Self {
-        CurrentArena(if self.0 == 0 { Self::max_value() - 1 } else { self.0 - 1 })
+    
+    fn with_value(value: Self::Value) -> Self {
+        CurrentArena(value)
     }
-
-    fn max_value() -> u8 {
+    
+    fn max_value() -> Self::Value {
         9
     }
 }
