@@ -365,22 +365,39 @@ fn move_selected_player(
     input: Res<ButtonInput<KeyCode>>,
 ) {
     for mut transform in &mut player_query {
+        let mut new_x = transform.translation.x;
+        let mut new_y = transform.translation.y;
+        
         if input.just_pressed(KeyCode::KeyA) {
             // Move left
-            transform.translation.x -= TILE_SIZE;
+            new_x -= TILE_SIZE;
         }
         if input.just_pressed(KeyCode::KeyS) {
             // Move down
-            transform.translation.y -= TILE_SIZE;
+            new_y -= TILE_SIZE;
         }
         if input.just_pressed(KeyCode::KeyD) {
             // Move right
-            transform.translation.x += TILE_SIZE;
+            new_x += TILE_SIZE;
         }
         if input.just_pressed(KeyCode::KeyW) {
             // Move up
-            transform.translation.y += TILE_SIZE;
+            new_y += TILE_SIZE;
         }
+        
+        // Calculate boundaries of the entire 3x3 arena grid
+        let grid_left = -HALF_WINDOW_WIDTH + HALF_TILE_SIZE;
+        let grid_right = grid_left + (3.0 * ARENA_WIDTH) - TILE_SIZE;
+        let grid_top = HALF_WINDOW_HEIGHT - HALF_TILE_SIZE;
+        let grid_bottom = grid_top - (3.0 * ARENA_HEIGHT) + TILE_SIZE;
+        
+        // Clamp position to stay within the 3x3 grid boundaries
+        new_x = new_x.clamp(grid_left, grid_right);
+        new_y = new_y.clamp(grid_bottom, grid_top);
+        
+        // Apply the clamped position
+        transform.translation.x = new_x;
+        transform.translation.y = new_y;
     }
 }
 
