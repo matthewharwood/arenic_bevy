@@ -97,6 +97,7 @@ pub fn update_camera_animations(
 }
 
 /// System that starts camera animations when CurrentArena changes
+/// Note: When zoomed out, camera stays fixed on arena 4 and does not animate on arena changes
 pub fn animate_camera_on_arena_change(
     mut commands: Commands,
     arena_query: Query<&crate::components::CurrentArena, Changed<crate::components::CurrentArena>>,
@@ -104,21 +105,18 @@ pub fn animate_camera_on_arena_change(
 ) {
     if let Ok(current_arena) = arena_query.single() {
         for (entity, transform, projection) in &mut camera_query {
-            // Calculate target position
-            let (target_x, target_y) = crate::utils::calculate_camera_position(current_arena.0);
-            
-            // Check if camera is zoomed out and adjust Y position accordingly
-            let mut target_position = Vec3::new(target_x, target_y, transform.translation.z);
-            let is_zoom_transition = if let Projection::Orthographic(ortho) = projection {
+            // IMPORTANT: When zoomed out, camera should stay fixed on arena 4 with Y offset
+            // Arena navigation ([ and ]) should not move the camera in zoomed out state
+            if let Projection::Orthographic(ortho) = projection {
                 if ortho.scale == SCALE_ZOOMED_OUT {
-                    target_position.y -= crate::config::display::TILE_SIZE * ZOOM_OUT_Y_OFFSET_TILES;
-                    true
-                } else {
-                    false
+                    // Skip animation - camera stays fixed on arena 4 when zoomed out
+                    continue;
                 }
-            } else {
-                false
-            };
+            }
+            
+            // Only animate when zoomed in (normal scale)
+            let (target_x, target_y) = crate::utils::calculate_camera_position(current_arena.0);
+            let target_position = Vec3::new(target_x, target_y, transform.translation.z);
 
             // Only animate if the target position is different from current position
             let current_pos = transform.translation;
@@ -130,7 +128,7 @@ pub fn animate_camera_on_arena_change(
                     current_pos,
                     target_position,
                     current_arena.0,
-                    is_zoom_transition,
+                    false, // This is not a zoom transition
                 );
                 
                 commands.entity(entity).insert(animation);
@@ -151,7 +149,7 @@ pub fn animate_zoom_transitions(
             if let Projection::Orthographic(ortho) = &mut *projection {
                 let current_pos = transform.translation;
                 let target_position = if ortho.scale == SCALE_NORMAL {
-                    // Zooming out - center on arena 4 and move down
+                    // Zooming out - ALWAYS center on arena 4 and move down by Y offset
                     ortho.scale = SCALE_ZOOMED_OUT;
                     let (camera_x, camera_y) = crate::utils::calculate_camera_position(4);
                     Vec3::new(
