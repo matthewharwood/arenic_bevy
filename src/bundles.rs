@@ -7,7 +7,6 @@ use bevy::prelude::*;
 use crate::components::{Character, CharacterSelected};
 use crate::config::{display::TILE_SIZE, assets};
 
-
 /// Bundle for spawning a game character
 #[derive(Bundle)]
 pub struct CharacterBundle {
@@ -61,4 +60,3 @@ impl SelectedCharacterBundle {
         }
     }
 }
-

@@ -4,49 +4,20 @@
 //! Components represent data that can be attached to entities.
 
 use bevy::prelude::*;
-use std::fmt::{self, Display};
-use crate::const_grid::StandardArenaIndex;
 
-
-/// Tracks the currently active arena with const generic type safety
-#[derive(Component, Debug, Copy, Clone)]
-pub struct CurrentArena<const TOTAL_ARENAS: usize = 9> {
-    arena: StandardArenaIndex,
-}
-
-impl<const TOTAL_ARENAS: usize> CurrentArena<TOTAL_ARENAS> {
-    /// Create CurrentArena without bounds checking (when index is guaranteed valid)
-    pub const fn new_unchecked(index: usize) -> Self {
-        Self { 
-            arena: StandardArenaIndex::new_unchecked(index) 
-        }
-    }
-    
-    /// Get the arena index as u8 for legacy compatibility
-    pub const fn get_index_u8(self) -> u8 {
-        self.arena.get() as u8
-    }
-    
-    /// Navigate to next arena with compile-time bounds checking
-    pub const fn next(self) -> Self {
-        Self { arena: self.arena.next() }
-    }
-    
-    /// Navigate to previous arena with compile-time bounds checking
-    pub const fn prev(self) -> Self {
-        Self { arena: self.arena.prev() }
-    }
-}
+/// Tracks the currently active arena (0-8)
+#[derive(Component, Debug)]
+pub struct CurrentArena(pub u8);
 
 impl CurrentArena {
-    /// Mutable increment using const generic navigation
-    pub fn increment_mut(&mut self) {
-        *self = self.next();
+    /// Increment arena index cyclically (0-8)
+    pub fn increment(value: u8) -> u8 {
+        (value + 1) % 9
     }
-    
-    /// Mutable decrement using const generic navigation
-    pub fn decrement_mut(&mut self) {
-        *self = self.prev();
+
+    /// Decrement arena index cyclically (0-8)  
+    pub fn decrement(value: u8) -> u8 {
+        if value == 0 { 8 } else { value - 1 }
     }
 }
 
@@ -113,22 +84,16 @@ impl ArenaName {
     }
 }
 
-impl Display for ArenaName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
-    }
-}
+// UI component markers
+/// Marker component for the top navigation bar
+#[derive(Component, Debug)]
+pub struct TopNavBar;
 
-impl From<u8> for ArenaName {
-    fn from(index: u8) -> Self {
-        Self::from_index(index)
-    }
-}
+/// Marker component for side navigation bars
+#[derive(Component, Debug)]
+pub struct SideNavBar;
 
-impl From<ArenaName> for u8 {
-    fn from(arena: ArenaName) -> Self {
-        arena.to_index()
-    }
-}
-
+/// Marker component for the bottom navigation bar
+#[derive(Component, Debug)]
+pub struct BottomNavBar;
 
