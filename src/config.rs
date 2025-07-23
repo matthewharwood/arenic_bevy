@@ -44,12 +44,23 @@ pub mod arena {
 
 /// Camera and UI positioning constants
 pub mod ui {
-    
     /// Camera vertical padding
     pub const CAMERA_PADDING_Y: f32 = 36.0;
     
     /// Sidebar width in pixels
     pub const SIDEBAR_WIDTH: f32 = 13.5;
+}
+
+/// Camera zoom and scale constants
+pub mod camera {
+    /// Normal camera zoom scale (focused on single arena)
+    pub const SCALE_NORMAL: f32 = 1.0;
+    
+    /// Zoomed out camera scale (shows all arenas in 3x3 grid)
+    pub const SCALE_ZOOMED_OUT: f32 = 3.0;
+    
+    /// Additional Y offset when zoomed out (in tile units)
+    pub const ZOOM_OUT_Y_OFFSET_TILES: f32 = 3.0;
 }
 
 /// Asset paths used throughout the game
