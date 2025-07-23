@@ -29,6 +29,7 @@ fn main() {
             Startup,
             (
                 setup,
+                setup_arena_timers,
                 spawn_player_selected,
                 spawn_top_nav_bar,
                 spawn_side_nav_bars,
@@ -48,6 +49,8 @@ fn main() {
                 sync_current_arena_with_selected_character,
                 ensure_character_selected_in_current_arena,
                 debug_character_arena_changes,
+                activate_arena_timers_on_character_entry,
+                update_arena_timers,
             ),
         )
         .run();
@@ -445,4 +448,48 @@ fn spawn_bottom_nav_bar(mut commands: Commands) {
         })
         .insert(BackgroundColor(Color::WHITE.with_alpha(0.5)))
         .insert(BottomNavBar);
+}
+
+fn setup_arena_timers(mut commands: Commands) {
+    // Spawn a timer entity for each arena
+    for arena_index in 0..9 {
+        let arena_name = ArenaName::from_index(arena_index);
+        commands.spawn(ArenaTimer::new(arena_name));
+    }
+}
+
+fn activate_arena_timers_on_character_entry(
+    mut timer_query: Query<&mut ArenaTimer>,
+    selected_character_query: Query<&ArenaName, (With<CharacterSelected>, Changed<ArenaName>)>,
+) {
+    // Only activate timer when a selected character enters an arena
+    if let Ok(arena_name) = selected_character_query.single() {
+        if let Some(mut arena_timer) = timer_query.iter_mut().find(|at| at.arena == *arena_name) {
+            if arena_timer.timer.paused() {
+                // Timer was paused, now activating it
+                arena_timer.timer.unpause();
+                println!("Timer activated for arena: {}", arena_name.name());
+            } else {
+                // Timer was already active
+                println!("Timer already active for arena: {} - continuing at current time", arena_name.name());
+            }
+        }
+    }
+}
+
+fn update_arena_timers(
+    mut timer_query: Query<&mut ArenaTimer>,
+    time: Res<Time>,
+) {
+    for mut arena_timer in &mut timer_query {
+        // Only tick the timer if it's not paused
+        if !arena_timer.timer.paused() {
+            arena_timer.timer.tick(time.delta());
+            
+            // Check if timer finished (2 minutes elapsed)
+            if arena_timer.timer.just_finished() {
+                println!("Timer finished for arena: {} - Restarting...", arena_timer.arena.name());
+            }
+        }
+    }
 }

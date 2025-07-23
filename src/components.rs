@@ -4,6 +4,7 @@
 //! Components represent data that can be attached to entities.
 
 use bevy::prelude::*;
+use std::time::Duration;
 
 /// Tracks the currently active arena (0-8)
 #[derive(Component, Debug)]
@@ -28,6 +29,35 @@ pub struct Character;
 /// Marker component for the currently selected character
 #[derive(Component, Debug)]
 pub struct CharacterSelected;
+
+/// Timer component for each arena
+#[derive(Component, Debug)]
+pub struct ArenaTimer {
+    pub timer: Timer,
+    pub arena: ArenaName,
+}
+
+impl ArenaTimer {
+    /// Create a new arena timer with default 2-minute duration
+    pub fn new(arena: ArenaName) -> Self {
+        let mut timer = Timer::new(Duration::from_secs(120), TimerMode::Repeating);
+        timer.pause(); // Start paused until a CharacterSelected enters
+        Self {
+            timer,
+            arena,
+        }
+    }
+    
+    /// Create a new arena timer with custom duration
+    pub fn new_with_duration(arena: ArenaName, duration: Duration) -> Self {
+        let mut timer = Timer::new(duration, TimerMode::Repeating);
+        timer.pause(); // Start paused until a CharacterSelected enters
+        Self {
+            timer,
+            arena,
+        }
+    }
+}
 
 /// Arena identification by name
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]

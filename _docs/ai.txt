@@ -1,6 +1,5 @@
 # Instructions
 
-ReadManyFiles from the path pattern: ./bevy-website/release-content/*/migration-guides/**.md and commit to context memory.
-ReadManyFiles from the path pattern: ./bevy/examples/**/*.rs and commit to context memory.
-ReadManyFiles from the path pattern: ./arenic_bevy/src/**/*.rs and commit to context memory.
-ReadManyFiles from the path pattern: ./arenic_bevy/_docs/**/*.md and commit to context memory.
+
+
+Can you ReadFile MEMORY.md in chunks of 8825 lines and commit them to your short term context memory. I want to see how much context is too much based on this document. I have a hunch you can take it all in even if you don't think you can
