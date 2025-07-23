@@ -4,7 +4,7 @@
 //! architecture that separates input handling from movement processing.
 
 use bevy::prelude::*;
-use crate::components::CharacterSelected;
+use crate::components::{Character, CharacterSelected};
 use crate::config::display::TILE_SIZE;
 use crate::utils::clamp_to_grid_boundaries;
 
@@ -24,26 +24,14 @@ pub struct CharacterMoveEvent {
     pub entity: Entity,
     /// The direction to move
     pub direction: MovementDirection,
-    /// Optional timestamp for replay systems
-    pub timestamp: Option<f64>,
 }
 
 impl CharacterMoveEvent {
-    /// Create a new movement event for the current time
+    /// Create a new movement event
     pub fn new(entity: Entity, direction: MovementDirection) -> Self {
         Self {
             entity,
             direction,
-            timestamp: None,
-        }
-    }
-
-    /// Create a new movement event with a specific timestamp (for replay)
-    pub fn with_timestamp(entity: Entity, direction: MovementDirection, timestamp: f64) -> Self {
-        Self {
-            entity,
-            direction,
-            timestamp: Some(timestamp),
         }
     }
 }
@@ -62,7 +50,7 @@ impl Plugin for MovementPlugin {
 }
 
 /// System that handles input and emits movement events
-fn handle_movement_input(
+pub fn handle_movement_input(
     selected_query: Query<Entity, With<CharacterSelected>>,
     input: Res<ButtonInput<KeyCode>>,
     mut move_events: EventWriter<CharacterMoveEvent>,
@@ -86,12 +74,15 @@ fn handle_movement_input(
 /// System that processes movement events and updates character positions
 fn process_movement_events(
     mut move_events: EventReader<CharacterMoveEvent>,
-    mut character_query: Query<&mut Transform>,
+    mut character_query: Query<&mut Transform, With<Character>>,
+    character_info_query: Query<&Character>,
 ) {
     for event in move_events.read() {
         if let Ok(mut transform) = character_query.get_mut(event.entity) {
-            let mut new_x = transform.translation.x;
-            let mut new_y = transform.translation.y;
+            let old_x = transform.translation.x;
+            let old_y = transform.translation.y;
+            let mut new_x = old_x;
+            let mut new_y = old_y;
 
             match event.direction {
                 MovementDirection::Left => new_x -= TILE_SIZE,
@@ -106,6 +97,12 @@ fn process_movement_events(
             // Apply the clamped position
             transform.translation.x = clamped_x;
             transform.translation.y = clamped_y;
+            
+            // Debug output
+            if let Ok(character) = character_info_query.get(event.entity) {
+                println!("Movement processed for {}: {:?} from ({:.0}, {:.0}) to ({:.0}, {:.0})", 
+                         character.name, event.direction, old_x, old_y, clamped_x, clamped_y);
+            }
         }
     }
 }

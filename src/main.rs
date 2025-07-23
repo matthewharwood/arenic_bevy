@@ -399,16 +399,18 @@ fn activate_arena_timers_on_character_entry(
     mut timer_query: Query<&mut ArenaTimer>,
     selected_character_query: Query<&ArenaName, (With<CharacterSelected>, Changed<ArenaName>)>,
 ) {
-    // Only activate timer when a selected character enters an arena
+    // Only update timer status when a selected character enters an arena
     if let Ok(arena_name) = selected_character_query.single() {
-        if let Some(mut arena_timer) = timer_query.iter_mut().find(|at| at.arena == *arena_name) {
-            if arena_timer.timer.paused() {
-                // Timer was paused, now activating it
-                arena_timer.timer.unpause();
-                println!("Timer activated for arena: {}", arena_name.name());
+        if let Some(arena_timer) = timer_query.iter_mut().find(|at| at.arena == *arena_name) {
+            // Only change status if currently paused
+            if arena_timer.is_paused() {
+                // Keep the timer paused but log entry
+                println!("Selected character entered arena: {} (status: {:?})", 
+                    arena_name.name(), arena_timer.get_status());
             } else {
-                // Timer was already active
-                println!("Timer already active for arena: {} - continuing at current time", arena_name.name());
+                // Timer is already in Recording or Playback mode
+                println!("Selected character entered arena: {} (status: {:?} - continuing)", 
+                    arena_name.name(), arena_timer.get_status());
             }
         }
     }

@@ -41,32 +41,73 @@ impl Character {
 #[derive(Component, Debug, Clone)]
 pub struct CharacterSelected;
 
-/// Timer component for each arena
+/// Arena status for controlling timer and playback behavior
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArenaStatus {
+    /// Default state - timer paused, no recording or playback
+    Paused,
+    /// Recording state - timer ticking, selected character recording
+    Recording,
+    /// Playback state - timer ticking, all characters replaying saved sessions
+    Playback,
+}
+
+impl Default for ArenaStatus {
+    fn default() -> Self {
+        ArenaStatus::Paused
+    }
+}
+
+/// Timer component for each arena with status management
 #[derive(Component, Debug, Clone)]
 pub struct ArenaTimer {
     pub timer: Timer,
     pub arena: ArenaName,
+    pub status: ArenaStatus,
 }
 
 impl ArenaTimer {
-    /// Create a new arena timer with default 2-minute duration
+    /// Create a new arena timer with default 2-minute duration (starts Paused)
     pub fn new(arena: ArenaName) -> Self {
         let mut timer = Timer::new(Duration::from_secs(120), TimerMode::Repeating);
-        timer.pause(); // Start paused until a CharacterSelected enters
+        timer.pause(); // Start paused
         Self {
             timer,
             arena,
+            status: ArenaStatus::Paused,
         }
     }
     
-    /// Create a new arena timer with custom duration
-    pub fn new_with_duration(arena: ArenaName, duration: Duration) -> Self {
-        let mut timer = Timer::new(duration, TimerMode::Repeating);
-        timer.pause(); // Start paused until a CharacterSelected enters
-        Self {
-            timer,
-            arena,
+    
+    /// Set arena status and manage timer accordingly
+    pub fn set_status(&mut self, status: ArenaStatus) {
+        self.status = status;
+        match status {
+            ArenaStatus::Paused => {
+                self.timer.pause();
+            }
+            ArenaStatus::Recording | ArenaStatus::Playback => {
+                if self.timer.paused() {
+                    self.timer.unpause();
+                }
+            }
         }
+    }
+    
+    /// Get current arena status
+    pub fn get_status(&self) -> ArenaStatus {
+        self.status
+    }
+    
+    
+    /// Check if arena is in playback state
+    pub fn is_playback(&self) -> bool {
+        self.status == ArenaStatus::Playback
+    }
+    
+    /// Check if arena is paused
+    pub fn is_paused(&self) -> bool {
+        self.status == ArenaStatus::Paused
     }
 }
 
@@ -217,9 +258,6 @@ impl RecordingSession {
         self.is_saved = true;
     }
     
-    pub fn is_saved(&self) -> bool {
-        self.is_saved
-    }
 }
 
 /// Component to store recorded actions for a character
@@ -290,43 +328,12 @@ impl RecordedActions {
         self.draft_recording = None;
     }
     
-    /// Get the currently active draft recording
-    pub fn get_current_recording(&self) -> Option<&RecordingSession> {
-        self.draft_recording.as_ref()
-    }
-    
-    /// Get the currently active arena index (if recording)
-    pub fn get_current_arena(&self) -> Option<u8> {
-        self.draft_recording.as_ref().map(|r| r.arena_index)
-    }
     
     /// Get the total number of arenas with saved recordings
     pub fn count_recorded_arenas(&self) -> usize {
         self.saved_sessions.iter().filter(|recording| recording.is_some()).count()
     }
     
-    /// Check if an arena has a saved recording
-    pub fn has_recording_for_arena(&self, arena_index: u8) -> bool {
-        if arena_index < 9 {
-            self.saved_sessions[arena_index as usize].is_some()
-        } else {
-            false
-        }
-    }
-    
-    /// Check if currently recording (has active draft)
-    pub fn is_currently_recording(&self) -> bool {
-        self.draft_recording.is_some()
-    }
-    
-    /// Check if currently recording in the specified arena
-    pub fn is_recording_in_arena(&self, arena_index: u8) -> bool {
-        if let Some(ref recording) = self.draft_recording {
-            recording.arena_index == arena_index
-        } else {
-            false
-        }
-    }
     
     /// Get all arenas that have saved recordings (returns arena indices)
     pub fn get_recorded_arena_indices(&self) -> Vec<u8> {
@@ -360,23 +367,6 @@ impl RecordedActions {
         false
     }
     
-    /// Revert to the saved session for an arena (clears current draft)
-    /// Returns true if reverted to a saved session, false if no saved session exists
-    pub fn revert_to_saved_session(&mut self, arena_index: u8) -> bool {
-        if arena_index < 9 {
-            // Clear any current draft
-            self.clear_draft();
-            
-            if self.saved_sessions[arena_index as usize].is_some() {
-                // Has saved session - we'll restore it when needed
-                return true;
-            } else {
-                // No saved session - successfully reverted to empty state
-                return true;
-            }
-        }
-        false
-    }
     
     /// Check if there's a saved session for an arena
     pub fn has_saved_session(&self, arena_index: u8) -> bool {
@@ -394,6 +384,65 @@ impl RecordedActions {
         } else {
             None
         }
+    }
+}
+
+/// Component to track playback state for a character
+#[derive(Component, Debug, Clone)]  
+pub struct PlaybackState {
+    /// The recording session being played back
+    pub recording: RecordingSession,
+    /// Current action index being played
+    pub current_action_index: usize,
+}
+
+impl PlaybackState {
+    /// Create new playback state from a recording session
+    pub fn new(recording: RecordingSession) -> Option<Self> {
+        // Only create if there are actions to play back
+        if recording.actions.is_empty() {
+            return None;
+        }
+            
+        Some(Self {
+            recording,
+            current_action_index: 0,
+        })
+    }
+    
+    /// Get the next action to execute based on timer timestamp
+    pub fn get_current_action(&self, arena_timer_elapsed: f64) -> Option<&ActionEvent> {
+        // Get the current action if we haven't processed all actions yet
+        if self.current_action_index >= self.recording.actions.len() {
+            return None;
+        }
+        
+        let action = &self.recording.actions[self.current_action_index];
+        
+        // Calculate when this action should occur relative to recording start
+        let action_relative_time = match action {
+            ActionEvent::Position { timestamp, .. } => *timestamp - self.recording.session_start_time,
+            ActionEvent::Move { timestamp, .. } => *timestamp - self.recording.session_start_time,
+        };
+        
+        // Check if it's time to execute this action
+        if action_relative_time <= arena_timer_elapsed {
+            Some(action)
+        } else {
+            None
+        }
+    }
+    
+    /// Advance to the next action
+    pub fn advance_action(&mut self) {
+        if self.current_action_index < self.recording.actions.len() {
+            self.current_action_index += 1;
+        }
+    }
+    
+    /// Check if playback is complete
+    pub fn is_complete(&self) -> bool {
+        self.current_action_index >= self.recording.actions.len()
     }
     
 }
