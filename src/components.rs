@@ -1,11 +1,11 @@
 //! Game components definitions.
-//! 
+//!
 //! This module contains all the component types used in the ECS architecture.
 //! Components represent data that can be attached to entities.
 
+use crate::movement::MovementDirection;
 use bevy::prelude::*;
 use std::time::Duration;
-use crate::movement::MovementDirection;
 
 /// Tracks the currently active arena (0-8)
 #[derive(Component, Debug, Clone)]
@@ -31,9 +31,7 @@ pub struct Character {
 
 impl Character {
     pub fn new(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-        }
+        Self { name: name.into() }
     }
 }
 
@@ -67,7 +65,7 @@ pub struct ArenaTimer {
 }
 
 impl ArenaTimer {
-    /// Create a new arena timer with default 2-minute duration (starts Paused)
+    /// Create a new arena timer with a default 2-minute duration (starts Paused)
     pub fn new(arena: ArenaName) -> Self {
         let mut timer = Timer::new(Duration::from_secs(120), TimerMode::Repeating);
         timer.pause(); // Start paused
@@ -77,8 +75,7 @@ impl ArenaTimer {
             status: ArenaStatus::Paused,
         }
     }
-    
-    
+
     /// Set arena status and manage timer accordingly
     pub fn set_status(&mut self, status: ArenaStatus) {
         self.status = status;
@@ -93,19 +90,18 @@ impl ArenaTimer {
             }
         }
     }
-    
+
     /// Get current arena status
     pub fn get_status(&self) -> ArenaStatus {
         self.status
     }
-    
-    
-    /// Check if arena is in playback state
+
+    /// Check if an arena is in playback state
     pub fn is_playback(&self) -> bool {
         self.status == ArenaStatus::Playback
     }
-    
-    /// Check if arena is paused
+
+    /// Check if an arena is paused
     pub fn is_paused(&self) -> bool {
         self.status == ArenaStatus::Paused
     }
@@ -127,9 +123,8 @@ pub enum ArenaName {
 
 impl ArenaName {
     /// Create an ArenaName from an index (0-8)
-    /// 
-    /// # Panics
-    /// Panics if the index is not in the range 0-8
+    ///
+    /// # Panics /// if the index is not in the range 0-8
     pub fn from_index(index: u8) -> ArenaName {
         match index {
             0 => ArenaName::Labyrinth,
@@ -144,12 +139,12 @@ impl ArenaName {
             _ => panic!("Invalid arena index: {}", index),
         }
     }
-    
+
     /// Convert ArenaName to its numeric index
     pub fn to_index(&self) -> u8 {
         *self as u8
     }
-    
+
     /// Get the human-readable name of the arena
     pub fn name(&self) -> &'static str {
         match self {
@@ -196,14 +191,14 @@ impl CharacterTimer {
             is_recording: false,
         }
     }
-    
+
     /// Start recording
     pub fn start_recording(&mut self) {
         self.timer.reset();
         self.timer.unpause();
         self.is_recording = true;
     }
-    
+
     /// Stop recording
     pub fn stop_recording(&mut self) {
         self.timer.pause();
@@ -217,9 +212,11 @@ pub enum ActionEvent {
     /// Character position at a specific time
     Position { x: f32, y: f32, timestamp: f64 },
     /// Movement action
-    Move { direction: MovementDirection, timestamp: f64 },
+    Move {
+        direction: MovementDirection,
+        timestamp: f64,
+    },
 }
-
 
 /// A single recording session containing actions and metadata
 #[derive(Debug, Clone)]
@@ -241,34 +238,33 @@ impl RecordingSession {
             is_saved: false,
         }
     }
-    
+
     pub fn add_action(&mut self, action: ActionEvent) {
         self.actions.push(action);
     }
-    
+
     pub fn end_session(&mut self, end_time: f64) {
         self.session_end_time = Some(end_time);
     }
-    
+
     pub fn is_active(&self) -> bool {
         self.session_end_time.is_none()
     }
-    
+
     pub fn save_session(&mut self) {
         self.is_saved = true;
     }
-    
 }
 
 /// Component to store recorded actions for a character
-/// 
+///
 /// ## Recording Behavior:
-/// - **Recording Start**: Only starts when R key is pressed (no automatic recording)
-/// - **Recording Stop**: Stops when R key is pressed again OR Tab key switches character
+/// - **Recording Start**: Only starts when an R key is pressed (no automatic recording)
+/// - **Recording Stop**: Stops when an R key is pressed again, OR a Tab key switches character
 /// - **Draft Recording**: Single working copy that gets cleared on Tab or arena transitions
 /// - **Per Arena**: Up to 40 selectable characters
 /// - **Total System**: 9 arenas × 40 characters = 360 characters
-/// 
+///
 /// ## Memory Usage per Character:
 /// - `draft_recording`: Option<RecordingSession> ≈ ~3KB when active
 /// - `saved_sessions`: 9 × Option<RecordingSession> for revert capability
@@ -296,13 +292,13 @@ impl RecordedActions {
     /// **Returns**: `true` if a draft was already in progress (replaced)
     pub fn start_recording(&mut self, arena_index: u8, start_time: f64) -> bool {
         let had_previous_draft = self.draft_recording.is_some();
-        
-        // Create new draft recording (replaces any existing draft)
+
+        // Create a new draft recording (replaces any existing draft)
         self.draft_recording = Some(RecordingSession::new(arena_index, start_time));
-        
+
         had_previous_draft
     }
-    
+
     /// Stop the currently active draft recording
     /// **Returns**: `true` if a recording was successfully stopped, `false` if no recording was active
     pub fn stop_recording(&mut self, end_time: f64) -> bool {
@@ -312,7 +308,7 @@ impl RecordedActions {
         }
         false
     }
-    
+
     /// Add an action to the currently active draft recording
     /// **Returns**: `true` if action was added, `false` if no active recording
     pub fn add_action(&mut self, action: ActionEvent) -> bool {
@@ -322,19 +318,20 @@ impl RecordedActions {
         }
         false
     }
-    
+
     /// Clear the draft recording (used for Tab key and arena transitions)
     pub fn clear_draft(&mut self) {
         self.draft_recording = None;
     }
-    
-    
+
     /// Get the total number of arenas with saved recordings
     pub fn count_recorded_arenas(&self) -> usize {
-        self.saved_sessions.iter().filter(|recording| recording.is_some()).count()
+        self.saved_sessions
+            .iter()
+            .filter(|recording| recording.is_some())
+            .count()
     }
-    
-    
+
     /// Get all arenas that have saved recordings (returns arena indices)
     pub fn get_recorded_arena_indices(&self) -> Vec<u8> {
         self.saved_sessions
@@ -349,7 +346,7 @@ impl RecordedActions {
             })
             .collect()
     }
-    
+
     /// Save the current draft recording for an arena (for revert capability)
     /// Returns true if a session was saved, false if no active draft exists
     pub fn save_current_session(&mut self, arena_index: u8) -> bool {
@@ -366,8 +363,7 @@ impl RecordedActions {
         }
         false
     }
-    
-    
+
     /// Check if there's a saved session for an arena
     pub fn has_saved_session(&self, arena_index: u8) -> bool {
         if arena_index < 9 {
@@ -376,7 +372,7 @@ impl RecordedActions {
             false
         }
     }
-    
+
     /// Get the saved recording for a specific arena
     pub fn get_saved_recording(&self, arena_index: u8) -> Option<&RecordingSession> {
         if arena_index < 9 {
@@ -388,7 +384,7 @@ impl RecordedActions {
 }
 
 /// Component to track playback state for a character
-#[derive(Component, Debug, Clone)]  
+#[derive(Component, Debug, Clone)]
 pub struct PlaybackState {
     /// The recording session being played back
     pub recording: RecordingSession,
@@ -397,34 +393,36 @@ pub struct PlaybackState {
 }
 
 impl PlaybackState {
-    /// Create new playback state from a recording session
+    /// Create a new playback state from a recording session
     pub fn new(recording: RecordingSession) -> Option<Self> {
         // Only create if there are actions to play back
         if recording.actions.is_empty() {
             return None;
         }
-            
+
         Some(Self {
             recording,
             current_action_index: 0,
         })
     }
-    
-    /// Get the next action to execute based on timer timestamp
+
+    /// Get the next action to execute based on the timer timestamp
     pub fn get_current_action(&self, arena_timer_elapsed: f64) -> Option<&ActionEvent> {
         // Get the current action if we haven't processed all actions yet
         if self.current_action_index >= self.recording.actions.len() {
             return None;
         }
-        
+
         let action = &self.recording.actions[self.current_action_index];
-        
+
         // Calculate when this action should occur relative to recording start
         let action_relative_time = match action {
-            ActionEvent::Position { timestamp, .. } => *timestamp - self.recording.session_start_time,
+            ActionEvent::Position { timestamp, .. } => {
+                *timestamp - self.recording.session_start_time
+            }
             ActionEvent::Move { timestamp, .. } => *timestamp - self.recording.session_start_time,
         };
-        
+
         // Check if it's time to execute this action
         if action_relative_time <= arena_timer_elapsed {
             Some(action)
@@ -432,18 +430,16 @@ impl PlaybackState {
             None
         }
     }
-    
+
     /// Advance to the next action
     pub fn advance_action(&mut self) {
         if self.current_action_index < self.recording.actions.len() {
             self.current_action_index += 1;
         }
     }
-    
+
     /// Check if playback is complete
     pub fn is_complete(&self) -> bool {
         self.current_action_index >= self.recording.actions.len()
     }
-    
 }
-

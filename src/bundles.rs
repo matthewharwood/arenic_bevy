@@ -1,11 +1,11 @@
 //! Entity bundles for convenient spawning.
-//! 
+//!
 //! Bundles group related components together to make entity spawning
 //! more convenient and less error-prone.
 
-use bevy::prelude::*;
 use crate::components::{Character, CharacterSelected};
-use crate::config::{display::TILE_SIZE, assets};
+use crate::config::{assets, display::TILE_SIZE};
+use bevy::prelude::*;
 
 /// Bundle for spawning a game character
 #[derive(Bundle)]
@@ -17,7 +17,13 @@ pub struct CharacterBundle {
 
 impl CharacterBundle {
     /// Create a new character bundle at the specified world position
-    pub fn new(asset_server: &AssetServer, x: f32, y: f32, selected: bool, name: impl Into<String>) -> Self {
+    pub fn new(
+        asset_server: &AssetServer,
+        x: f32,
+        y: f32,
+        selected: bool,
+        name: impl Into<String>,
+    ) -> Self {
         let image_path = if selected {
             assets::PLAYER_SELECTED
         } else {
@@ -46,7 +52,7 @@ pub struct SelectedCharacterBundle {
 }
 
 impl SelectedCharacterBundle {
-    /// Create a new selected character bundle at the specified world position
+    /// Create a newly selected character bundle at the specified world position
     pub fn new(asset_server: &AssetServer, x: f32, y: f32, name: impl Into<String>) -> Self {
         Self {
             sprite: Sprite {

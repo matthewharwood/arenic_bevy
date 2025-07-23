@@ -1,26 +1,24 @@
 //! UI plugin for the game interface.
 //!
-//! This module contains all UI-related functionality including navigation bars
+//! This module contains all UI-related functionality, including navigation bars
 //! and other interface elements.
 
+use crate::components::{BottomNavBar, SideNavBar, TopNavBar};
+use crate::config::{
+    display::TILE_SIZE,
+    ui::{CAMERA_PADDING_Y, SIDEBAR_WIDTH},
+};
 use bevy::prelude::*;
-use crate::components::{TopNavBar, SideNavBar, BottomNavBar};
-use crate::config::{display::TILE_SIZE, ui::{CAMERA_PADDING_Y, SIDEBAR_WIDTH}};
 
 /// Plugin that handles all UI-related functionality
 pub struct UiPlugin;
 
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems(
-                Startup,
-                (
-                    spawn_top_nav_bar,
-                    spawn_side_nav_bars,
-                    spawn_bottom_nav_bar,
-                ),
-            );
+        app.add_systems(
+            Startup,
+            (spawn_top_nav_bar, spawn_side_nav_bars, spawn_bottom_nav_bar),
+        );
     }
 }
 

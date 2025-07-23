@@ -1,14 +1,12 @@
 //! Arena management plugin.
-//! 
-//! This plugin handles all arena functionality including arena setup,
+//!
+//! This plugin handles all arena functionality, including arena setup,
 //! grid/tile spawning, timer management, and arena lifecycle.
 
-use bevy::prelude::*;
 use crate::components::{ArenaName, ArenaTimer, CurrentArena};
-use crate::config::arena::{ARENA_WIDTH, ARENA_HEIGHT, GRID_HEIGHT, GRID_WIDTH};
-use crate::config::display::{
-    HALF_TILE_SIZE, HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT, TILE_SIZE
-};
+use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH, GRID_HEIGHT, GRID_WIDTH};
+use crate::config::display::{HALF_TILE_SIZE, HALF_WINDOW_HEIGHT, HALF_WINDOW_WIDTH, TILE_SIZE};
+use bevy::prelude::*;
 
 /// Plugin that handles arena systems
 pub struct ArenaPlugin;
@@ -25,7 +23,7 @@ fn setup_arenas(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Spawn current arena marker
     commands.spawn(CurrentArena(1));
 
-    // Setup 3x3 grid of arenas (9 arenas total)
+    // Set up 3x3 grid of arenas (9 arenas total)
     for arena_index in 0..9 {
         let arenas_per_row = 3;
         let arena_col = arena_index % arenas_per_row;
@@ -39,11 +37,11 @@ fn setup_arenas(mut commands: Commands, asset_server: Res<AssetServer>) {
             HALF_WINDOW_HEIGHT - HALF_TILE_SIZE - y_offset,
             0.0,
         ));
-        
+
         // Load arena-specific tile image
         let image_path = format!("{}.png", "default_grid_tile");
-        
-        // Create grid of tiles for this arena
+
+        // Create a grid of tiles for this arena
         for row in 0..GRID_HEIGHT {
             for col in 0..GRID_WIDTH {
                 arena

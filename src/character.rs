@@ -1,23 +1,24 @@
 //! Character management plugin.
-//! 
-//! This plugin handles all character functionality including spawning, selection,
+//!
+//! This plugin handles all character functionality, including spawning, selection,
 //! arena tracking, and character-arena interactions.
 
-use bevy::prelude::*;
 use crate::bundles::{CharacterBundle, SelectedCharacterBundle};
 use crate::components::{ArenaName, ArenaTimer, Character, CharacterSelected, CurrentArena};
-use crate::config::arena::{ARENA_WIDTH, ARENA_HEIGHT};
-use crate::config::display::{HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT};
+use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH};
 use crate::config::assets::{PLAYER_SELECTED, PLAYER_UNSELECTED};
+use crate::config::display::{HALF_WINDOW_HEIGHT, HALF_WINDOW_WIDTH};
 use crate::utils::calculate_character_position;
+use bevy::prelude::*;
 
 /// Plugin that handles character systems
 pub struct CharacterPlugin;
 
 impl Plugin for CharacterPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_player_selected)
-            .add_systems(Update, (
+        app.add_systems(Startup, spawn_player_selected).add_systems(
+            Update,
+            (
                 cycle_selected_character,
                 update_character_sprites,
                 update_character_arena_markers,
@@ -25,7 +26,8 @@ impl Plugin for CharacterPlugin {
                 ensure_character_selected_in_current_arena,
                 debug_character_arena_changes,
                 activate_arena_timers_on_character_entry,
-            ));
+            ),
+        );
     }
 }
 
@@ -51,7 +53,7 @@ fn spawn_player_selected(mut commands: Commands, asset_server: Res<AssetServer>)
     ));
 }
 
-/// Handle Tab key to cycle through characters
+/// Handle a Tab key to cycle through characters
 fn cycle_selected_character(
     mut commands: Commands,
     characters_query: Query<Entity, With<Character>>,
@@ -137,7 +139,7 @@ fn update_character_arena_markers(
     }
 }
 
-/// Sync current arena with selected character's arena
+/// Sync the current arena with the selected character's arena
 fn sync_current_arena_with_selected_character(
     mut arena_query: Query<&mut CurrentArena>,
     selected_character_query: Query<&ArenaName, (With<CharacterSelected>, Changed<ArenaName>)>,
@@ -201,7 +203,7 @@ fn ensure_character_selected_in_current_arena(
     }
 }
 
-/// Activate arena timers when selected character enters an arena
+/// Activate arena timers when a selected character enters an arena
 fn activate_arena_timers_on_character_entry(
     mut timer_query: Query<&mut ArenaTimer>,
     selected_character_query: Query<&ArenaName, (With<CharacterSelected>, Changed<ArenaName>)>,

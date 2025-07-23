@@ -1,29 +1,31 @@
 //! Camera system plugin.
-//! 
-//! This plugin handles all camera functionality including camera setup,
+//!
+//! This plugin handles all camera functionality, including camera setup,
 //! arena navigation, and zoom controls.
 
-use bevy::prelude::*;
 use crate::components::CurrentArena;
 use crate::config::display::TILE_SIZE;
 use crate::utils::calculate_camera_position;
+use bevy::prelude::*;
 
 /// Plugin that handles camera systems
 pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_camera)
-            .add_systems(Update, (
+        app.add_systems(Startup, setup_camera).add_systems(
+            Update,
+            (
                 handle_arena_navigation_keys,
                 update_camera_on_arena_change,
                 handle_zoom_toggle,
                 draw_arena_gizmo,
-            ));
+            ),
+        );
     }
 }
 
-/// Setup the main camera at startup
+/// Set up the main camera at startup
 fn setup_camera(mut commands: Commands) {
     let (camera_x, camera_y) = calculate_camera_position(1);
     commands
@@ -45,10 +47,10 @@ fn handle_arena_navigation_keys(
     camera_query: Query<&Projection, With<Camera>>,
     input: Res<ButtonInput<KeyCode>>,
 ) {
-    // Check if camera is at scale 3.0
+    // Check if the camera is at scale 3.0
     let _is_zoomed_out = camera_query.iter().any(|projection| {
-        if let Projection::Orthographic(ortho) = projection {
-            ortho.scale == 3.0
+        if let Projection::Orthographic(orthographic) = projection {
+            orthographic.scale == 3.0
         } else {
             false
         }
@@ -66,7 +68,7 @@ fn handle_arena_navigation_keys(
     }
 }
 
-/// Update camera position when arena changes
+/// Update camera position when the arena changes
 fn update_camera_on_arena_change(
     arena_query: Query<&CurrentArena, Changed<CurrentArena>>,
     mut camera_query: Query<(&mut Transform, &Projection), With<Camera>>,
@@ -75,9 +77,9 @@ fn update_camera_on_arena_change(
         let (camera_x, camera_y) = calculate_camera_position(current_arena.0);
 
         for (mut transform, projection) in &mut camera_query {
-            // Only move camera if not zoomed out (scale 1.0)
-            if let Projection::Orthographic(ortho) = projection {
-                if ortho.scale == 1.0 {
+            // Only move the camera if not zoomed out (scale 1.0)
+            if let Projection::Orthographic(orthographic) = projection {
+                if orthographic.scale == 1.0 {
                     transform.translation.x = camera_x;
                     transform.translation.y = camera_y;
                 }
@@ -86,7 +88,7 @@ fn update_camera_on_arena_change(
     }
 }
 
-/// Handle zoom toggle with P key
+/// Handle zoom toggle with a P key
 fn handle_zoom_toggle(
     arena_query: Query<&CurrentArena>,
     mut camera_query: Query<(&mut Transform, &mut Projection), With<Camera>>,
@@ -94,16 +96,16 @@ fn handle_zoom_toggle(
 ) {
     if input.just_pressed(KeyCode::KeyP) {
         for (mut transform, mut projection) in &mut camera_query {
-            if let Projection::Orthographic(ortho) = &mut *projection {
-                if ortho.scale == 1.0 {
-                    ortho.scale = 3.0;
+            if let Projection::Orthographic(orthographic) = &mut *projection {
+                if orthographic.scale == 1.0 {
+                    orthographic.scale = 3.0;
                     // Center on arena index 4 for zoom out and move down by TILE_SIZE * 3
                     let (camera_x, camera_y) = calculate_camera_position(4);
                     transform.translation.x = camera_x;
                     transform.translation.y = camera_y - (TILE_SIZE * 3.0);
                 } else {
-                    ortho.scale = 1.0;
-                    // Return to current arena position (without Y offset)
+                    orthographic.scale = 1.0;
+                    // Return to the current arena position (without Y offset)
                     for arena in &arena_query {
                         let (camera_x, camera_y) = calculate_camera_position(arena.0);
                         transform.translation.x = camera_x;
@@ -121,12 +123,12 @@ fn draw_arena_gizmo(
     arena_query: Query<&CurrentArena>,
     camera_query: Query<&Projection, With<Camera>>,
 ) {
-    use crate::config::arena::{ARENA_WIDTH, ARENA_HEIGHT};
-    use crate::config::display::{HALF_WINDOW_WIDTH, HALF_WINDOW_HEIGHT};
-    
+    use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH};
+    use crate::config::display::{HALF_WINDOW_HEIGHT, HALF_WINDOW_WIDTH};
+
     for projection in &camera_query {
-        if let Projection::Orthographic(ortho) = projection {
-            if ortho.scale == 3.0 {
+        if let Projection::Orthographic(orthographic) = projection {
+            if orthographic.scale == 3.0 {
                 // Only draw gizmo when zoomed out
                 for arena in &arena_query {
                     let arena_col = arena.0 % 3;
