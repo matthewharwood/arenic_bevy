@@ -6,6 +6,7 @@ mod bundles;
 mod components;
 mod config;
 mod movement;
+mod recording;
 mod ui;
 mod utils;
 
@@ -13,6 +14,7 @@ mod utils;
 use components::*;
 use config::{arena::*, assets::*, display::*};
 use movement::MovementPlugin;
+use recording::RecordingPlugin;
 use ui::UiPlugin;
 use utils::*;
 
@@ -27,6 +29,7 @@ fn main() {
             ..default()
         }))
         .add_plugins(MovementPlugin)
+        .add_plugins(RecordingPlugin)
         .add_plugins(UiPlugin)
         .add_systems(
             Startup,
@@ -230,11 +233,12 @@ fn spawn_player_selected(mut commands: Commands, asset_server: Res<AssetServer>)
         &asset_server,
         char1_x,
         char1_y,
+        "Dean",
     ));
 
     // Spawn second character at tile position (30, 15) in arena 1 (3 tiles to the left)
     let (char2_x, char2_y) = calculate_character_position(1, 30, 15);
-    commands.spawn(CharacterBundle::new(&asset_server, char2_x, char2_y, false));
+    commands.spawn(CharacterBundle::new(&asset_server, char2_x, char2_y, false, "Matt"));
 }
 
 
