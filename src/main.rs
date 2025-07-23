@@ -8,6 +8,7 @@ mod config;
 mod utils;
 
 // Re-exports for convenience
+use bundles::{CharacterBundle, SelectedCharacterBundle};
 use components::*;
 use config::{arena::*, assets::*, camera::*, display::*, ui::*};
 use utils::*;
@@ -217,8 +218,6 @@ fn draw_arena_gizmo(
 }
 
 fn spawn_player_selected(mut commands: Commands, asset_server: Res<AssetServer>) {
-    use crate::bundles::{CharacterBundle, SelectedCharacterBundle};
-
     // Spawn first character at tile position (33, 15) in arena 1 (center of the arena)
     let (char1_x, char1_y) = calculate_character_position(1, 33, 15);
     commands.spawn(SelectedCharacterBundle::new(
