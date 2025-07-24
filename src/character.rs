@@ -220,7 +220,7 @@ fn activate_arena_timers_on_character_entry(
                     arena_timer.get_status()
                 );
             } else {
-                // Timer is already in Recording or Playback mode
+                // Timer is already in Playback mode
                 println!(
                     "Selected character entered arena: {} (status: {:?} - continuing)",
                     arena_name.name(),
