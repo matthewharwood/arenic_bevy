@@ -3,24 +3,17 @@ use bevy::window::WindowResolution;
 
 // Module declarations
 mod arena;
-mod bundles;
-mod camera;
-mod character;
-mod components;
-mod config;
-mod movement;
-mod recording;
-mod ui;
-mod utils;
+mod battleground;
 
-// Re-exports for convenience
-use arena::ArenaPlugin;
-use camera::CameraPlugin;
-use character::CharacterPlugin;
-use config::display::*;
-use movement::MovementPlugin;
+mod recording;
+
+mod boss;
+mod character;
+mod config;
+mod relationships;
+
+use crate::config::display::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use recording::RecordingPlugin;
-use ui::UiPlugin;
 
 fn main() {
     App::new()
@@ -32,11 +25,6 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(ArenaPlugin)
-        .add_plugins(CameraPlugin)
-        .add_plugins(CharacterPlugin)
-        .add_plugins(MovementPlugin)
         .add_plugins(RecordingPlugin)
-        .add_plugins(UiPlugin)
         .run();
 }
