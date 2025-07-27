@@ -6,9 +6,7 @@ use super::ArenaTransform;
 pub struct Pawnshop;
 
 impl ComponentDisplay for Pawnshop {
-    fn name(&self) -> &'static str {
-        "Pawnshop"
-    }
+    const NAME: &'static str = "Pawnshop";
 }
 
 impl ArenaTransform for Pawnshop {

@@ -6,9 +6,7 @@ use super::ArenaTransform;
 pub struct Labyrinth;
 
 impl ComponentDisplay for Labyrinth {
-    fn name(&self) -> &'static str {
-        "Labyrinth"
-    }
+    const NAME: &'static str = "Labyrinth";
 }
 
 impl ArenaTransform for Labyrinth {

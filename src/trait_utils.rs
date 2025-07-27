@@ -1,3 +1,3 @@
 pub trait ComponentDisplay {
-    fn name(&self) -> &'static str;
+    const NAME: &'static str;
 }

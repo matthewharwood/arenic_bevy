@@ -6,9 +6,7 @@ use super::ArenaTransform;
 pub struct Bastion;
 
 impl ComponentDisplay for Bastion {
-    fn name(&self) -> &'static str {
-        "Bastion"
-    }
+    const NAME: &'static str = "Bastion";
 }
 
 impl ArenaTransform for Bastion {

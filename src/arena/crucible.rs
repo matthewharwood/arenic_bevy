@@ -6,9 +6,7 @@ use super::ArenaTransform;
 pub struct Crucible;
 
 impl ComponentDisplay for Crucible {
-    fn name(&self) -> &'static str {
-        "Crucible"
-    }
+    const NAME: &'static str = "Crucible";
 }
 
 impl ArenaTransform for Crucible {

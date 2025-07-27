@@ -25,6 +25,7 @@ use crate::battleground::Battleground;
 use crate::camera::CameraPlugin;
 use crate::config::display::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::psuedo_states::Checked;
+use crate::trait_utils::ComponentDisplay;
 use crate::ui::UiPlugin;
 use recording::RecordingPlugin;
 
@@ -62,7 +63,7 @@ fn startup_system(mut commands: Commands) {
             // Spawn Labyrinth
             parent.spawn((
                 Arena,
-                Name::new("Labyrinth"),
+                Name::new(Labyrinth::NAME),
                 Labyrinth,
                 Labyrinth::transform(),
                 Visibility::default(),
@@ -72,7 +73,7 @@ fn startup_system(mut commands: Commands) {
             // Spawn GuildHouse with Checked state
             parent.spawn((
                 Arena,
-                Name::new("GuildHouse"),
+                Name::new(GuildHouse::NAME),
                 GuildHouse,
                 GuildHouse::transform(),
                 Checked,
@@ -83,7 +84,7 @@ fn startup_system(mut commands: Commands) {
             // Spawn remaining arenas
             parent.spawn((
                 Arena,
-                Name::new("Sanctum"),
+                Name::new(Sanctum::NAME),
                 Sanctum,
                 Sanctum::transform(),
                 Visibility::default(),
@@ -92,7 +93,7 @@ fn startup_system(mut commands: Commands) {
 
             parent.spawn((
                 Arena,
-                Name::new("Mountain"),
+                Name::new(Mountain::NAME),
                 Mountain,
                 Mountain::transform(),
                 Visibility::default(),
@@ -101,7 +102,7 @@ fn startup_system(mut commands: Commands) {
 
             parent.spawn((
                 Arena,
-                Name::new("Bastion"),
+                Name::new(Bastion::NAME),
                 Bastion,
                 Bastion::transform(),
                 Visibility::default(),
@@ -110,7 +111,7 @@ fn startup_system(mut commands: Commands) {
 
             parent.spawn((
                 Arena,
-                Name::new("Pawnshop"),
+                Name::new(Pawnshop::NAME),
                 Pawnshop,
                 Pawnshop::transform(),
                 Visibility::default(),
@@ -119,7 +120,7 @@ fn startup_system(mut commands: Commands) {
 
             parent.spawn((
                 Arena,
-                Name::new("Crucible"),
+                Name::new(Crucible::NAME),
                 Crucible,
                 Crucible::transform(),
                 Visibility::default(),
@@ -128,7 +129,7 @@ fn startup_system(mut commands: Commands) {
 
             parent.spawn((
                 Arena,
-                Name::new("Casino"),
+                Name::new(Casino::NAME),
                 Casino,
                 Casino::transform(),
                 Visibility::default(),
@@ -137,7 +138,7 @@ fn startup_system(mut commands: Commands) {
 
             parent.spawn((
                 Arena,
-                Name::new("Gala"),
+                Name::new(Gala::NAME),
                 Gala,
                 Gala::transform(),
                 Visibility::default(),

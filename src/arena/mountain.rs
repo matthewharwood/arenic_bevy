@@ -6,9 +6,7 @@ use super::ArenaTransform;
 pub struct Mountain;
 
 impl ComponentDisplay for Mountain {
-    fn name(&self) -> &'static str {
-        "Mountain"
-    }
+    const NAME: &'static str = "Mountain";
 }
 
 impl ArenaTransform for Mountain {

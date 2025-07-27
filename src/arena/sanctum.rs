@@ -6,9 +6,7 @@ use super::ArenaTransform;
 pub struct Sanctum;
 
 impl ComponentDisplay for Sanctum {
-    fn name(&self) -> &'static str {
-        "Sanctum"
-    }
+    const NAME: &'static str = "Sanctum";
 }
 
 impl ArenaTransform for Sanctum {
