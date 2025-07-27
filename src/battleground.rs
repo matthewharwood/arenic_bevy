@@ -1,12 +1,8 @@
-use bevy::prelude::Component;
+use bevy::prelude::*;
 
 #[derive(Component, Debug)]
-pub struct Battleground {
-    name: String,
-    max_size: usize,
-}
+pub struct Battleground;
+
 impl Battleground {
-    pub fn new(name: String, max_size: usize) -> Self {
-        Self { name, max_size }
-    }
+    pub const MAX_ARENAS: usize = 9;
 }

@@ -3,9 +3,11 @@
 //! This plugin handles all camera functionality, including camera setup,
 //! arena navigation, and zoom controls.
 
-use crate::components::CurrentArena;
 use crate::config::display::TILE_SIZE;
-use crate::utils::calculate_camera_position;
+
+use crate::arena::CurrentArena;
+use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH};
+use crate::config::ui::{CAMERA_PADDING_Y, SIDEBAR_WIDTH};
 use bevy::prelude::*;
 
 /// Plugin that handles camera systems
@@ -25,20 +27,36 @@ impl Plugin for CameraPlugin {
     }
 }
 
+pub fn calculate_camera_position(arena_index: u8) -> (f32, f32) {
+    let arena_col = arena_index % 3;
+    let arena_row = arena_index / 3;
+
+    // Calculate arena top-left corner (matching setup positioning)
+    let arena_x = -SIDEBAR_WIDTH + (arena_col as f32 * ARENA_WIDTH);
+    let arena_y = CAMERA_PADDING_Y - (arena_row as f32 * ARENA_HEIGHT);
+
+    // Calculate an arena center by adding half-arena dimensions
+    let center_x = arena_x;
+    let center_y = arena_y;
+
+    (center_x, center_y)
+}
+
 /// Set up the main camera at startup
 fn setup_camera(mut commands: Commands) {
     let (camera_x, camera_y) = calculate_camera_position(1);
-    commands
-        .spawn(Camera2d)
-        .insert(Transform::from_xyz(camera_x, camera_y, 0.0))
-        .insert(Projection::Orthographic(OrthographicProjection {
+    commands.spawn((
+        Camera2d,
+        Transform::from_xyz(camera_x, camera_y, 0.0),
+        Projection::Orthographic(OrthographicProjection {
             near: -1000.0,
             scale: 1.0,
             far: 1000.0,
             viewport_origin: Vec2::new(0.5, 0.5),
             area: Rect::new(-1.0, -1.0, 1.0, 1.0),
             scaling_mode: Default::default(),
-        }));
+        }),
+    ));
 }
 
 /// Handle arena navigation keys (left/right bracket)
