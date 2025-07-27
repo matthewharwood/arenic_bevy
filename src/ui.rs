@@ -3,7 +3,6 @@
 //! This module contains all UI-related functionality, including navigation bars
 //! and other interface elements.
 
-use crate::components::{BottomNavBar, SideNavBar, TopNavBar};
 use crate::config::{
     display::TILE_SIZE,
     ui::{CAMERA_PADDING_Y, SIDEBAR_WIDTH},
@@ -21,6 +20,16 @@ impl Plugin for UiPlugin {
         );
     }
 }
+#[derive(Component, Debug, Clone)]
+pub struct TopNavBar;
+
+/// Marker component for side navigation bars
+#[derive(Component, Debug, Clone)]
+pub struct SideNavBar;
+
+/// Marker component for the bottom navigation bar
+#[derive(Component, Debug, Clone)]
+pub struct BottomNavBar;
 
 fn spawn_top_nav_bar(mut commands: Commands) {
     // Calculate the navigation bar height based on CAMERA_PADDING_Y + 1 pixel

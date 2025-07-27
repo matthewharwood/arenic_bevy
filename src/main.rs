@@ -15,6 +15,7 @@ mod psuedo_states;
 mod relationships;
 mod tile;
 mod trait_utils;
+mod ui;
 
 use crate::arena::{
     Arena, ArenaTransform, Bastion, Casino, Crucible, CurrentArena, Gala, GuildHouse, Labyrinth,
@@ -24,6 +25,7 @@ use crate::battleground::Battleground;
 use crate::camera::CameraPlugin;
 use crate::config::display::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::psuedo_states::Checked;
+use crate::ui::UiPlugin;
 use recording::RecordingPlugin;
 
 const GAME_NAME: &str = "Arenic";
@@ -40,106 +42,108 @@ fn main() {
         .add_systems(Startup, (startup_system, setup_arena_tiles).chain())
         .add_plugins(CameraPlugin)
         .add_plugins(RecordingPlugin)
+        .add_plugins(UiPlugin)
         .run();
 }
 
 fn startup_system(mut commands: Commands) {
     // Spawn the CurrentArena as a resource or component
     commands.spawn(CurrentArena(1));
-    
-    commands.spawn((
-        Battleground,
-        Name::new(GAME_NAME),
-        Transform::default(),
-        Visibility::default(),
-        InheritedVisibility::default(),
-    ))
-    .with_children(|parent| {
-        // Spawn Labyrinth
-        parent.spawn((
-            Arena,
-            Name::new("Labyrinth"),
-            Labyrinth,
-            Labyrinth::transform(),
+
+    commands
+        .spawn((
+            Battleground,
+            Name::new(GAME_NAME),
+            Transform::default(),
             Visibility::default(),
             InheritedVisibility::default(),
-        ));
-        
-        // Spawn GuildHouse with Checked state
-        parent.spawn((
-            Arena,
-            Name::new("GuildHouse"),
-            GuildHouse,
-            GuildHouse::transform(),
-            Checked,
-            Visibility::default(),
-            InheritedVisibility::default(),
-        ));
-        
-        // Spawn remaining arenas
-        parent.spawn((
-            Arena,
-            Name::new("Sanctum"),
-            Sanctum,
-            Sanctum::transform(),
-            Visibility::default(),
-            InheritedVisibility::default(),
-        ));
-        
-        parent.spawn((
-            Arena,
-            Name::new("Mountain"),
-            Mountain,
-            Mountain::transform(),
-            Visibility::default(),
-            InheritedVisibility::default(),
-        ));
-        
-        parent.spawn((
-            Arena,
-            Name::new("Bastion"),
-            Bastion,
-            Bastion::transform(),
-            Visibility::default(),
-            InheritedVisibility::default(),
-        ));
-        
-        parent.spawn((
-            Arena,
-            Name::new("Pawnshop"),
-            Pawnshop,
-            Pawnshop::transform(),
-            Visibility::default(),
-            InheritedVisibility::default(),
-        ));
-        
-        parent.spawn((
-            Arena,
-            Name::new("Crucible"),
-            Crucible,
-            Crucible::transform(),
-            Visibility::default(),
-            InheritedVisibility::default(),
-        ));
-        
-        parent.spawn((
-            Arena,
-            Name::new("Casino"),
-            Casino,
-            Casino::transform(),
-            Visibility::default(),
-            InheritedVisibility::default(),
-        ));
-        
-        parent.spawn((
-            Arena,
-            Name::new("Gala"),
-            Gala,
-            Gala::transform(),
-            Visibility::default(),
-            InheritedVisibility::default(),
-        ));
-    });
+        ))
+        .with_children(|parent| {
+            // Spawn Labyrinth
+            parent.spawn((
+                Arena,
+                Name::new("Labyrinth"),
+                Labyrinth,
+                Labyrinth::transform(),
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+
+            // Spawn GuildHouse with Checked state
+            parent.spawn((
+                Arena,
+                Name::new("GuildHouse"),
+                GuildHouse,
+                GuildHouse::transform(),
+                Checked,
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+
+            // Spawn remaining arenas
+            parent.spawn((
+                Arena,
+                Name::new("Sanctum"),
+                Sanctum,
+                Sanctum::transform(),
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+
+            parent.spawn((
+                Arena,
+                Name::new("Mountain"),
+                Mountain,
+                Mountain::transform(),
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+
+            parent.spawn((
+                Arena,
+                Name::new("Bastion"),
+                Bastion,
+                Bastion::transform(),
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+
+            parent.spawn((
+                Arena,
+                Name::new("Pawnshop"),
+                Pawnshop,
+                Pawnshop::transform(),
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+
+            parent.spawn((
+                Arena,
+                Name::new("Crucible"),
+                Crucible,
+                Crucible::transform(),
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+
+            parent.spawn((
+                Arena,
+                Name::new("Casino"),
+                Casino,
+                Casino::transform(),
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+
+            parent.spawn((
+                Arena,
+                Name::new("Gala"),
+                Gala,
+                Gala::transform(),
+                Visibility::default(),
+                InheritedVisibility::default(),
+            ));
+        });
 }
 
 fn setup_arena_tiles(
