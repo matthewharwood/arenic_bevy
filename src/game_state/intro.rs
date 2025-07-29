@@ -4,6 +4,9 @@ use crate::arena::{
     Mountain, Pawnshop, Sanctum,
 };
 use crate::battleground::Battleground;
+use crate::boss::guild_master::GuildMaster;
+use crate::boss::{Boss, BossAnimationConfig};
+use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH};
 use crate::pseudo_states::Checked;
 use crate::trait_utils::ComponentDisplay;
 use bevy::prelude::*;
@@ -15,7 +18,11 @@ impl Plugin for IntroPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             OnEnter(GameState::Intro),
-            (setup_intro, setup_arena_tiles).chain(),
+            (setup_intro, setup_arena_tiles, spawn_guild_master).chain(),
+        )
+        .add_systems(
+            Update,
+            animate_guild_master.run_if(in_state(GameState::Intro)),
         )
         .add_systems(OnExit(GameState::Intro), cleanup_intro);
     }
@@ -201,5 +208,106 @@ fn cleanup_intro(
     // Clean up CurrentArena entity
     for entity in &current_arena_query {
         commands.entity(entity).despawn();
+    }
+}
+
+fn spawn_guild_master(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut layouts: ResMut<Assets<TextureAtlasLayout>>,
+    query: Query<Entity, With<GuildHouse>>,
+) {
+    let Some(arena_entity) = query.iter().next() else {
+        warn!("No GuildHouse entity found to spawn GuildMaster in!");
+        return;
+    };
+
+    info!("Spawning GuildMaster in arena entity: {:?}", arena_entity);
+
+    let texture = asset_server.load(GuildMaster::TEXTURE_PATH);
+    let layout = layouts.add(GuildMaster::create_atlas_layout());
+
+    commands.entity(arena_entity).with_children(|parent| {
+        let guild_master_entity = parent
+            .spawn((
+                GuildMaster,
+                Sprite {
+                    image: texture,
+                    texture_atlas: Some(TextureAtlas { layout, index: 0 }),
+                    ..default()
+                },
+                Transform::from_xyz(ARENA_WIDTH / 2.0, -ARENA_HEIGHT / 2.0, 1.0),
+                GuildMaster::animation_config(),
+            ))
+            .id();
+
+        info!("GuildMaster spawned with entity: {:?}", guild_master_entity);
+    });
+}
+fn animate_guild_master(
+    time: Res<Time>,
+    mut guild_master: Single<(&mut Sprite, &mut BossAnimationConfig), With<GuildMaster>>,
+) {
+    let (mut sprite, mut config) = guild_master.into_inner();
+    if let Some(texture_atlas) = sprite.texture_atlas.as_mut() {
+        config.timer.tick(time.delta());
+
+        if config.timer.just_finished() {
+            texture_atlas.index = if texture_atlas.index >= config.last_frame {
+                config.first_frame
+            } else {
+                texture_atlas.index + 1
+            };
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+    #[test]
+    fn test_animation_frame_progression() {
+        let mut sprite = Sprite {
+            texture_atlas: Some(TextureAtlas {
+                layout: Handle::default(),
+                index: 0,
+            }),
+            ..default()
+        };
+        let mut config = GuildMaster::animation_config();
+        config.timer.tick(Duration::from_secs_f32(0.1));
+
+        if config.timer.just_finished() {
+            if let Some(ref mut atlas) = sprite.texture_atlas {
+                atlas.index = if atlas.index >= config.last_frame {
+                    config.first_frame
+                } else {
+                    atlas.index + 1
+                };
+            }
+        }
+        assert_eq!(sprite.texture_atlas.as_ref().unwrap().index, 1);
+    }
+    fn test_animation_wrap_around() {
+        let mut sprite = Sprite {
+            texture_atlas: Some(TextureAtlas {
+                layout: Handle::default(),
+                index: 13,
+            }),
+            ..default()
+        };
+        let mut config = GuildMaster::animation_config();
+        config.timer.tick(Duration::from_secs_f32(0.1));
+        if config.timer.just_finished() {
+            if let Some(ref mut atlas) = sprite.texture_atlas {
+                atlas.index = if atlas.index >= config.last_frame {
+                    config.first_frame
+                } else {
+                    atlas.index + 1
+                };
+            }
+        }
+        assert_eq!(sprite.texture_atlas.as_ref().unwrap().index, 0);
     }
 }

@@ -2,8 +2,6 @@
   "permissions": {
     "deny": [
       "Read(target)",
-      "Read(assets)",
-      "Read(_docs)",
       "Read(Cargo.lock)"
     ]
   }

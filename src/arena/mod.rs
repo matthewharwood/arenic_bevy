@@ -7,26 +7,26 @@ use bevy::math::Vec2;
 use bevy::prelude::{default, Commands, Component, Entity, Sprite, Transform};
 
 // Module declarations for each arena type
-mod labyrinth;
-mod guildhouse;
-mod sanctum;
-mod mountain;
 mod bastion;
-mod pawnshop;
-mod crucible;
 mod casino;
+mod crucible;
 mod gala;
+mod guildhouse;
+mod labyrinth;
+mod mountain;
+mod pawnshop;
+mod sanctum;
 
 // Re-export all arena types
-pub use labyrinth::Labyrinth;
-pub use guildhouse::GuildHouse;
-pub use sanctum::Sanctum;
-pub use mountain::Mountain;
 pub use bastion::Bastion;
-pub use pawnshop::Pawnshop;
-pub use crucible::Crucible;
 pub use casino::Casino;
+pub use crucible::Crucible;
 pub use gala::Gala;
+pub use guildhouse::GuildHouse;
+pub use labyrinth::Labyrinth;
+pub use mountain::Mountain;
+pub use pawnshop::Pawnshop;
+pub use sanctum::Sanctum;
 
 #[derive(Component, Debug)]
 pub struct Arena;
@@ -39,7 +39,7 @@ impl Arena {
         asset_server: &AssetServer,
         arena_index: usize,
     ) {
-        let image_path = format!("Grid_{}.png", arena_index);
+        let image_path = format!("{}.png", "default_grid_tile");
 
         commands.entity(arena_entity).with_children(|parent| {
             for row in 0..GRID_HEIGHT {
