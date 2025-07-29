@@ -5,6 +5,7 @@ mod alchemist;
 mod cardinal;
 mod collector;
 mod gatherer;
+mod guild_master;
 mod sprinter;
 mod tank;
 mod thief;
