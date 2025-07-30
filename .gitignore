@@ -6,7 +6,7 @@
 /rust-toolchain.toml
 
 # Bevy Specific
-/assets/
+/arenic_bevy/assets/
 /crates/*/assets/
 
 # macOS
