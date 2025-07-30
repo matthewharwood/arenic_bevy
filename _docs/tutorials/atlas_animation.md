@@ -579,6 +579,7 @@ fn animate_with_single(
 ```
 
 **Key Benefits of Single**:
+
 1. **Performance**: No loop overhead for single entities
 2. **Safety**: Compile-time guarantee there's exactly one match
 3. **Clarity**: Code clearly communicates intent ("this is unique")
@@ -589,7 +590,8 @@ fn animate_with_single(
 <details>
 <summary>Check your answer</summary>
 
-The system will panic at runtime with a clear error message, helping you catch the bug immediately rather than having subtle animation issues.
+The system will panic at runtime with a clear error message, helping you catch the bug immediately rather than having
+subtle animation issues.
 
 </details>
 
@@ -599,16 +601,19 @@ The `.into_inner()` method extracts the actual component references from the `Si
 
 ```rust
 // This gives you a Single wrapper around your components
-let mut guild_master: Single<(&mut Sprite, &mut BossAnimationConfig), With<GuildMaster>> = // ...
+let mut guild_master: Single<( & mut Sprite, & mut BossAnimationConfig), With<GuildMaster> > = // ...
 
 // This extracts the actual component references you can work with
-let (mut sprite, mut config) = guild_master.into_inner();
+let ( mut sprite, mut config) = guild_master.into_inner();
 //      ^^^^^^^^^^^^^^^^^^^^^ These are now direct mutable references
 ```
 
-**Why .into_inner()?** Bevy's `Single` is a smart wrapper that provides safety guarantees. When you call `.into_inner()`, you're saying "I've verified this is safe, give me the raw components." It's similar to how `Option::unwrap()` extracts the value from `Some(value)`.
+**Why .into_inner()?** Bevy's `Single` is a smart wrapper that provides safety guarantees. When you call
+`.into_inner()`, you're saying "I've verified this is safe, give me the raw components." It's similar to how
+`Option::unwrap()` extracts the value from `Some(value)`.
 
 **Alternative Pattern** (less common):
+
 ```rust
 // You could also access components through the wrapper
 let sprite_ref = guild_master.get_mut(); // Returns (&mut Sprite, &mut BossAnimationConfig)
@@ -616,7 +621,8 @@ let sprite_ref = guild_master.get_mut(); // Returns (&mut Sprite, &mut BossAnima
 
 ### The Timer Tick System Explained
 
-The most complex part of animation is understanding how `config.timer.tick(time.delta())` works with Bevy's global time system:
+The most complex part of animation is understanding how `config.timer.tick(time.delta())` works with Bevy's global time
+system:
 
 ```
 Frame N:     Frame N+1:    Frame N+2:
@@ -657,7 +663,8 @@ Frame N+6:    (After ~100ms total)
 3. **`timer.tick(duration)`** adds that duration to the timer's internal elapsed time
 4. **Timer checks**: "Have I reached my target duration?" (100ms in our case)
 
-**Key Insight**: The timer doesn't care about frame rates! Whether you run at 30 FPS or 144 FPS, the animation will always take exactly 0.1 seconds per frame because it's based on real time, not frame count.
+**Key Insight**: The timer doesn't care about frame rates! Whether you run at 30 FPS or 144 FPS, the animation will
+always take exactly 0.1 seconds per frame because it's based on real time, not frame count.
 
 ### Understanding just_finished()
 
@@ -665,8 +672,8 @@ The `just_finished()` method is crucial for preventing animation bugs:
 
 ```rust
 if config.timer.just_finished() {
-    // This code runs EXACTLY ONCE when timer completes
-    texture_atlas.index += 1;
+// This code runs EXACTLY ONCE when timer completes
+texture_atlas.index += 1;
 }
 ```
 
@@ -679,12 +686,12 @@ impl Timer {
         // Only true for ONE frame when timer completes
         self.finished && !self.finished_last_frame
     }
-    
+
     fn tick(&mut self, delta: Duration) {
         self.finished_last_frame = self.finished;
         self.elapsed += delta;
         self.finished = self.elapsed >= self.duration;
-        
+
         if self.finished && self.mode == TimerMode::Repeating {
             self.elapsed = Duration::ZERO; // Reset for next cycle
         }
@@ -692,15 +699,18 @@ impl Timer {
 }
 ```
 
-**Why This Matters**: Without `just_finished()`, you might use `finished()` which would be true for EVERY frame after the timer completes, causing your animation to advance multiple frames instantly!
+**Why This Matters**: Without `just_finished()`, you might use `finished()` which would be true for EVERY frame after
+the timer completes, causing your animation to advance multiple frames instantly!
 
 **Alternative Timer APIs** for different use cases:
+
 - **`timer.finished()`** - True from completion until reset
 - **`timer.percent()`** - Returns 0.0 to 1.0 progress (great for smooth interpolation)
 - **`timer.remaining()`** - Time left until completion
 - **`timer.elapsed()`** - Time passed since last reset
 
-**🔗 Deep Dive Reference**: Want to see the actual implementation? Check Bevy's Timer source: [bevy/crates/bevy_time/src/timer.rs](https://github.com/bevyengine/bevy/blob/main/crates/bevy_time/src/timer.rs)
+**🔗 Deep Dive Reference**: Want to see the actual implementation? Check Bevy's Timer
+source: [bevy/crates/bevy_time/src/timer.rs](https://github.com/bevyengine/bevy/blob/main/crates/bevy_time/src/timer.rs)
 
 ### Test Your Animation System
 
@@ -733,9 +743,9 @@ mod tests {
                 };
             }
         }
-        
+
         assert_eq!(
-            sprite.texture_atlas.as_ref().unwrap().index, 
+            sprite.texture_atlas.as_ref().unwrap().index,
             1,
             "Animation should advance from frame 0 to frame 1 after 0.1 seconds. \
              This failure suggests either: (1) Timer duration is not 0.1 seconds, \
@@ -754,7 +764,7 @@ mod tests {
         };
         let mut config = GuildMaster::animation_config();
         config.timer.tick(Duration::from_secs_f32(0.1));
-        
+
         if config.timer.just_finished() {
             if let Some(ref mut atlas) = sprite.texture_atlas {
                 atlas.index = if atlas.index >= config.last_frame {
@@ -764,9 +774,9 @@ mod tests {
                 };
             }
         }
-        
+
         assert_eq!(
-            sprite.texture_atlas.as_ref().unwrap().index, 
+            sprite.texture_atlas.as_ref().unwrap().index,
             0,
             "Animation should wrap from frame 14 (last_frame) back to frame 0 (first_frame). \
              This failure suggests the wrap-around logic is incorrect or last_frame/first_frame \
@@ -776,7 +786,8 @@ mod tests {
 }
 ```
 
-**Verify Your Learning**: Run these tests. The enhanced failure messages will help you debug any issues with timer configuration or animation logic.
+**Verify Your Learning**: Run these tests. The enhanced failure messages will help you debug any issues with timer
+configuration or animation logic.
 
 ### System Integration
 
