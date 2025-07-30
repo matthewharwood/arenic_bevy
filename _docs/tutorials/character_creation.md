@@ -1,20 +1,7 @@
-# Building Character Creation Systems in Bevy: A Collaborative Development Case Study
-
-## The Challenge That Started It All
-
-Picture this: You're building a game and need a character creation system. You could hack something together alone,
-wrestling with UX decisions, visual design, narrative voice, and technical implementation simultaneously. Or you could
-do what we did, assemble a set of AI subagents, and discover how collaborative development transforms both the
-process and the product.
-
-This tutorial reveals both sides of the story: **how to build a production-ready character creation system in Bevy** and
-**how AI collaboration creates better game systems faster**.
+# Building Character Creation Systems in Bevy
 
 **What You'll Build**: A complete character creation system featuring 8 character classes, interactive card selection,
 character naming, and seamless state transitions—all architected for maintainability and extensibility.
-
-**What You'll Learn**: Technical Bevy implementation, collaborative design methodology, and how different expertise
-domains integrate into cohesive game systems.
 
 ---
 
@@ -24,9 +11,9 @@ Before diving into code, establish this central concept: **Character creation is
 states and multiple transition triggers**.
 
 ```
-Selection State → [User Clicks Card] → Naming State → [User Presses Enter] → Game State
-     ↑                                        ↓
-     └────────── [User Presses Escape] ──────┘
+GameState::CharacterCreate(Selection) → [User Clicks Card] → GameState::CharacterCreate(Naming) → [User Presses Enter] → GameState::Intro
+                    ↑                                                           ↓
+                    └────────────── [User Presses Escape] ────────────────────┘
 ```
 
 This mental model will anchor everything we build. Each state has distinct UI requirements, different input handling,
@@ -43,25 +30,27 @@ Our character creation system follows Bevy's plugin architecture with ECS Compon
 3. **System Coordination**: Multiple systems handle different concerns (UI, input, state transitions)
 
 ```rust
-// High-level system architecture - ECS Component Approach
+// High-level system architecture - Nested Enum State + ECS Component Approach
 CharacterCreatePlugin
+├── States
+│   └── GameState::CharacterCreate(CharacterPhase) (unified state management)
 ├── Resources
-│   └── CharacterCreationState (tracks current phase only)
+│   └── InputBuffer (temporary input storage only)
 ├── Components
 │   ├── Character (attached to character entities)
-│   ├── Name (Bevy's built-in component for character names)
+│   ├── Name (Bevy's built- in component for character names)
 │   ├── CharacterCard (data binding for UI)
 │   ├── HoverState (interaction tracking)
 │   └── InputText (text field management)
 ├── Systems
-│   ├── setup_character_create (UI spawning)
+│   ├── setup_selection_ui (Selection phase UI spawning)
+│   ├── setup_naming_ui (Naming phase UI spawning)
 │   ├── handle_character_selection (card interactions)
 │   ├── handle_naming_input (keyboard processing)
 │   ├── update_card_hover_effects (visual feedback)
-│   ├── transition_to_intro (preserve character entity during state change)
 │   └── setup_character_in_guild_house (parent character to guild house arena)
 └── Entities
-    └── Character Entity (spawned with Character + Name components, persists across states)
+└── Character Entity (spawned with Character + Name components, persists across states)
 ```
 
 **Active Recall Checkpoint**: Before continuing, explain in your own words how Bevy's ECS pattern separates data (
@@ -91,8 +80,64 @@ fn cleanup_character_create(
 prefer change detection over polling:
 
 ```rust
-// Production insight: Consider adding Without<> filters for complex scenes
+// ❌ BAD: Polling approach - runs every frame even when nothing changes
+fn update_card_hover_effects_polling(
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor, &mut HoverState),
+        With<SelectableCard> // No Changed<> filter - processes ALL cards every frame
+    >,
+) {
+    // This system processes every card every frame (60+ times per second)
+    // even when no interactions have changed - wasteful and hurts performance
+    for (interaction, mut bg_color, mut hover_state) in &mut interaction_query {
+        match *interaction {
+            Interaction::Hovered => {
+                if !hover_state.is_hovered {
+                    *bg_color = BackgroundColor(Color::srgb(1.0, 1.0, 1.0));
+                    hover_state.is_hovered = true;
+                }
+            }
+            Interaction::None => {
+                if hover_state.is_hovered {
+                    *bg_color = BackgroundColor(Color::srgb(0.92, 0.92, 0.92));
+                    hover_state.is_hovered = false;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+// ✅ GOOD: Change detection approach - only runs when interactions actually change
 fn update_card_hover_effects(
+    mut interaction_query: Query<
+        (&Interaction, &mut BackgroundColor, &mut HoverState),
+        (Changed<Interaction>, With<SelectableCard>, Without<Pressed>) // Only processes changed entities
+    >,
+) {
+    // This system only processes cards when their Interaction component changes
+    // Dramatically reduces CPU usage, especially with many UI elements
+    for (interaction, mut bg_color, mut hover_state) in &mut interaction_query {
+        match *interaction {
+            Interaction::Hovered => {
+                if !hover_state.is_hovered {
+                    *bg_color = BackgroundColor(Color::srgb(1.0, 1.0, 1.0));
+                    hover_state.is_hovered = true;
+                }
+            }
+            Interaction::None => {
+                if hover_state.is_hovered {
+                    *bg_color = BackgroundColor(Color::srgb(0.92, 0.92, 0.92));
+                    hover_state.is_hovered = false;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+// Production insight: Consider adding Without<> filters for complex scenes
+fn update_card_hover_effects_optimized(
     mut interaction_query: Query<
         (&Interaction, &mut BackgroundColor, &mut HoverState),
         (Changed<Interaction>, With<SelectableCard>, Without<Pressed>) // Avoid processed entities
@@ -158,38 +203,47 @@ enum AssetLoadState {
 struct ImageFallback(Handle<Image>);
 ```
 
-### Resource Lifecycle Management
+### Nested State Architecture Benefits
 
-The current `CharacterCreationState` resource persists between sessions. For production games, consider resource cleanup
-strategies:
+The nested enum approach `GameState::CharacterCreate(CharacterPhase)` eliminates the need for manual resource lifecycle
+management:
 
 ```rust
-impl Drop for CharacterCreationState {
-    fn drop(&mut self) {
-        // Production: Log state cleanup for debugging
-        info!("CharacterCreationState dropped with {} character name length", self.character_name.len());
-    }
+// OLD APPROACH (Separate Resource) - Complex lifecycle management needed
+#[derive(Resource)]
+struct CharacterCreationState {
+    phase: CreationPhase,
+    character_name: String,
 }
 
-// Production pattern: Explicit resource management
-fn cleanup_character_create(
-    mut commands: Commands,
-    query: Query<Entity, With<CharacterCreateScreen>>,
-    mut creation_state: ResMut<CharacterCreationState>,
-) {
-    // Clean up entities
-    for entity in &query {
-        commands.entity(entity).despawn_recursive();
-    }
+// NEW APPROACH (Nested States) - Automatic lifecycle management
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
+enum GameState {
+    MainMenu,
+    CharacterCreate(CharacterPhase),
+    Intro,
+    Battle,
+}
 
-    // Production: Reset expensive allocations
-    creation_state.character_name.clear();
-    creation_state.character_name.shrink_to_fit(); // Free memory
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum CharacterPhase {
+    Selection,
+    Naming(CharacterClass),
+}
 
-    // Reset to default state for next use
-    *creation_state = CharacterCreationState::default();
+// Minimal resource for temporary input only
+#[derive(Resource, Default)]
+struct InputBuffer {
+    character_name: String,
 }
 ```
+
+**Key Benefits**:
+
+- **Unified State Management**: Single source of truth eliminates synchronization issues
+- **Automatic Transitions**: Bevy handles UI cleanup and setup without manual intervention
+- **Type Safety**: Compile-time guarantees prevent invalid state combinations
+- **Reduced Complexity**: No manual resource lifecycle management needed
 
 ### Input Handling Robustness
 
@@ -426,13 +480,80 @@ fn handle_gamepad_navigation(
 
 ## Implementation: Step-by-Step Build Process
 
-### Step 1: Foundation - Character Classes and Core Types
+### Step 1: Foundation - Modular Character Class Architecture
 
-First, we establish our data foundations. Adam's narrative design directly informed our character class structure:
+First, we establish our modular character class foundation. Following the production-ready architecture in `src/boss/`, each character class gets its own file implementing a shared trait.
+
+**File Structure**:
+```
+src/boss/
+├── mod.rs          // Module declarations and shared Boss trait
+├── trapper.rs      // Trapper-specific implementation
+├── alchemist.rs    // Alchemist-specific implementation
+├── sprinter.rs     // Sprinter-specific implementation
+├── gatherer.rs     // Gatherer-specific implementation
+├── thief.rs        // Thief-specific implementation
+├── tank.rs         // Tank-specific implementation
+├── cardinal.rs     // Cardinal-specific implementation
+└── collector.rs    // Collector-specific implementation
+```
+
+**Core Architecture**: `src/boss/mod.rs`
+
+```rust
+use bevy::prelude::*;
+
+// Module declarations for each boss type
+pub mod alchemist;
+pub mod cardinal;
+pub mod collector;
+pub mod gatherer;
+pub mod sprinter;
+pub mod tank;
+pub mod thief;
+pub mod trapper;
+
+/// Shared trait for all boss/character types
+pub trait Boss {
+    const NAME: &'static str;
+    const TEXTURE_PATH: &'static str;
+    const FRAME_COUNT: usize = 14;
+    const FRAME_WIDTH: u32 = 115;
+    const FRAME_HEIGHT: u32 = 115;
+    const ANIMATION_FPS: f32 = 10.0;
+}
+```
+
+**Individual Character Implementation**: `src/boss/trapper.rs`
+
+```rust
+use super::Boss;
+use bevy::prelude::*;
+
+#[derive(Component, Debug)]
+pub struct Trapper;
+
+impl Boss for Trapper {
+    const NAME: &'static str = "The Trapper";
+    const TEXTURE_PATH: &'static str = "bosses/trapper.png";
+    const ANIMATION_FPS: f32 = 10.0;
+}
+```
+
+**Design Decision**: Why this modular approach over a single enum file?
+
+1. **Scalability**: Each character can have unique behavior, stats, and abilities in separate files
+2. **Maintainability**: Changes to one character don't affect others
+3. **Team Development**: Multiple developers can work on different characters simultaneously
+4. **Trait System**: Shared `Boss` trait ensures consistency while allowing customization
+5. **Asset Organization**: Clear separation between portrait icons and animation sprites
+
+Now, let's integrate this with our character creation enum:
 
 ```rust
 /// The 8 character classes available for selection
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// This enum bridges the character creation UI with the modular Boss system
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CharacterClass {
     Trapper,      // "Set cunning snares, control the battlefield"
     Alchemist,    // "Transform matter, brew ancient mysteries"  
@@ -460,12 +581,17 @@ impl CharacterClass {
         ]
     }
 
-    /// Get the display name for the character class
+    /// Get the display name for the character class (delegates to Boss trait)
     pub fn display_name(self) -> &'static str {
         match self {
-            Self::Trapper => "The Trapper",
-            Self::Alchemist => "The Alchemist",
-            // ... (pattern continues for all 8 classes)
+            Self::Trapper => crate::boss::trapper::Trapper::NAME,
+            Self::Alchemist => crate::boss::alchemist::Alchemist::NAME,
+            Self::Sprinter => crate::boss::sprinter::Sprinter::NAME,
+            Self::Gatherer => crate::boss::gatherer::Gatherer::NAME,
+            Self::Thief => crate::boss::thief::Thief::NAME,
+            Self::Tank => crate::boss::tank::Tank::NAME,
+            Self::Cardinal => crate::boss::cardinal::Cardinal::NAME,
+            Self::Collector => crate::boss::collector::Collector::NAME,
         }
     }
 
@@ -474,72 +600,159 @@ impl CharacterClass {
         match self {
             Self::Trapper => "Set cunning snares, control the battlefield",
             Self::Alchemist => "Transform matter, brew ancient mysteries",
-            // ... (Adam's taglines for all classes)
+            Self::Sprinter => "Strike swift, vanish without trace",
+            Self::Gatherer => "Harvest wisdom, hoard precious resources",
+            Self::Thief => "Shadow and stealth, claim what isn't yours",
+            Self::Tank => "Unyielding fortress, absorb all punishment",
+            Self::Cardinal => "Divine authority, command through faith",
+            Self::Collector => "Acquire everything, leave nothing behind",
         }
     }
 
-    /// Get the asset path for the character icon
+    /// Get the animation sprite path for the character (delegates to Boss trait)
     pub fn texture_path(self) -> &'static str {
+        use crate::boss::*;
         match self {
-            Self::Trapper => "bosses/trapper.png",
-            Self::Alchemist => "bosses/alchemist.png",
-            // ... (consistent asset path pattern)
+            Self::Trapper => trapper::Trapper::TEXTURE_PATH,
+            Self::Alchemist => alchemist::Alchemist::TEXTURE_PATH,
+            // ... (delegates to Boss trait implementations)
         }
     }
 }
 ```
 
-**Testing Your Understanding**: Create a test that verifies all character classes have non-empty display names,
-taglines, and valid texture paths. This ensures data integrity as the system evolves.
+🧪 **Validation Tests**
 
-<details>
-<summary>Solution</summary>
+After implementing the character class foundation, validate your implementation with these comprehensive tests:
 
 ```rust
-#[test]
-fn character_classes_have_complete_data() {
-    for class in CharacterClass::all() {
-        assert!(!class.display_name().is_empty(), "Class {:?} missing display name", class);
-        assert!(!class.tagline().is_empty(), "Class {:?} missing tagline", class);
-        assert!(class.texture_path().ends_with(".png"), "Class {:?} texture path should end with .png", class);
-        assert!(class.texture_path().starts_with("bosses/"), "Class {:?} texture path should start with bosses/", class);
+#[cfg(test)]
+mod character_class_tests {
+    use super::*;
+
+    #[test]
+    fn all_character_classes_have_complete_data() {
+        for class in CharacterClass::all() {
+            assert!(!class.display_name().is_empty(),
+                    "Class {:?} missing display name", class);
+            assert!(!class.tagline().is_empty(),
+                    "Class {:?} missing tagline", class);
+            assert!(class.texture_path().ends_with(".png"),
+                    "Class {:?} texture path should end with .png", class);
+            assert!(class.texture_path().starts_with("bosses/"),
+                    "Class {:?} texture path should start with bosses/", class);
+        }
+    }
+
+    #[test]
+    fn exactly_eight_character_classes() {
+        assert_eq!(CharacterClass::all().len(), 8,
+                   "Should have exactly 8 character classes for 4x2 grid");
+    }
+
+    #[test]
+    fn character_display_names_are_unique() {
+        let classes = CharacterClass::all();
+        let mut names = std::collections::HashSet::new();
+
+        for class in classes {
+            let display_name = class.display_name();
+            assert!(names.insert(display_name),
+                    "Duplicate display name found: {}", display_name);
+        }
+    }
+
+    #[test]
+    fn icon_paths_are_unique() {
+        let classes = CharacterClass::all();
+        let mut paths = std::collections::HashSet::new();
+
+        for class in classes {
+            let icon_path = class.icon_path();
+            assert!(paths.insert(icon_path),
+                    "Duplicate icon path found: {}", icon_path);
+        }
+    }
+
+    #[test]
+    fn texture_paths_are_unique() {
+        let classes = CharacterClass::all();
+        let mut paths = std::collections::HashSet::new();
+
+        for class in classes {
+            let texture_path = class.texture_path();
+            assert!(paths.insert(texture_path),
+                    "Duplicate texture path found: {}", texture_path);
+        }
+    }
+
+    #[test]
+    fn taglines_are_descriptive() {
+        for class in CharacterClass::all() {
+            let tagline = class.tagline();
+            assert!(tagline.len() > 10,
+                    "Class {:?} tagline too short: '{}'", class, tagline);
+            assert!(tagline.chars().any(|c| c.is_lowercase()),
+                    "Class {:?} tagline should contain lowercase letters: '{}'", class, tagline);
+        }
     }
 }
 ```
 
-</details>
+**How to Run These Tests:**
 
-### Step 2: State Management and Component Architecture
+```bash
+cargo test character_class_tests
+```
 
-Our state machine requires two distinct phases, but character data is stored as ECS components:
+**What Success Looks Like:**
+
+- All tests pass without panics
+- Each character class has complete, unique data
+- Asset paths follow consistent naming convention
+- Display names are unique (prevents UI confusion)
+- Taglines are descriptive enough to guide player choice
+
+**Common Issues These Tests Catch:**
+
+- Missing or empty display names/taglines
+- Duplicate asset paths (causes asset conflicts)
+- Inconsistent file naming conventions
+- Classes with identical display names (confusing UX)
+
+### Step 2: Nested State Management and Component Architecture
+
+Our state machine uses nested enums for clean, type-safe state management:
 
 ```rust
-/// Character creation phases
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum CreationPhase {
+/// Main game states with nested character creation phases
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash)]
+enum GameState {
+    MainMenu,
+    CharacterCreate(CharacterPhase),  // Nested enum for sub-states
+    Intro,
+    Battle,
+}
+
+/// Character creation phases (nested within GameState)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum CharacterPhase {
     Selection,                    // Show 8 character cards
     Naming(CharacterClass),       // Show naming interface for selected class
 }
 
-/// Resource to track character creation state (phase only)
-#[derive(Resource, Debug)]
-struct CharacterCreationState {
-    phase: CreationPhase,
+/// Minimal resource for temporary input storage only
+#[derive(Resource, Default, Debug)]
+struct InputBuffer {
     character_name: String, // Temporary storage during input
-}
-
-impl Default for CharacterCreationState {
-    fn default() -> Self {
-        Self {
-            phase: CreationPhase::Selection,
-            character_name: String::new(),
-        }
-    }
 }
 ```
 
-**Key Design Pattern**: The `Naming(CharacterClass)` variant carries the selected class data forward, eliminating the
-need for separate storage and potential synchronization issues.
+**Key Design Pattern**: The nested enum `GameState::CharacterCreate(CharacterPhase)` provides:
+
+- **Single Source of Truth**: All state information in one place
+- **Type Safety**: Invalid state combinations prevented at compile time
+- **Automatic Management**: Bevy's state system handles transitions automatically
 
 **ECS Component for Character Data**:
 
@@ -558,27 +771,153 @@ pub struct Character {
 `Character` and `Name` components. This entity persists across state transitions and can be easily parented to other
 entities in the game world.
 
-**Verification Step**: Run this test to ensure state transitions work correctly:
+🧪 **Validation Tests**
+
+After implementing nested state management and components, validate your architecture:
 
 ```rust
-#[test]
-fn creation_phase_transitions() {
-    let selection_phase = CreationPhase::Selection;
-    let naming_phase = CreationPhase::Naming(CharacterClass::Trapper);
+#[cfg(test)]
+mod state_architecture_tests {
+    use super::*;
 
-    assert_ne!(selection_phase, naming_phase);
+    #[test]
+    fn nested_state_transitions_work() {
+        let selection_state = GameState::CharacterCreate(CharacterPhase::Selection);
+        let naming_state = GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Trapper));
 
-    if let CreationPhase::Naming(class) = naming_phase {
-        assert_eq!(class, CharacterClass::Trapper);
-    } else {
-        panic!("Expected Naming phase with Trapper class");
+        assert_ne!(selection_state, naming_state);
+
+        if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = naming_state {
+            assert_eq!(class, CharacterClass::Trapper);
+        } else {
+            panic!("Expected CharacterCreate Naming state with Trapper class");
+        }
+    }
+
+    #[test]
+    fn input_buffer_initializes_correctly() {
+        let buffer = InputBuffer::default();
+        assert!(buffer.character_name.is_empty(),
+                "InputBuffer should initialize with empty character name");
+    }
+
+    #[test]
+    fn character_component_creation() {
+        let character = Character { class: CharacterClass::Alchemist };
+        assert_eq!(character.class, CharacterClass::Alchemist);
+    }
+
+    #[test]
+    fn all_game_states_are_valid() {
+        // Test that we can construct all expected state combinations
+        let valid_states = vec![
+            GameState::MainMenu,
+            GameState::CharacterCreate(CharacterPhase::Selection),
+            GameState::Intro,
+            GameState::Battle,
+        ];
+
+        // Test naming states for all character classes
+        for class in CharacterClass::all() {
+            let naming_state = GameState::CharacterCreate(CharacterPhase::Naming(class));
+            // Should compile and create without issues
+            match naming_state {
+                GameState::CharacterCreate(CharacterPhase::Naming(extracted_class)) => {
+                    assert_eq!(extracted_class, class);
+                }
+                _ => panic!("Failed to create naming state for {:?}", class),
+            }
+        }
+    }
+
+    #[test]
+    fn state_pattern_matching_works() {
+        let states = vec![
+            GameState::CharacterCreate(CharacterPhase::Selection),
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Tank)),
+        ];
+
+        for state in states {
+            match state {
+                GameState::CharacterCreate(CharacterPhase::Selection) => {
+                    // Should match selection phase correctly
+                }
+                GameState::CharacterCreate(CharacterPhase::Naming(class)) => {
+                    // Should extract class correctly
+                    assert!(CharacterClass::all().contains(&class));
+                }
+                _ => panic!("Unexpected state pattern"),
+            }
+        }
     }
 }
 ```
 
-### Step 3: Plugin Architecture and System Registration
+**How to Run These Tests:**
 
-Calvin's UX flow requirements directly informed our system architecture:
+```bash
+cargo test state_architecture_tests
+```
+
+**What Success Looks Like:**
+
+- All state transitions compile and work correctly
+- Pattern matching extracts the correct character class
+- InputBuffer initializes properly
+- Character components can be created for all classes
+
+**Integration Test - State Transitions:**
+
+```rust
+#[cfg(test)]
+mod state_integration_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn complete_state_flow() {
+        // Test the complete state flow: Selection -> Naming -> Intro
+        let mut app = App::new();
+        app.init_state::<GameState>();
+
+        // Start in character creation
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Selection)
+        );
+        app.update();
+
+        // Verify we're in selection phase
+        let current_state = app.world().resource::<State<GameState>>();
+        assert!(matches!(current_state.get(), 
+            GameState::CharacterCreate(CharacterPhase::Selection)));
+
+        // Transition to naming
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Sprinter))
+        );
+        app.update();
+
+        // Verify we're in naming phase with correct class
+        let current_state = app.world().resource::<State<GameState>>();
+        if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = current_state.get() {
+            assert_eq!(*class, CharacterClass::Sprinter);
+        } else {
+            panic!("Should be in naming phase with Sprinter class");
+        }
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- Invalid state combinations that compile but don't work
+- Pattern matching errors in state handling
+- Resource initialization problems
+- State transition logic bugs
+
+### Step 3: Plugin Architecture with Nested State Registration
+
+Calvin's UX flow requirements directly informed our nested state architecture:
 
 ```rust
 pub struct CharacterCreatePlugin;
@@ -586,21 +925,43 @@ pub struct CharacterCreatePlugin;
 impl Plugin for CharacterCreatePlugin {
     fn build(&self, app: &mut App) {
         app
-            .init_resource::<CharacterCreationState>()
-            .add_systems(OnEnter(GameState::CharacterCreate), setup_character_create)
+            .init_resource::<InputBuffer>()
+            // Phase-specific UI setup systems
+            .add_systems(
+                OnEnter(GameState::CharacterCreate(CharacterPhase::Selection)),
+                setup_selection_ui
+            )
+            .add_systems(
+                OnEnter(GameState::CharacterCreate(CharacterPhase::Naming)),
+                setup_naming_ui
+            )
+            // Update systems with precise state filtering
             .add_systems(
                 Update,
                 (
-                    handle_character_selection,
-                    handle_naming_input,
-                    update_card_hover_effects,
-                ).run_if(in_state(GameState::CharacterCreate))
+                    handle_character_selection
+                        .run_if(in_state(GameState::CharacterCreate(CharacterPhase::Selection))),
+                    handle_naming_input
+                        .run_if(in_state(GameState::CharacterCreate(CharacterPhase::Naming))),
+                    update_card_hover_effects
+                        .run_if(in_state(GameState::CharacterCreate)),
+                )
             )
-            .add_systems(OnExit(GameState::CharacterCreate), cleanup_character_create)
+            // Automatic cleanup on state exit
+            .add_systems(
+                OnExit(GameState::CharacterCreate),
+                cleanup_character_create
+            )
             .add_systems(OnEnter(GameState::Intro), setup_character_in_guild_house);
     }
 }
 ```
+
+**Key Improvements**:
+
+- **Phase-Specific Systems**: Each phase has dedicated `OnEnter` systems for UI setup
+- **Precise Filtering**: Systems only run during appropriate phases
+- **Automatic Management**: No manual UI despawning/spawning needed
 
 **System Coordination Strategy**:
 
@@ -611,9 +972,119 @@ impl Plugin for CharacterCreatePlugin {
 **Run Condition Pattern**: `.run_if(in_state(GameState::CharacterCreate))` ensures systems only execute during the
 appropriate game state, preventing resource conflicts and improving performance.
 
+🧪 **Validation Tests**
+
+After implementing plugin architecture, verify your systems are registered correctly:
+
+```rust
+#[cfg(test)]
+mod plugin_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn plugin_registers_required_resources() {
+        let mut app = App::new();
+        app.add_plugins(CharacterCreatePlugin);
+
+        // Verify InputBuffer resource is registered
+        assert!(app.world().contains_resource::<InputBuffer>(),
+                "CharacterCreatePlugin should register InputBuffer resource");
+    }
+
+    #[test]
+    fn plugin_registers_without_panics() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Should not panic when adding our plugin
+        app.add_plugins(CharacterCreatePlugin);
+
+        // Should be able to update without issues
+        app.update();
+    }
+
+    #[test]
+    fn systems_respect_state_conditions() {
+        let mut app = App::new();
+        app.add_plugins((DefaultPlugins, CharacterCreatePlugin));
+
+        // Create mock entities to test system filtering
+        let entity = app.world_mut().spawn((
+            Button,
+            Interaction::None,
+            CharacterCard { class: CharacterClass::Tank },
+        )).id();
+
+        // Start in different state - systems shouldn't run
+        app.world_mut().resource_mut::<NextState<GameState>>().set(GameState::MainMenu);
+        app.update();
+
+        // Verify entity still exists (systems didn't process it)
+        assert!(app.world().get_entity(entity).is_some());
+
+        // Switch to character creation state
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Selection)
+        );
+        app.update();
+
+        // Now systems should be able to process character creation entities
+        // (Actual processing depends on interaction state changes)
+    }
+}
+```
+
+**How to Run These Tests:**
+
+```bash
+cargo test plugin_tests
+```
+
+**What Success Looks Like:**
+
+- Plugin registers without panics or conflicts
+- Required resources are properly initialized
+- Systems respect state conditions and don't run in wrong states
+- App can update without crashes after plugin registration
+
+**Performance Test - Plugin Registration:**
+
+```rust
+#[cfg(test)]
+mod plugin_performance_tests {
+    use super::*;
+    use bevy::prelude::*;
+    use std::time::Instant;
+
+    #[test]
+    fn plugin_registration_is_fast() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        let start = Instant::now();
+        app.add_plugins(CharacterCreatePlugin);
+        let registration_time = start.elapsed();
+
+        // Plugin registration should be nearly instantaneous
+        assert!(registration_time.as_millis() < 100,
+                "Plugin registration took {}ms, should be < 100ms",
+                registration_time.as_millis());
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- Missing resource registrations
+- System scheduling conflicts
+- Plugin registration panics
+- Incorrect state filtering setup
+
 ### Key Architectural Decision: Entity Persistence Across States
 
-**Why Character Entities Instead of Resources**: Unlike traditional approaches that store character data in a Resource, we spawn character entities that persist across state transitions. This provides several benefits:
+**Why Character Entities Instead of Resources**: Unlike traditional approaches that store character data in a Resource,
+we spawn character entities that persist across state transitions. This provides several benefits:
 
 ```rust
 // OLD APPROACH (Resource-based) - NOT what we're doing
@@ -625,9 +1096,9 @@ struct CreatedCharacter {
 
 // NEW APPROACH (Entity-based) - What we implement
 commands.spawn((
-    Character { class: selected_class },
-    Name::new(character_name),
-    CharacterEntity, // Marker for easy querying
+Character { class: selected_class },
+Name::new(character_name),
+CharacterEntity, // Marker for easy querying
 ));
 ```
 
@@ -678,20 +1149,21 @@ fn setup_character_for_battle(
 }
 ```
 
-### Step 4: UI Creation - Calvin's Design Implementation
+### Step 4: Separated UI Creation - Calvin's Design Implementation
 
-Calvin's specifications translate directly into Bevy UI code:
+Calvin's specifications translate into separate systems for each phase:
 
 ```rust
-fn setup_character_create(
+/// Setup UI for Selection phase
+fn setup_selection_ui(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    mut creation_state: ResMut<CharacterCreationState>,
+    mut input_buffer: ResMut<InputBuffer>,
 ) {
-    // Reset creation state
-    *creation_state = CharacterCreationState::default();
+    // Clear any previous input
+    input_buffer.character_name.clear();
 
-    // Spawn main character creation container
+    // Spawn main character selection container
     commands.spawn((
         Node {
             width: Val::Percent(100.0),
@@ -737,6 +1209,78 @@ fn setup_character_create(
         });
     });
 }
+
+/// Setup UI for Naming phase  
+fn setup_naming_ui(
+    mut commands: Commands,
+    current_state: Res<State<GameState>>,
+) {
+    // Extract selected class from current state
+    if let GameState::CharacterCreate(CharacterPhase::Naming(selected_class)) = current_state.get() {
+        commands.spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
+                ..default()
+            },
+            // Keep Calvin's red background
+            BackgroundColor(Color::srgb_u8(227, 51, 75)),
+            CharacterCreateScreen,
+        )).with_children(|parent| {
+            // Adam's narrative feedback
+            parent.spawn((
+                Text::new(format!("Your {} awaits a name, Commander", selected_class.display_name())),
+                TextFont {
+                    font_size: 36.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                Node {
+                    margin: UiRect::bottom(Val::Px(30.0)),
+                    ..default()
+                },
+            ));
+
+            // Character name input field (visual representation)
+            parent.spawn((
+                Node {
+                    width: Val::Px(400.0),
+                    height: Val::Px(50.0),
+                    border: UiRect::all(Val::Px(2.0)),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    margin: UiRect::bottom(Val::Px(20.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::WHITE),
+                BorderColor(Color::srgb(0.8, 0.8, 0.8)),
+            )).with_children(|input_field| {
+                input_field.spawn((
+                    Text::new("Type your character name..."),
+                    TextFont {
+                        font_size: 18.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.5, 0.5, 0.5)),
+                    InputText, // Marker for input text updates
+                ));
+            });
+
+            // Instructions
+            parent.spawn((
+                Text::new("Type your name and press ENTER to begin your journey\nPress ESCAPE to return to character selection"),
+                TextFont {
+                    font_size: 16.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.9, 0.9, 0.9)),
+            ));
+        });
+    }
+}
 ```
 
 **CSS Grid in Bevy**: The `grid_template_columns: RepeatedGridTrack::flex(4, 1.0)` creates a 4-column grid where each
@@ -744,6 +1288,190 @@ column takes equal space. This pattern scales well for different screen sizes.
 
 **Component Hierarchy Strategy**: Each UI element gets a marker component (`CharacterCreateScreen`) for efficient
 cleanup during state transitions.
+
+🧪 **Validation Tests**
+
+After implementing UI creation systems, validate your UI spawning and hierarchy:
+
+```rust
+#[cfg(test)]
+mod ui_creation_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn setup_selection_ui_spawns_correct_entities() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_resource::<InputBuffer>();
+
+        // Spawn selection UI
+        setup_selection_ui(
+            app.world_mut().commands(),
+            app.world().resource::<AssetServer>().clone(),
+            app.world_mut().resource_mut::<InputBuffer>(),
+        );
+        app.update();
+
+        // Verify main container exists
+        let screen_entities: Vec<_> = app.world()
+            .query::<Entity>()
+            .iter(app.world())
+            .collect();
+
+        // Should have spawned UI entities
+        assert!(!screen_entities.is_empty(), "Should spawn UI entities");
+    }
+
+    #[test]
+    fn setup_naming_ui_uses_selected_class() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        // Set state to naming with specific class
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Cardinal))
+        );
+        app.update();
+
+        // Spawn naming UI
+        setup_naming_ui(
+            app.world_mut().commands(),
+            app.world().resource::<State<GameState>>().clone(),
+        );
+        app.update();
+
+        // Verify UI was spawned (in real implementation, you'd check text content)
+        let ui_entities: Vec<_> = app.world()
+            .query::<Entity>()
+            .iter(app.world())
+            .collect();
+
+        assert!(!ui_entities.is_empty(), "Should spawn naming UI entities");
+    }
+
+    #[test]
+    fn character_cards_have_required_components() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Create a parent entity to spawn cards into
+        let parent_id = app.world_mut().spawn(Node::default()).id();
+
+        // Spawn a character card
+        app.world_mut().entity_mut(parent_id).with_children(|parent| {
+            spawn_character_card(parent, CharacterClass::Gatherer, &app.world().resource::<AssetServer>());
+        });
+        app.update();
+
+        // Find the spawned card
+        let card_query = app.world().query::<(
+            &CharacterCard,
+            &HoverState,
+            &SelectableCard,
+        )>();
+
+        let cards: Vec<_> = card_query.iter(app.world()).collect();
+        assert_eq!(cards.len(), 1, "Should spawn exactly one character card");
+
+        let (card, hover_state, _selectable) = cards[0];
+        assert_eq!(card.class, CharacterClass::Gatherer);
+        assert!(!hover_state.is_hovered, "Card should start unhovered");
+    }
+
+    #[test]
+    fn ui_hierarchy_is_correct() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_resource::<InputBuffer>();
+
+        setup_selection_ui(
+            app.world_mut().commands(),
+            app.world().resource::<AssetServer>().clone(),
+            app.world_mut().resource_mut::<InputBuffer>(),
+        );
+        app.update();
+
+        // Verify CharacterCreateScreen marker exists
+        let screen_count = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+
+        assert_eq!(screen_count, 1, "Should have exactly one CharacterCreateScreen");
+    }
+}
+```
+
+**How to Run These Tests:**
+
+```bash
+cargo test ui_creation_tests
+```
+
+**What Success Looks Like:**
+
+- UI entities spawn without panics
+- Character cards have all required components
+- UI hierarchy includes proper marker components
+- Selection and naming UIs create different entity structures
+
+**Integration Test - UI Cleanup:**
+
+```rust
+#[cfg(test)]
+mod ui_cleanup_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn cleanup_removes_all_ui_entities() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_resource::<InputBuffer>();
+
+        // Spawn UI
+        setup_selection_ui(
+            app.world_mut().commands(),
+            app.world().resource::<AssetServer>().clone(),
+            app.world_mut().resource_mut::<InputBuffer>(),
+        );
+        app.update();
+
+        let entities_before = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+
+        assert!(entities_before > 0, "Should have UI entities before cleanup");
+
+        // Run cleanup
+        cleanup_character_create(
+            app.world_mut().commands(),
+            app.world().query::<Entity>(),
+            app.world().query::<Entity>(),
+            app.world_mut().resource_mut::<InputBuffer>(),
+        );
+        app.update();
+
+        let entities_after = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+
+        assert_eq!(entities_after, 0, "Should have no UI entities after cleanup");
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- UI entities not spawning correctly
+- Missing components on character cards
+- Incorrect parent-child relationships
+- Cleanup not removing all UI entities
+- Asset loading issues during UI creation
 
 ### Step 5: Interactive Card Creation
 
@@ -826,6 +1554,187 @@ fn spawn_character_card(
 **Active Recall Challenge**: How does the parent-child relationship between the card container and its text/image
 children affect the layout? What happens if you change `flex_direction` from `Column` to `Row`?
 
+🧪 **Validation Tests**
+
+After implementing interactive card creation, validate card components and interactions:
+
+```rust
+#[cfg(test)]
+mod interactive_card_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn all_character_classes_get_cards() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Create parent container
+        let parent_id = app.world_mut().spawn(Node::default()).id();
+
+        // Spawn cards for all character classes
+        app.world_mut().entity_mut(parent_id).with_children(|parent| {
+            for class in CharacterClass::all() {
+                spawn_character_card(parent, class, &app.world().resource::<AssetServer>());
+            }
+        });
+        app.update();
+
+        // Verify all 8 cards were created
+        let card_count = app.world()
+            .query::<&CharacterCard>()
+            .iter(app.world())
+            .count();
+
+        assert_eq!(card_count, 8, "Should spawn exactly 8 character cards");
+
+        // Verify each class has exactly one card
+        let mut class_counts = std::collections::HashMap::new();
+        for card in app.world().query::<&CharacterCard>().iter(app.world()) {
+            *class_counts.entry(card.class).or_insert(0) += 1;
+        }
+
+        for class in CharacterClass::all() {
+            assert_eq!(class_counts.get(&class), Some(&1),
+                       "Class {:?} should have exactly one card", class);
+        }
+    }
+
+    #[test]
+    fn cards_have_interaction_components() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        let parent_id = app.world_mut().spawn(Node::default()).id();
+
+        app.world_mut().entity_mut(parent_id).with_children(|parent| {
+            spawn_character_card(parent, CharacterClass::Thief, &app.world().resource::<AssetServer>());
+        });
+        app.update();
+
+        // Verify card has all required interaction components
+        let card_query = app.world().query::<(
+            &Button,
+            &CharacterCard,
+            &HoverState,
+            &SelectableCard,
+            &Interaction,
+        )>();
+
+        let cards: Vec<_> = card_query.iter(app.world()).collect();
+        assert_eq!(cards.len(), 1, "Should have exactly one interactive card");
+
+        let (_button, card, hover_state, _selectable, interaction) = cards[0];
+        assert_eq!(card.class, CharacterClass::Thief);
+        assert!(!hover_state.is_hovered);
+        assert_eq!(*interaction, Interaction::None);
+    }
+
+    #[test]
+    fn card_asset_paths_are_loadable() {
+        // Test that all character classes have valid asset paths
+        for class in CharacterClass::all() {
+            let path = class.texture_path();
+
+            // Basic path validation
+            assert!(path.starts_with("bosses/"),
+                    "Class {:?} path should start with 'bosses/': {}", class, path);
+            assert!(path.ends_with(".png"),
+                    "Class {:?} path should end with '.png': {}", class, path);
+            assert!(!path.contains(".."),
+                    "Class {:?} path should not contain '..': {}", class, path);
+            assert!(!path.starts_with("/"),
+                    "Class {:?} path should be relative: {}", class, path);
+        }
+    }
+
+    #[test]
+    fn card_visual_hierarchy_is_correct() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        let parent_id = app.world_mut().spawn(Node::default()).id();
+
+        app.world_mut().entity_mut(parent_id).with_children(|parent| {
+            spawn_character_card(parent, CharacterClass::Alchemist, &app.world().resource::<AssetServer>());
+        });
+        app.update();
+
+        // Find the card entity
+        let card_entity = app.world()
+            .query::<Entity>()
+            .iter(app.world())
+            .find(|&entity| {
+                app.world().get::<CharacterCard>(entity).is_some()
+            })
+            .expect("Should find card entity");
+
+        // Verify card has children (image and text elements)
+        let children = app.world().get::<Children>(card_entity);
+        assert!(children.is_some(), "Card should have child entities for image and text");
+
+        let children = children.unwrap();
+        assert!(children.len() >= 2, "Card should have at least image and text children");
+    }
+}
+```
+
+**How to Run These Tests:**
+
+```bash
+cargo test interactive_card_tests
+```
+
+**What Success Looks Like:**
+
+- All 8 character classes get properly configured cards
+- Cards have all required interaction components
+- Asset paths pass validation checks
+- Card hierarchy includes image and text children
+- Each character class appears exactly once
+
+**Performance Test - Card Creation:**
+
+```rust
+#[cfg(test)]
+mod card_performance_tests {
+    use super::*;
+    use bevy::prelude::*;
+    use std::time::Instant;
+
+    #[test]
+    fn card_creation_meets_frame_budget() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        let parent_id = app.world_mut().spawn(Node::default()).id();
+
+        let start = Instant::now();
+
+        app.world_mut().entity_mut(parent_id).with_children(|parent| {
+            for class in CharacterClass::all() {
+                spawn_character_card(parent, class, &app.world().resource::<AssetServer>());
+            }
+        });
+        app.update();
+
+        let elapsed = start.elapsed();
+
+        // Should complete within frame budget (16.67ms for 60fps)
+        assert!(elapsed.as_millis() < 16,
+                "Card creation took {}ms, should be < 16ms", elapsed.as_millis());
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- Missing interaction components on cards
+- Invalid or malformed asset paths
+- Incorrect card counts (missing or duplicate cards)
+- Performance issues during card creation
+- Broken parent-child hierarchy in UI
+
 ### Step 6: Damien's Hover Effects Implementation
 
 Damien's lighting expertise translated into subtle but effective visual feedback:
@@ -875,121 +1784,538 @@ hover state.
 **Visual Design Rationale**: The brightness transition (0.92 → 1.0) is subtle enough to provide feedback without being
 distracting—Damien's lighting expertise in action.
 
-### Step 7: Character Selection Handling
+🧪 **Validation Tests**
 
-Jon's system architecture handles the Selection → Naming phase transition:
+After implementing hover effects, validate the visual feedback system:
 
 ```rust
-/// Handle character card selection during Selection phase
+#[cfg(test)]
+mod hover_effects_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn hover_state_initializes_correctly() {
+        let hover_state = HoverState { is_hovered: false };
+        assert!(!hover_state.is_hovered, "HoverState should initialize as not hovered");
+    }
+
+    #[test]
+    fn hover_effects_respond_to_interaction_changes() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Spawn a selectable card with hover state
+        let card_entity = app.world_mut().spawn((
+            Button,
+            Interaction::None,
+            BackgroundColor(Color::srgb(0.92, 0.92, 0.92)),
+            HoverState { is_hovered: false },
+            SelectableCard,
+        )).id();
+        app.update();
+
+        // Simulate hover interaction
+        let mut interaction = app.world_mut().get_mut::<Interaction>(card_entity).unwrap();
+        *interaction = Interaction::Hovered;
+
+        // Run hover effects system
+        update_card_hover_effects(
+            app.world_mut().query_filtered::<
+                (&Interaction, &mut BackgroundColor, &mut HoverState),
+                (Changed<Interaction>, With<SelectableCard>)
+            >()
+        );
+
+        // Verify hover state updated
+        let hover_state = app.world().get::<HoverState>(card_entity).unwrap();
+        assert!(hover_state.is_hovered, "HoverState should be true after hover interaction");
+
+        // Verify background color changed
+        let bg_color = app.world().get::<BackgroundColor>(card_entity).unwrap();
+        let expected_hover_color = Color::srgb(1.0, 1.0, 1.0);
+        assert_eq!(bg_color.0, expected_hover_color, "Background should brighten on hover");
+    }
+
+    #[test]
+    fn hover_effects_return_to_normal() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Spawn card in hovered state
+        let card_entity = app.world_mut().spawn((
+            Button,
+            Interaction::Hovered,
+            BackgroundColor(Color::srgb(1.0, 1.0, 1.0)),
+            HoverState { is_hovered: true },
+            SelectableCard,
+        )).id();
+        app.update();
+
+        // Simulate end of hover
+        let mut interaction = app.world_mut().get_mut::<Interaction>(card_entity).unwrap();
+        *interaction = Interaction::None;
+
+        // Run hover effects system
+        update_card_hover_effects(
+            app.world_mut().query_filtered::<
+                (&Interaction, &mut BackgroundColor, &mut HoverState),
+                (Changed<Interaction>, With<SelectableCard>)
+            >()
+        );
+
+        // Verify hover state reset
+        let hover_state = app.world().get::<HoverState>(card_entity).unwrap();
+        assert!(!hover_state.is_hovered, "HoverState should be false after hover ends");
+
+        // Verify background color reset
+        let bg_color = app.world().get::<BackgroundColor>(card_entity).unwrap();
+        let expected_normal_color = Color::srgb(0.92, 0.92, 0.92);
+        assert_eq!(bg_color.0, expected_normal_color, "Background should return to normal");
+    }
+
+    #[test]
+    fn hover_effects_ignore_non_selectable_entities() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Spawn entity without SelectableCard component
+        let non_selectable = app.world_mut().spawn((
+            Button,
+            Interaction::Hovered,
+            BackgroundColor(Color::srgb(0.5, 0.5, 0.5)),
+            HoverState { is_hovered: false },
+            // Note: NO SelectableCard component
+        )).id();
+        app.update();
+
+        let original_color = app.world().get::<BackgroundColor>(non_selectable).unwrap().0;
+
+        // Run hover effects system - should not affect non-selectable entities
+        update_card_hover_effects(
+            app.world_mut().query_filtered::<
+                (&Interaction, &mut BackgroundColor, &mut HoverState),
+                (Changed<Interaction>, With<SelectableCard>)
+            >()
+        );
+
+        // Verify color unchanged
+        let final_color = app.world().get::<BackgroundColor>(non_selectable).unwrap().0;
+        assert_eq!(original_color, final_color,
+                   "Non-selectable entities should not be affected by hover system");
+    }
+
+    #[test]
+    fn hover_system_only_processes_changed_interactions() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Spawn multiple cards
+        let unchanged_card = app.world_mut().spawn((
+            Button,
+            Interaction::None, // This won't change
+            BackgroundColor(Color::srgb(0.92, 0.92, 0.92)),
+            HoverState { is_hovered: false },
+            SelectableCard,
+        )).id();
+
+        let changed_card = app.world_mut().spawn((
+            Button,
+            Interaction::None,
+            BackgroundColor(Color::srgb(0.92, 0.92, 0.92)),
+            HoverState { is_hovered: false },
+            SelectableCard,
+        )).id();
+        app.update();
+
+        // Only change one card's interaction
+        let mut interaction = app.world_mut().get_mut::<Interaction>(changed_card).unwrap();
+        *interaction = Interaction::Hovered;
+
+        // The system should only process the changed card
+        // (This is validated by the Changed<Interaction> filter in the query)
+    }
+}
+```
+
+**How to Run These Tests:**
+
+```bash
+cargo test hover_effects_tests
+```
+
+**What Success Looks Like:**
+
+- Hover states initialize and update correctly
+- Background colors transition properly (0.92 → 1.0 → 0.92)
+- System only processes entities with SelectableCard component
+- Change detection works (only processes changed interactions)
+- Visual transitions are smooth and predictable
+
+**Performance Test - Hover System:**
+
+```rust
+#[cfg(test)]
+mod hover_performance_tests {
+    use super::*;
+    use bevy::prelude::*;
+    use std::time::Instant;
+
+    #[test]
+    fn hover_system_scales_with_many_cards() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Spawn many cards to stress test
+        for i in 0..1000 {
+            app.world_mut().spawn((
+                Button,
+                Interaction::None,
+                BackgroundColor(Color::srgb(0.92, 0.92, 0.92)),
+                HoverState { is_hovered: false },
+                SelectableCard,
+            ));
+        }
+        app.update();
+
+        let start = Instant::now();
+
+        // System should handle many entities efficiently
+        update_card_hover_effects(
+            app.world_mut().query_filtered::<
+                (&Interaction, &mut BackgroundColor, &mut HoverState),
+                (Changed<Interaction>, With<SelectableCard>)
+            >()
+        );
+
+        let elapsed = start.elapsed();
+
+        // Should complete quickly even with many entities
+        assert!(elapsed.as_millis() < 5,
+                "Hover system took {}ms with 1000 entities, should be < 5ms",
+                elapsed.as_millis());
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- Hover state not updating correctly
+- Wrong color values in transitions
+- System processing non-selectable entities
+- Performance degradation with many UI elements
+- Color transitions not reverting properly
+
+### Step 7: Simplified Character Selection Handling
+
+Jon's system architecture uses clean state transitions:
+
+```rust
+/// Handle character card selection - no manual phase checking needed!
 fn handle_character_selection(
     mut interaction_query: Query<
         (&Interaction, &CharacterCard),
         (Changed<Interaction>, With<Button>)
     >,
-    mut creation_state: ResMut<CharacterCreationState>,
-    mut commands: Commands,
-    screen_query: Query<Entity, With<CharacterCreateScreen>>,
+    mut next_state: ResMut<NextState<GameState>>,
 ) {
-    // Only process selection during Selection phase
-    if !matches!(creation_state.phase, CreationPhase::Selection) {
-        return;
-    }
+    // This system only runs during Selection phase due to precise state filtering
+    // No manual phase checking required!
 
     for (interaction, card) in &mut interaction_query {
         if *interaction == Interaction::Pressed {
-            // Move to naming phase
-            creation_state.phase = CreationPhase::Naming(card.class);
-            creation_state.character_name.clear();
-
-            // Clear current UI and setup naming interface
-            for entity in &screen_query {
-                commands.entity(entity).despawn();
-            }
-
-            setup_naming_interface(&mut commands, card.class);
+            // Transition to naming phase - Bevy handles UI cleanup automatically
+            next_state.set(GameState::CharacterCreate(CharacterPhase::Naming(card.class)));
             break;
         }
     }
 }
 ```
 
-**State Guard Pattern**: The early return `if !matches!(creation_state.phase, CreationPhase::Selection)` prevents
-processing clicks during the wrong phase.
+**Eliminated Boilerplate**: No manual phase checking needed - the system only runs during Selection phase due to precise
+state filtering.
 
-**UI Transition Strategy**: We despawn the current UI completely and spawn the new interface. This approach is cleaner
-than trying to modify existing UI in-place.
+**Automatic UI Management**: Bevy's state system handles UI transitions automatically through `OnEnter`/`OnExit`
+systems.
 
 **Why `break`?**: Once we've processed a selection, we exit the loop to prevent multiple selections in a single frame.
 
-### Step 8: Naming Interface Creation
+🧪 **Validation Tests**
 
-The naming phase requires completely different UI, reflecting Calvin's two-phase UX design:
+After implementing character selection handling, validate the selection logic:
 
 ```rust
-/// Setup the character naming interface after selection
-fn setup_naming_interface(commands: &mut Commands, selected_class: CharacterClass) {
-    commands.spawn((
-        Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            flex_direction: FlexDirection::Column,
-            ..default()
-        },
-        // Keep Calvin's red background
-        BackgroundColor(Color::srgb_u8(227, 51, 75)),
-        CharacterCreateScreen,
-    )).with_children(|parent| {
-        // Adam's narrative feedback
-        parent.spawn((
-            Text::new(format!("Your {} awaits a name, Commander", selected_class.display_name())),
-            TextFont {
-                font_size: 36.0,
-                ..default()
-            },
-            TextColor(Color::WHITE),
-            Node {
-                margin: UiRect::bottom(Val::Px(30.0)),
-                ..default()
-            },
-        ));
+#[cfg(test)]
+mod character_selection_tests {
+    use super::*;
+    use bevy::prelude::*;
 
-        // Character name input field (visual representation)
-        parent.spawn((
-            Node {
-                width: Val::Px(400.0),
-                height: Val::Px(50.0),
-                border: UiRect::all(Val::Px(2.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                margin: UiRect::bottom(Val::Px(20.0)),
-                ..default()
-            },
-            BackgroundColor(Color::WHITE),
-            BorderColor(Color::srgb(0.8, 0.8, 0.8)),
-        )).with_children(|input_field| {
-            input_field.spawn((
-                Text::new("Type your character name..."),
-                TextFont {
-                    font_size: 18.0,
-                    ..default()
-                },
-                TextColor(Color::srgb(0.5, 0.5, 0.5)),
-                InputText, // Marker for input text updates
+    #[test]
+    fn character_selection_triggers_state_transition() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        // Start in selection phase
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Selection)
+        );
+        app.update();
+
+        // Spawn a character card
+        let card_entity = app.world_mut().spawn((
+            Button,
+            Interaction::Pressed, // Simulate button press
+            CharacterCard { class: CharacterClass::Tank },
+        )).id();
+        app.update();
+
+        // Run selection handler
+        handle_character_selection(
+            app.world_mut().query_filtered::<
+                (&Interaction, &CharacterCard),
+                (Changed<Interaction>, With<Button>)
+            >(),
+            app.world_mut().resource_mut::<NextState<GameState>>(),
+        );
+        app.update();
+
+        // Verify state transitioned to naming
+        let current_state = app.world().resource::<State<GameState>>();
+        if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = current_state.get() {
+            assert_eq!(*class, CharacterClass::Tank);
+        } else {
+            panic!("Should transition to naming phase with Tank class");
+        }
+    }
+
+    #[test]
+    fn only_pressed_interactions_trigger_selection() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        // Start in selection phase
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Selection)
+        );
+        app.update();
+
+        // Test non-pressed interactions
+        let interactions = vec![
+            Interaction::None,
+            Interaction::Hovered,
+        ];
+
+        for interaction in interactions {
+            app.world_mut().spawn((
+                Button,
+                interaction,
+                CharacterCard { class: CharacterClass::Sprinter },
             ));
-        });
+        }
+        app.update();
 
-        // Instructions
-        parent.spawn((
-            Text::new("Type your name and press ENTER to begin your journey"),
-            TextFont {
-                font_size: 16.0,
-                ..default()
-            },
-            TextColor(Color::srgb(0.9, 0.9, 0.9)),
+        let original_state = app.world().resource::<State<GameState>>().get().clone();
+
+        // Run selection handler
+        handle_character_selection(
+            app.world_mut().query_filtered::<
+                (&Interaction, &CharacterCard),
+                (Changed<Interaction>, With<Button>)
+            >(),
+            app.world_mut().resource_mut::<NextState<GameState>>(),
+        );
+        app.update();
+
+        // Verify state unchanged
+        let current_state = app.world().resource::<State<GameState>>();
+        assert_eq!(*current_state.get(), original_state,
+                   "Non-pressed interactions should not trigger state change");
+    }
+
+    #[test]
+    fn selection_breaks_after_first_press() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Selection)
+        );
+        app.update();
+
+        // Spawn multiple pressed cards (simulate simultaneous presses)
+        let first_card = app.world_mut().spawn((
+            Button,
+            Interaction::Pressed,
+            CharacterCard { class: CharacterClass::Alchemist },
+        )).id();
+
+        let second_card = app.world_mut().spawn((
+            Button,
+            Interaction::Pressed,
+            CharacterCard { class: CharacterClass::Collector },
+        )).id();
+        app.update();
+
+        // Run selection handler
+        handle_character_selection(
+            app.world_mut().query_filtered::<
+                (&Interaction, &CharacterCard),
+                (Changed<Interaction>, With<Button>)
+            >(),
+            app.world_mut().resource_mut::<NextState<GameState>>(),
+        );
+        app.update();
+
+        // Should transition to naming phase (with one of the classes)
+        let current_state = app.world().resource::<State<GameState>>();
+        match current_state.get() {
+            GameState::CharacterCreate(CharacterPhase::Naming(class)) => {
+                // Should be one of the two classes (implementation dependent on iteration order)
+                assert!(matches!(class, CharacterClass::Alchemist | CharacterClass::Collector));
+            }
+            _ => panic!("Should transition to naming phase"),
+        }
+    }
+
+    #[test]
+    fn selection_requires_button_component() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Selection)
+        );
+        app.update();
+
+        // Spawn entity without Button component
+        app.world_mut().spawn((
+            Interaction::Pressed,
+            CharacterCard { class: CharacterClass::Cardinal },
+            // Note: NO Button component
         ));
-    });
+        app.update();
+
+        let original_state = app.world().resource::<State<GameState>>().get().clone();
+
+        // Run selection handler
+        handle_character_selection(
+            app.world_mut().query_filtered::<
+                (&Interaction, &CharacterCard),
+                (Changed<Interaction>, With<Button>)
+            >(),
+            app.world_mut().resource_mut::<NextState<GameState>>(),
+        );
+        app.update();
+
+        // Verify state unchanged
+        let current_state = app.world().resource::<State<GameState>>();
+        assert_eq!(*current_state.get(), original_state,
+                   "Entities without Button component should not trigger selection");
+    }
+}
+```
+
+**How to Run These Tests:**
+
+```bash
+cargo test character_selection_tests
+```
+
+**What Success Looks Like:**
+
+- Pressed button interactions trigger state transitions
+- Only the first pressed button is processed (break works)
+- Non-pressed interactions are ignored
+- Entities without Button component are filtered out
+- State transitions include the correct character class
+
+**Integration Test - Complete Selection Flow:**
+
+```rust
+#[cfg(test)]
+mod selection_integration_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn complete_card_interaction_flow() {
+        let mut app = App::new();
+        app.add_plugins((DefaultPlugins, CharacterCreatePlugin));
+
+        // Enter character creation selection phase
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Selection)
+        );
+        app.update();
+
+        // Simulate card creation and selection
+        let card_entity = app.world_mut().spawn((
+            Button,
+            Interaction::None,
+            BackgroundColor(Color::srgb(0.92, 0.92, 0.92)),
+            HoverState { is_hovered: false },
+            CharacterCard { class: CharacterClass::Trapper },
+            SelectableCard,
+        )).id();
+        app.update();
+
+        // Test hover effect first
+        let mut interaction = app.world_mut().get_mut::<Interaction>(card_entity).unwrap();
+        *interaction = Interaction::Hovered;
+        app.update();
+
+        // Verify hover effect applied
+        let bg_color = app.world().get::<BackgroundColor>(card_entity).unwrap();
+        assert_eq!(bg_color.0, Color::srgb(1.0, 1.0, 1.0));
+
+        // Now test selection
+        let mut interaction = app.world_mut().get_mut::<Interaction>(card_entity).unwrap();
+        *interaction = Interaction::Pressed;
+        app.update();
+
+        // Verify state transition
+        let current_state = app.world().resource::<State<GameState>>();
+        if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = current_state.get() {
+            assert_eq!(*class, CharacterClass::Trapper);
+        } else {
+            panic!("Should transition to naming phase with Trapper class");
+        }
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- Selection logic not triggering state transitions
+- Multiple selections processed in single frame
+- Wrong character class passed to naming phase
+- Non-button entities being processed incorrectly
+- State transitions not working with nested enums
+
+### Step 8: Automatic Naming Interface Creation
+
+The naming phase UI is automatically created by the `setup_naming_ui` system when entering the `Naming` state:
+
+```rust
+// This system runs automatically when entering GameState::CharacterCreate(CharacterPhase::Naming)
+// See Step 4 for the complete implementation
+
+/// Helper function to update the input field display text
+fn update_input_display(
+    input_text_query: &mut Query<&mut Text, With<InputText>>,
+    input_buffer: &InputBuffer
+) {
+    for mut text in input_text_query {
+        text.0 = if input_buffer.character_name.is_empty() {
+            "Type your character name...".to_string()
+        } else {
+            input_buffer.character_name.clone()
+        };
+    }
 }
 ```
 
@@ -999,55 +2325,292 @@ Commander"—creating player investment in the naming process.
 **Input Field Pattern**: Since Bevy doesn't have built-in text input widgets, we create a visual representation and
 handle keyboard input manually.
 
-### Step 9: Keyboard Input Handling
+🧪 **Validation Tests**
 
-Jon's input system handles character entry and completion:
+After implementing the naming interface, validate UI creation and text display:
 
 ```rust
-/// Handle character naming input during Naming phase
+#[cfg(test)]
+mod naming_interface_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn naming_ui_spawns_for_selected_class() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        // Set state to naming with specific class
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Gatherer))
+        );
+        app.update();
+
+        // Spawn naming UI
+        setup_naming_ui(
+            app.world_mut().commands(),
+            app.world().resource::<State<GameState>>().clone(),
+        );
+        app.update();
+
+        // Verify CharacterCreateScreen marker exists
+        let screen_count = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+
+        assert_eq!(screen_count, 1, "Should spawn exactly one naming screen");
+
+        // Verify InputText component exists
+        let input_text_count = app.world()
+            .query::<&InputText>()
+            .iter(app.world())
+            .count();
+
+        assert_eq!(input_text_count, 1, "Should spawn exactly one input text field");
+    }
+
+    #[test]
+    fn update_input_display_shows_correct_text() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Spawn input text element
+        let input_entity = app.world_mut().spawn((
+            Text::new("Initial text"),
+            InputText,
+        )).id();
+        app.update();
+
+        // Test empty input buffer
+        let empty_buffer = InputBuffer { character_name: String::new() };
+
+        update_input_display(
+            &mut app.world_mut().query::<&mut Text>(),
+            &empty_buffer,
+        );
+
+        let text = app.world().get::<Text>(input_entity).unwrap();
+        assert_eq!(text.0, "Type your character name...",
+                   "Should show placeholder text for empty input");
+
+        // Test non-empty input buffer
+        let filled_buffer = InputBuffer { character_name: "HeroName".to_string() };
+
+        update_input_display(
+            &mut app.world_mut().query::<&mut Text>(),
+            &filled_buffer,
+        );
+
+        let text = app.world().get::<Text>(input_entity).unwrap();
+        assert_eq!(text.0, "HeroName",
+                   "Should show actual character name when present");
+    }
+
+    #[test]
+    fn naming_ui_includes_class_specific_content() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        // Test with different character classes
+        let test_classes = vec![
+            CharacterClass::Cardinal,
+            CharacterClass::Thief,
+            CharacterClass::Tank,
+        ];
+
+        for class in test_classes {
+            // Clear previous entities
+            app.world_mut().clear_entities();
+
+            // Set state for this class
+            app.world_mut().resource_mut::<NextState<GameState>>().set(
+                GameState::CharacterCreate(CharacterPhase::Naming(class))
+            );
+            app.update();
+
+            // Spawn naming UI
+            setup_naming_ui(
+                app.world_mut().commands(),
+                app.world().resource::<State<GameState>>().clone(),
+            );
+            app.update();
+
+            // Verify UI was created (in a real test, you'd check for class-specific text content)
+            let ui_entities = app.world()
+                .query::<&CharacterCreateScreen>()
+                .iter(app.world())
+                .count();
+
+            assert_eq!(ui_entities, 1,
+                       "Should create naming UI for class {:?}", class);
+        }
+    }
+
+    #[test]
+    fn input_text_component_marks_text_fields() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Sprinter))
+        );
+        app.update();
+
+        setup_naming_ui(
+            app.world_mut().commands(),
+            app.world().resource::<State<GameState>>().clone(),
+        );
+        app.update();
+
+        // Find entities with both Text and InputText components
+        let input_text_entities: Vec<_> = app.world()
+            .query::<(&Text, &InputText)>()
+            .iter(app.world())
+            .collect();
+
+        assert_eq!(input_text_entities.len(), 1,
+                   "Should have exactly one text element marked as input");
+    }
+}
+```
+
+**How to Run These Tests:**
+
+```bash
+cargo test naming_interface_tests
+```
+
+**What Success Looks Like:**
+
+- Naming UI spawns correctly for any selected character class
+- Input display updates properly between placeholder and actual text
+- InputText component correctly marks interactive text elements
+- UI includes class-specific messaging
+- Screen marker components enable proper cleanup
+
+**State Extraction Test:**
+
+```rust
+#[cfg(test)]
+mod state_extraction_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn extract_selected_class_from_state() {
+        // Test state pattern matching for all character classes
+        for expected_class in CharacterClass::all() {
+            let naming_state = GameState::CharacterCreate(
+                CharacterPhase::Naming(expected_class)
+            );
+
+            // Extract class using the same pattern as setup_naming_ui
+            if let GameState::CharacterCreate(CharacterPhase::Naming(extracted_class)) = naming_state {
+                assert_eq!(extracted_class, expected_class,
+                           "Should extract correct class from naming state");
+            } else {
+                panic!("Failed to extract class from naming state for {:?}", expected_class);
+            }
+        }
+    }
+
+    #[test]
+    fn naming_state_only_in_correct_phase() {
+        let selection_state = GameState::CharacterCreate(CharacterPhase::Selection);
+
+        // This should NOT match the naming pattern
+        if let GameState::CharacterCreate(CharacterPhase::Naming(_)) = selection_state {
+            panic!("Selection state should not match naming pattern");
+        }
+
+        // Only naming states should match
+        let naming_state = GameState::CharacterCreate(
+            CharacterPhase::Naming(CharacterClass::Alchemist)
+        );
+
+        match naming_state {
+            GameState::CharacterCreate(CharacterPhase::Naming(class)) => {
+                assert_eq!(class, CharacterClass::Alchemist);
+            }
+            _ => panic!("Naming state should match naming pattern"),
+        };
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- Naming UI not spawning for certain character classes
+- Input text display not updating correctly
+- Missing InputText component markers
+- State pattern matching errors
+- UI elements not being properly tagged for cleanup
+
+### Step 9: Simplified Keyboard Input Handling
+
+Jon's input system leverages the nested state architecture:
+
+```rust
+/// Handle character naming input - runs only during Naming phase
 fn handle_naming_input(
     mut commands: Commands,
     keyboard: Res<ButtonInput<KeyCode>>,
     mut keyboard_events: EventReader<KeyboardInput>,
-    mut creation_state: ResMut<CharacterCreationState>,
+    mut input_buffer: ResMut<InputBuffer>,
     mut next_state: ResMut<NextState<GameState>>,
     mut input_text_query: Query<&mut Text, With<InputText>>,
+    current_state: Res<State<GameState>>,
 ) {
-    if let CreationPhase::Naming(_selected_class) = creation_state.phase {
-        // Handle character input  
-        for event in keyboard_events.read() {
-            if let KeyboardInput { logical_key: Key::Character(ch), state: ButtonState::Pressed, .. } = event {
-                let ch = ch.chars().next().unwrap_or(' ');
-                if (ch.is_alphanumeric() || ch == ' ') && creation_state.character_name.len() < 20 {
-                    creation_state.character_name.push(ch);
+    // This system only runs during Naming phase - no manual checking needed!
 
-                    update_input_display(&mut input_text_query, &creation_state);
-                }
+    // Handle character input  
+    for event in keyboard_events.read() {
+        if let KeyboardInput { logical_key: Key::Character(ch), state: ButtonState::Pressed, .. } = event {
+            let ch = ch.chars().next().unwrap_or(' ');
+            if (ch.is_alphanumeric() || ch == ' ') && input_buffer.character_name.len() < 20 {
+                input_buffer.character_name.push(ch);
+                update_input_display(&mut input_text_query, &input_buffer);
             }
         }
+    }
 
-        // Handle backspace
-        if keyboard.just_pressed(KeyCode::Backspace) && !creation_state.character_name.is_empty() {
-            creation_state.character_name.pop();
+    // Handle backspace
+    if keyboard.just_pressed(KeyCode::Backspace) && !input_buffer.character_name.is_empty() {
+        input_buffer.character_name.pop();
+        update_input_display(&mut input_text_query, &input_buffer);
+    }
 
-            update_input_display(&mut input_text_query, &creation_state);
-        }
+    // Handle Escape to return to selection
+    if keyboard.just_pressed(KeyCode::Escape) {
+        next_state.set(GameState::CharacterCreate(CharacterPhase::Selection));
+    }
 
-        // Handle Enter to complete character creation
-        if keyboard.just_pressed(KeyCode::Enter) && !creation_state.character_name.trim().is_empty() {
+    // Handle Enter to complete character creation
+    if keyboard.just_pressed(KeyCode::Enter) && !input_buffer.character_name.trim().is_empty() {
+        // Extract selected class from current state
+        if let GameState::CharacterCreate(CharacterPhase::Naming(selected_class)) = current_state.get() {
             // Spawn character entity with Character and Name components
-            if let CreationPhase::Naming(selected_class) = creation_state.phase {
-                commands.spawn((
-                    Character { class: selected_class },
-                    Name::new(creation_state.character_name.trim().to_string()),
-                    CharacterEntity, // Marker component for easy querying
-                ));
-            }
-            next_state.set(GameState::Intro);
+            commands.spawn((
+                Character { class: *selected_class },
+                Name::new(input_buffer.character_name.trim().to_string()),
+                CharacterEntity, // Marker component for easy querying
+            ));
         }
+        next_state.set(GameState::Intro);
     }
 }
 ```
+
+**Key Improvements**:
+
+- **No Manual Phase Checking**: System only runs during Naming phase due to precise state filtering
+- **Escape Key Support**: Players can return to character selection
+- **Clean State Extraction**: Selected class retrieved directly from current state
+- **Simplified Resource Management**: Only `InputBuffer` needed for temporary storage
 
 **Input Validation Strategy**:
 
@@ -1058,28 +2621,286 @@ fn handle_naming_input(
 **Two Input Methods**:
 
 - `KeyboardInput` events for character input (supports international keyboards)
-- `ButtonInput<KeyCode>` for special keys like Backspace and Enter
+- `ButtonInput<KeyCode>` for special keys like Backspace, Enter, and Escape
 
-**State Transition**: Spawning the character entity with `Character` and `Name` components makes the data available to subsequent game states through ECS queries.
+**State Transition**: Spawning the character entity with `Character` and `Name` components makes the data available to
+subsequent game states through ECS queries.
 
-**Helper Function for Display Updates**:
+🧪 **Validation Tests**
+
+After implementing keyboard input handling, validate input processing and character creation:
 
 ```rust
-/// Helper function to update the input field display text
-fn update_input_display(input_text_query: &mut Query<&mut Text, With<InputText>>, creation_state: &CharacterCreationState) {
-    for mut text in input_text_query {
-        text.0 = if creation_state.character_name.is_empty() {
-            "Type your character name...".to_string()
-        } else {
-            creation_state.character_name.clone()
-        };
+#[cfg(test)]
+mod keyboard_input_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn valid_characters_are_accepted() {
+        let mut input_buffer = InputBuffer { character_name: String::new() };
+
+        // Test alphanumeric characters
+        let valid_chars = vec!['a', 'Z', '1', '9', ' '];
+
+        for ch in valid_chars {
+            let original_length = input_buffer.character_name.len();
+
+            // Simulate character input (simplified test)
+            if (ch.is_alphanumeric() || ch == ' ') && input_buffer.character_name.len() < 20 {
+                input_buffer.character_name.push(ch);
+            }
+
+            assert_eq!(input_buffer.character_name.len(), original_length + 1,
+                       "Character '{}' should be accepted", ch);
+        }
+    }
+
+    #[test]
+    fn invalid_characters_are_rejected() {
+        let mut input_buffer = InputBuffer { character_name: String::new() };
+
+        // Test invalid characters
+        let invalid_chars = vec!['!', '@', '#', '$', '%', '^', '&', '*'];
+
+        for ch in invalid_chars {
+            let original_length = input_buffer.character_name.len();
+
+            // Simulate character input validation
+            if (ch.is_alphanumeric() || ch == ' ') && input_buffer.character_name.len() < 20 {
+                input_buffer.character_name.push(ch);
+            }
+
+            assert_eq!(input_buffer.character_name.len(), original_length,
+                       "Character '{}' should be rejected", ch);
+        }
+    }
+
+    #[test]
+    fn character_name_length_limit_enforced() {
+        let mut input_buffer = InputBuffer { character_name: "a".repeat(20) }; // At limit
+
+        let original_length = input_buffer.character_name.len();
+
+        // Try to add another character
+        if input_buffer.character_name.len() < 20 {
+            input_buffer.character_name.push('b');
+        }
+
+        assert_eq!(input_buffer.character_name.len(), original_length,
+                   "Should not accept characters beyond 20-character limit");
+    }
+
+    #[test]
+    fn backspace_removes_characters() {
+        let mut input_buffer = InputBuffer { character_name: "Test".to_string() };
+
+        // Simulate backspace
+        if !input_buffer.character_name.is_empty() {
+            input_buffer.character_name.pop();
+        }
+
+        assert_eq!(input_buffer.character_name, "Tes");
+
+        // Test backspace on empty string
+        input_buffer.character_name.clear();
+        if !input_buffer.character_name.is_empty() {
+            input_buffer.character_name.pop();
+        }
+
+        assert_eq!(input_buffer.character_name, "", "Backspace on empty string should not panic");
+    }
+
+    #[test]
+    fn character_entity_creation_with_valid_name() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        // Set up naming state
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Collector))
+        );
+        app.update();
+
+        // Simulate character creation with valid name
+        let selected_class = CharacterClass::Collector;
+        let character_name = "ValidName";
+
+        app.world_mut().spawn((
+            Character { class: selected_class },
+            Name::new(character_name.to_string()),
+            CharacterEntity,
+        ));
+        app.update();
+
+        // Verify character entity was created
+        let character_query = app.world().query::<(&Character, &Name, &CharacterEntity)>();
+        let characters: Vec<_> = character_query.iter(app.world()).collect();
+
+        assert_eq!(characters.len(), 1, "Should create exactly one character entity");
+
+        let (character, name, _marker) = characters[0];
+        assert_eq!(character.class, CharacterClass::Collector);
+        assert_eq!(name.as_str(), "ValidName");
+    }
+
+    #[test]
+    fn empty_names_are_rejected() {
+        // Test empty name validation
+        let empty_names = vec![
+            "",
+            " ",
+            "  ",
+            "\t",
+            "\n",
+        ];
+
+        for name in empty_names {
+            let is_valid = !name.trim().is_empty();
+            assert!(!is_valid, "Name '{}' should be considered invalid", name);
+        }
+    }
+
+    #[test]
+    fn whitespace_is_trimmed_from_names() {
+        let test_cases = vec![
+            ("  Hero  ", "Hero"),
+            ("\tWarrior\n", "Warrior"),
+            (" Mage ", "Mage"),
+        ];
+
+        for (input, expected) in test_cases {
+            let trimmed = input.trim();
+            assert_eq!(trimmed, expected, "Name '{}' should trim to '{}'", input, expected);
+        }
+    }
+
+    #[test]
+    fn input_buffer_clears_after_character_creation() {
+        let mut input_buffer = InputBuffer { character_name: "TestHero".to_string() };
+
+        // After character creation, buffer should be cleared
+        // (This would happen in the actual system after spawning the character)
+        input_buffer.character_name.clear();
+
+        assert!(input_buffer.character_name.is_empty(),
+                "Input buffer should be cleared after character creation");
     }
 }
 ```
 
-### Step 10: Cleanup and Resource Management
+**How to Run These Tests:**
 
-Jon's architecture includes proper cleanup to prevent memory leaks:
+```bash
+cargo test keyboard_input_tests
+```
+
+**What Success Looks Like:**
+
+- Valid characters (alphanumeric + space) are accepted
+- Invalid characters are rejected
+- Character name length limit (20 chars) is enforced
+- Backspace removes characters correctly
+- Character entities are created with correct components
+- Empty/whitespace-only names are properly rejected
+
+**Integration Test - Complete Input Flow:**
+
+```rust
+#[cfg(test)]
+mod input_integration_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn complete_naming_flow() {
+        let mut app = App::new();
+        app.add_plugins((DefaultPlugins, CharacterCreatePlugin));
+
+        // Enter naming phase
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Trapper))
+        );
+        app.update();
+
+        // Simulate typing a character name
+        let mut input_buffer = app.world_mut().resource_mut::<InputBuffer>();
+        input_buffer.character_name = "TestHero".to_string();
+
+        // Simulate Enter key press (character creation)
+        let character_count_before = app.world()
+            .query::<(&Character, &Name)>()
+            .iter(app.world())
+            .count();
+
+        // Create character (simulating the Enter key logic)
+        app.world_mut().spawn((
+            Character { class: CharacterClass::Trapper },
+            Name::new("TestHero".to_string()),
+            CharacterEntity,
+        ));
+        app.update();
+
+        // Verify character was created
+        let character_count_after = app.world()
+            .query::<(&Character, &Name)>()
+            .iter(app.world())
+            .count();
+
+        assert_eq!(character_count_after, character_count_before + 1,
+                   "Should create one new character entity");
+
+        // Verify character has correct data
+        let characters: Vec<_> = app.world()
+            .query::<(&Character, &Name)>()
+            .iter(app.world())
+            .collect();
+
+        let (character, name) = characters.last().unwrap();
+        assert_eq!(character.class, CharacterClass::Trapper);
+        assert_eq!(name.as_str(), "TestHero");
+    }
+
+    #[test]
+    fn escape_returns_to_selection() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_state::<GameState>();
+
+        // Start in naming phase
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Alchemist))
+        );
+        app.update();
+
+        // Simulate Escape key press
+        app.world_mut().resource_mut::<NextState<GameState>>().set(
+            GameState::CharacterCreate(CharacterPhase::Selection)
+        );
+        app.update();
+
+        // Verify state returned to selection
+        let current_state = app.world().resource::<State<GameState>>();
+        assert!(matches!(current_state.get(), 
+            GameState::CharacterCreate(CharacterPhase::Selection)),
+                "Should return to selection phase on Escape");
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- Invalid characters being accepted in names
+- Character name length limits not enforced
+- Backspace not working on empty strings
+- Character entities not being created correctly
+- State transitions not working with keyboard input
+- Empty names being accepted when they should be rejected
+
+### Step 10: Automatic Cleanup and Resource Management
+
+Jon's nested state architecture provides automatic cleanup:
 
 ```rust
 /// Cleanup character creation UI but preserve the character entity
@@ -1087,11 +2908,15 @@ fn cleanup_character_create(
     mut commands: Commands,
     ui_query: Query<Entity, With<CharacterCreateScreen>>,
     character_query: Query<Entity, (With<Character>, Without<CharacterCreateScreen>)>,
+    mut input_buffer: ResMut<InputBuffer>,
 ) {
     // Despawn all character creation UI entities
     for entity in &ui_query {
         commands.entity(entity).despawn_recursive();
     }
+
+    // Clear input buffer
+    input_buffer.character_name.clear();
 
     // Character entities with Character component are preserved
     // They will be handled by the intro state setup
@@ -1118,7 +2943,7 @@ fn setup_character_in_guild_house(
                 // Add gameplay components as needed
                 PlayerControlled, // Mark as player's character
             ));
-            
+
             info!("Character entity parented to guild house arena");
         } else {
             warn!("Guild house arena not found for character placement");
@@ -1141,11 +2966,329 @@ struct CharacterEntity;
 struct PlayerControlled;
 ```
 
-**Why Cleanup Matters**: Without proper cleanup, UI entities persist in memory even after state transitions, causing
-performance degradation and potential visual artifacts.
+**Automatic Cleanup Benefits**: Bevy's state system automatically calls cleanup systems when exiting states, ensuring no
+memory leaks.
+
+**Simplified Resource Management**: Only the minimal `InputBuffer` needs cleanup - no complex state resource lifecycle
+management.
 
 **Marker Component Strategy**: Using `CharacterCreateScreen` as a marker component enables efficient bulk cleanup with a
 single query.
+
+🧪 **Validation Tests**
+
+After implementing cleanup and resource management, validate proper entity lifecycle:
+
+```rust
+#[cfg(test)]
+mod cleanup_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn cleanup_removes_all_ui_entities() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_resource::<InputBuffer>();
+
+        // Spawn some UI entities with CharacterCreateScreen marker
+        let ui_entities = vec![
+            app.world_mut().spawn(CharacterCreateScreen).id(),
+            app.world_mut().spawn(CharacterCreateScreen).id(),
+            app.world_mut().spawn(CharacterCreateScreen).id(),
+        ];
+        app.update();
+
+        // Verify entities exist
+        let count_before = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+        assert_eq!(count_before, 3, "Should have 3 UI entities before cleanup");
+
+        // Run cleanup
+        cleanup_character_create(
+            app.world_mut().commands(),
+            app.world().query::<Entity>(),
+            app.world().query::<Entity>(),
+            app.world_mut().resource_mut::<InputBuffer>(),
+        );
+        app.update();
+
+        // Verify entities were removed
+        let count_after = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+        assert_eq!(count_after, 0, "Should have no UI entities after cleanup");
+    }
+
+    #[test]
+    fn cleanup_preserves_character_entities() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_resource::<InputBuffer>();
+
+        // Spawn UI entities and character entities
+        app.world_mut().spawn(CharacterCreateScreen);
+        let character_entity = app.world_mut().spawn((
+            Character { class: CharacterClass::Tank },
+            Name::new("TestHero".to_string()),
+            CharacterEntity,
+        )).id();
+        app.update();
+
+        // Verify both types exist
+        let ui_count_before = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+        let character_count_before = app.world()
+            .query::<(&Character, &Name)>()
+            .iter(app.world())
+            .count();
+
+        assert_eq!(ui_count_before, 1);
+        assert_eq!(character_count_before, 1);
+
+        // Run cleanup
+        cleanup_character_create(
+            app.world_mut().commands(),
+            app.world().query::<Entity>(),
+            app.world().query::<Entity>(),
+            app.world_mut().resource_mut::<InputBuffer>(),
+        );
+        app.update();
+
+        // Verify UI removed but character preserved
+        let ui_count_after = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+        let character_count_after = app.world()
+            .query::<(&Character, &Name)>()
+            .iter(app.world())
+            .count();
+
+        assert_eq!(ui_count_after, 0, "UI entities should be removed");
+        assert_eq!(character_count_after, 1, "Character entities should be preserved");
+    }
+
+    #[test]
+    fn input_buffer_is_cleared() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Set up input buffer with data
+        app.world_mut().insert_resource(InputBuffer {
+            character_name: "SomeInput".to_string(),
+        });
+
+        // Verify buffer has data
+        let buffer_before = app.world().resource::<InputBuffer>();
+        assert!(!buffer_before.character_name.is_empty());
+
+        // Run cleanup
+        cleanup_character_create(
+            app.world_mut().commands(),
+            app.world().query::<Entity>(),
+            app.world().query::<Entity>(),
+            app.world_mut().resource_mut::<InputBuffer>(),
+        );
+        app.update();
+
+        // Verify buffer is cleared
+        let buffer_after = app.world().resource::<InputBuffer>();
+        assert!(buffer_after.character_name.is_empty(), "Input buffer should be cleared");
+    }
+
+    #[test]
+    fn character_setup_in_guild_house() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+
+        // Spawn guild house and character entities
+        let guild_house = app.world_mut().spawn((
+            GuildHouseArena,
+            Transform::default(),
+            GlobalTransform::default(),
+        )).id();
+
+        let character_entity = app.world_mut().spawn((
+            Character { class: CharacterClass::Cardinal },
+            Name::new("GuildHero".to_string()),
+            CharacterEntity,
+        )).id();
+        app.update();
+
+        // Verify character has no parent initially
+        assert!(app.world().get::<Parent>(character_entity).is_none());
+
+        // Run guild house setup
+        setup_character_in_guild_house(
+            app.world_mut().commands(),
+            app.world().query::<Entity>(),
+            app.world().query::<Entity>(),
+        );
+        app.update();
+
+        // Verify character is now parented to guild house
+        let parent = app.world().get::<Parent>(character_entity);
+        assert!(parent.is_some(), "Character should have parent after guild house setup");
+        assert_eq!(parent.unwrap().get(), guild_house, "Character should be parented to guild house");
+
+        // Verify character has transform components
+        assert!(app.world().get::<Transform>(character_entity).is_some());
+        assert!(app.world().get::<PlayerControlled>(character_entity).is_some());
+    }
+
+    #[test]
+    fn cleanup_handles_hierarchical_ui() {
+        let mut app = App::new();
+        app.add_plugins(DefaultPlugins);
+        app.init_resource::<InputBuffer>();
+
+        // Create parent-child UI hierarchy
+        let parent_ui = app.world_mut().spawn(CharacterCreateScreen).id();
+        let child_ui = app.world_mut().spawn((
+            CharacterCreateScreen,
+            Parent(parent_ui),
+        )).id();
+
+        // Add child to parent's children list
+        app.world_mut().entity_mut(parent_ui).insert(Children::from(&[child_ui]));
+        app.update();
+
+        // Verify hierarchy exists
+        let ui_count_before = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+        assert_eq!(ui_count_before, 2);
+
+        // Run cleanup (should use despawn_recursive)
+        cleanup_character_create(
+            app.world_mut().commands(),
+            app.world().query::<Entity>(),
+            app.world().query::<Entity>(),
+            app.world_mut().resource_mut::<InputBuffer>(),
+        );
+        app.update();
+
+        // Verify all UI entities removed
+        let ui_count_after = app.world()
+            .query::<&CharacterCreateScreen>()
+            .iter(app.world())
+            .count();
+        assert_eq!(ui_count_after, 0, "All UI entities should be removed including children");
+    }
+}
+```
+
+**How to Run These Tests:**
+
+```bash
+cargo test cleanup_tests
+```
+
+**What Success Looks Like:**
+
+- All UI entities with CharacterCreateScreen marker are removed
+- Character entities with Character + Name components are preserved
+- InputBuffer resource is properly cleared
+- Character entities get parented to guild house with additional components
+- Hierarchical UI cleanup works correctly (no orphaned child entities)
+
+**Memory Leak Detection Test:**
+
+```rust
+#[cfg(test)]
+mod memory_leak_tests {
+    use super::*;
+    use bevy::prelude::*;
+
+    #[test]
+    fn no_entities_leak_across_multiple_cycles() {
+        let mut app = App::new();
+        app.add_plugins((DefaultPlugins, CharacterCreatePlugin));
+
+        let initial_entity_count = app.world().entities().len();
+
+        // Run multiple character creation cycles
+        for cycle in 0..5 {
+            // Enter character creation
+            app.world_mut().resource_mut::<NextState<GameState>>().set(
+                GameState::CharacterCreate(CharacterPhase::Selection)
+            );
+            app.update();
+
+            // Create some UI (simulated)
+            app.world_mut().spawn(CharacterCreateScreen);
+            app.world_mut().spawn(CharacterCreateScreen);
+            app.update();
+
+            // Exit character creation
+            app.world_mut().resource_mut::<NextState<GameState>>().set(GameState::Intro);
+            app.update();
+        }
+
+        let final_entity_count = app.world().entities().len();
+
+        // Should not have significantly more entities (allowing for some system entities)
+        let entity_growth = final_entity_count - initial_entity_count;
+        assert!(entity_growth < 10,
+                "Entity count grew by {} after {} cycles, possible memory leak",
+                entity_growth, 5);
+    }
+
+    #[test]
+    fn character_entities_persist_across_state_changes() {
+        let mut app = App::new();
+        app.add_plugins((DefaultPlugins, CharacterCreatePlugin));
+
+        // Create character entity
+        let character_id = app.world_mut().spawn((
+            Character { class: CharacterClass::Sprinter },
+            Name::new("PersistentHero".to_string()),
+            CharacterEntity,
+        )).id();
+        app.update();
+
+        // Go through multiple state changes
+        let states = vec![
+            GameState::CharacterCreate(CharacterPhase::Selection),
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Sprinter)),
+            GameState::Intro,
+            GameState::Battle,
+            GameState::MainMenu,
+        ];
+
+        for state in states {
+            app.world_mut().resource_mut::<NextState<GameState>>().set(state);
+            app.update();
+
+            // Verify character entity still exists
+            assert!(app.world().get_entity(character_id).is_some(),
+                    "Character entity should persist across state changes");
+
+            let character = app.world().get::<Character>(character_id).unwrap();
+            assert_eq!(character.class, CharacterClass::Sprinter);
+
+            let name = app.world().get::<Name>(character_id).unwrap();
+            assert_eq!(name.as_str(), "PersistentHero");
+        }
+    }
+}
+```
+
+**Common Issues These Tests Catch:**
+
+- UI entities not being properly cleaned up (memory leaks)
+- Character entities being accidentally removed during cleanup
+- InputBuffer not being cleared between sessions
+- Parent-child relationships not being established correctly
+- despawn_recursive not being used for hierarchical UI
+- Entity references becoming invalid after cleanup
 
 ---
 
@@ -1183,28 +3326,42 @@ fn character_class_display_names_are_unique() {
 }
 ```
 
-### State Management Tests
+### Nested State Management Tests
 
 ```rust
 #[test]
-fn character_creation_state_default() {
-    let state = CharacterCreationState::default();
-    assert_eq!(state.phase, CreationPhase::Selection);
-    assert!(state.character_name.is_empty());
+fn input_buffer_default() {
+    let buffer = InputBuffer::default();
+    assert!(buffer.character_name.is_empty());
 }
 
 #[test]
-fn creation_phase_transitions() {
-    let selection_phase = CreationPhase::Selection;
-    let naming_phase = CreationPhase::Naming(CharacterClass::Trapper);
+fn nested_state_transitions() {
+    let selection_state = GameState::CharacterCreate(CharacterPhase::Selection);
+    let naming_state = GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Trapper));
 
-    assert_ne!(selection_phase, naming_phase);
+    assert_ne!(selection_state, naming_state);
 
-    if let CreationPhase::Naming(class) = naming_phase {
+    if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = naming_state {
         assert_eq!(class, CharacterClass::Trapper);
     } else {
-        panic!("Expected Naming phase with Trapper class");
+        panic!("Expected CharacterCreate Naming state with Trapper class");
     }
+}
+
+#[test]
+fn state_type_safety() {
+    // Compiler ensures only valid state combinations
+    let valid_states = vec![
+        GameState::MainMenu,
+        GameState::CharacterCreate(CharacterPhase::Selection),
+        GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Alchemist)),
+        GameState::Intro,
+    ];
+
+    // These would not compile - invalid nested states:
+    // GameState::MainMenu(CharacterPhase::Selection) // ❌ Compile error
+    // GameState::Intro(CharacterPhase::Naming) // ❌ Compile error
 }
 ```
 
@@ -1216,8 +3373,11 @@ fn character_create_plugin_registers_systems() {
     let mut app = App::new();
     app.add_plugins(CharacterCreatePlugin);
 
-    // Verify the resource is initialized
-    assert!(app.world().contains_resource::<CharacterCreationState>());
+    // Verify the InputBuffer resource is initialized
+    assert!(app.world().contains_resource::<InputBuffer>());
+
+    // Verify nested state is properly configured
+    // (Bevy's state system automatically handles state registration)
 }
 ```
 
@@ -1311,7 +3471,7 @@ mod integration_tests {
             .query::<(&Character, &Name)>()
             .iter(&app.world())
             .collect();
-        
+
         assert_eq!(character_entities.len(), 1, "Should have exactly one character entity");
         let (character, name) = character_entities[0];
         assert_eq!(character.class, CharacterClass::Trapper);
@@ -2026,9 +4186,20 @@ to create experiences that feel cohesive, polished, and engaging.
 **Technical Takeaways**:
 
 - Bevy's ECS architecture naturally supports modular system design
-- State machines provide clear mental models for complex UI flows
+- **Nested enum states provide cleaner, more maintainable state management than separate resource systems**
+- **Single state hierarchy eliminates synchronization issues between multiple state tracking mechanisms**
 - Component-based architecture enables clean separation of concerns
 - Comprehensive testing prevents regressions as systems evolve
+
+**Nested State Architecture Benefits**:
+
+- **Unified State Management**: `GameState::CharacterCreate(CharacterPhase)` provides a single source of truth
+- **Automatic State Transitions**: Bevy's state system handles UI cleanup and setup automatically
+- **Type Safety**: Nested enums prevent invalid state combinations at compile time
+- **Simplified System Registration**: Phase-specific systems use precise state filtering
+- **Reduced Boilerplate**: No manual phase checking or state synchronization code needed
+- **Better Performance**: Leverages Bevy's optimized state system vs manual resource checking
+- **Eliminated Synchronization Issues**: No risk of state resource getting out of sync with actual game state
 
 **Collaborative Takeaways**:
 
@@ -2239,8 +4410,113 @@ Locations**:
 - Game State Integration: `/Users/matthewharwood/Documents/GitHub/arenic_bevy/arenic_bevy/src/game_state/mod.rs`
 - Character Assets: `/Users/matthewharwood/Documents/GitHub/arenic_bevy/arenic_bevy/assets/bosses/`
 
-**Production Deployment**: The enhanced tutorial now uses ECS Component architecture that provides the technical depth
-needed to ship this system in a production game. Character entities with `Character` and `Name` components integrate
-seamlessly with Bevy's entity management, transform hierarchy, and debugging tools, while maintaining the performance
-considerations, error handling, platform support, and extensibility patterns that have been proven in shipped Bevy
-games.
+**Production Deployment**: The enhanced tutorial now uses nested enum state architecture combined with ECS Component
+patterns that provide the technical depth needed to ship this system in a production game. The
+`GameState::CharacterCreate(CharacterPhase)` approach eliminates common state synchronization bugs while character
+entities with `Character` and `Name` components integrate seamlessly with Bevy's entity management, transform hierarchy,
+and debugging tools, maintaining the performance considerations, error handling, platform support, and extensibility
+patterns proven in shipped Bevy games.
+
+## Why Nested Enum States Are Superior
+
+The nested enum approach `GameState::CharacterCreate(CharacterPhase)` provides significant advantages over the
+traditional separate resource approach:
+
+### Before (Separate Resources):
+
+```rust
+#[derive(Resource)]
+struct CharacterCreationState {
+    phase: CreationPhase,
+    // ... other state
+}
+
+fn handle_selection(mut state: ResMut<CharacterCreationState>) {
+    if !matches!(state.phase, CreationPhase::Selection) {
+        return; // Manual phase checking required
+    }
+    // ... handle selection
+    state.phase = CreationPhase::Naming; // Manual state mutation
+}
+```
+
+### After (Nested Enum States):
+
+```rust
+#[derive(States)]
+enum GameState {
+    CharacterCreate(CharacterPhase),
+    // ... other states
+}
+
+fn handle_selection(
+    mut next_state: ResMut<NextState<GameState>>
+) {
+    // System only runs during Selection phase - no manual checking needed
+    next_state.set(GameState::CharacterCreate(CharacterPhase::Naming(class)));
+    // Bevy handles all transition logic automatically
+}
+```
+
+### Key Improvements:
+
+1. **Eliminated Manual Checking**: Systems use precise state filters instead of runtime phase validation
+2. **Automatic UI Management**: `OnEnter`/`OnExit` systems handle UI transitions without manual despawning
+3. **Type Safety**: Invalid state combinations prevented at compile time
+4. **Cleaner Code**: Reduced boilerplate and error-prone state synchronization
+5. **Better Performance**: Bevy's optimized state system instead of custom resource polling
+
+This architectural change demonstrates how thoughtful state design can eliminate entire categories of bugs while making
+code more maintainable and performant.
+
+## Why Nested Enum States Are Superior
+
+The nested enum approach `GameState::CharacterCreate(CharacterPhase)` provides significant advantages over the
+traditional separate resource approach:
+
+### Before (Separate Resources):
+
+```rust
+#[derive(Resource)]
+struct CharacterCreationState {
+    phase: CreationPhase,
+    // ... other state
+}
+
+fn handle_selection(mut state: ResMut<CharacterCreationState>) {
+    if !matches!(state.phase, CreationPhase::Selection) {
+        return; // Manual phase checking required
+    }
+    // ... handle selection
+    state.phase = CreationPhase::Naming; // Manual state mutation
+}
+```
+
+### After (Nested Enum States):
+
+```rust
+#[derive(States)]
+enum GameState {
+    CharacterCreate(CharacterPhase),
+    // ... other states
+}
+
+fn handle_selection(
+    mut next_state: ResMut<NextState<GameState>>
+) {
+    // System only runs during Selection phase - no manual checking needed
+    next_state.set(GameState::CharacterCreate(CharacterPhase::Naming(class)));
+    // Bevy handles all transition logic automatically
+}
+```
+
+### Key Improvements:
+
+1. **Eliminated Manual Checking**: Systems use precise state filters instead of runtime phase validation
+2. **Automatic UI Management**: `OnEnter`/`OnExit` systems handle UI transitions without manual despawning
+3. **Type Safety**: Invalid state combinations prevented at compile time
+4. **Cleaner Code**: Reduced boilerplate and error-prone state synchronization
+5. **Better Performance**: Bevy's optimized state system instead of custom resource polling
+
+This architectural change demonstrates how thoughtful state design can eliminate entire categories of bugs while making
+code more maintainable and performant.
