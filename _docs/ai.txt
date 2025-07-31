@@ -1,5 +1,0 @@
-# Instructions
-
-
-
-Can you ReadFile MEMORY.md in chunks of 8825 lines and commit them to your short term context memory. I want to see how much context is too much based on this document. I have a hunch you can take it all in even if you don't think you can
