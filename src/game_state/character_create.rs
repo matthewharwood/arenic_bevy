@@ -1,4 +1,8 @@
 use super::GameState;
+use crate::character::thief::CharacterThief;
+use crate::character::warrior::CharacterWarrior;
+use crate::character::Character;
+use crate::ui::{Colors, Spacing};
 use bevy::prelude::*;
 
 /// Plugin for the Character Creation state
@@ -15,71 +19,218 @@ impl Plugin for CharacterCreatePlugin {
     }
 }
 
-pub enum CharacterClass {
-    Hunter,    // Eagle Eye precision targeting
-    Bard,      // Inspiring melodies boost party
-    Merchant,  // Trade mastery yields resources
-    Warrior,   // Battle fury area attacks
-    Cardinal,  // Divine grace heals allies
-    Alchemist, // Transmutation creates potions
-    Forager,   // Nature's bounty finds resources
-    Thief,     // Backstab positional attacks
-}
-
 /// Marker component for character creation screen entities
 #[derive(Component)]
 struct CharacterCreateScreen;
 
-fn setup_character_create(mut commands: Commands) {
-    // Spawn character creation UI
+fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let title_font = asset_server.load("fonts/Migra-Extrabold.ttf");
+
     commands.spawn((
         Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            flex_direction: FlexDirection::Column,
-            ..default()
+            padding: UiRect::all(Spacing::XL),
+            ..Default::default()
         },
-        BackgroundColor(Color::srgb(0.15, 0.15, 0.15)),
+        BackgroundColor(Colors::WHITE),
         CharacterCreateScreen,
-        children![
-            // Header text
-            (
-                Text::new("Create Your Character"),
-                TextFont {
-                    font_size: 48.0,
-                    ..default()
-                },
-                TextColor(Color::WHITE),
-            ),
-            // Placeholder text
-            (
-                Text::new("Character creation coming soon..."),
-                TextFont {
-                    font_size: 24.0,
-                    ..default()
-                },
-                TextColor(Color::srgb(0.6, 0.6, 0.6)),
-                Node {
-                    margin: UiRect::top(Val::Px(30.0)),
-                    ..default()
-                },
-            ),
-            // Continue instruction
-            (
-                Text::new("Press SPACE to continue"),
-                TextFont {
-                    font_size: 20.0,
-                    ..default()
-                },
-                TextColor(Color::srgb(0.7, 0.7, 0.7)),
-                Node {
-                    margin: UiRect::top(Val::Px(50.0)),
-                    ..default()
-                },
-            ),
-        ],
+        children![(
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                display: Display::Grid,
+                grid_template_columns: RepeatedGridTrack::flex(12, 1.0),
+                grid_template_rows: RepeatedGridTrack::flex(14, 1.0),
+                row_gap: Val::Px(12.0),
+                column_gap: Val::Px(12.0),
+                position_type: PositionType::Relative,
+                ..Default::default()
+            },
+            BackgroundColor(Colors::WHITE),
+            children![
+                (
+                    Text::new("Choose Your Class"),
+                    TextFont {
+                        font: title_font,
+                        font_size: 58.0,
+                        ..default()
+                    },
+                    TextColor(Color::BLACK),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        ..Default::default()
+                    }
+                ),
+                (
+                    Node {
+                        position_type: PositionType::Relative,
+                        grid_row: GridPlacement::start_span(3, 12),
+                        grid_column: GridPlacement::span(4),
+                        height: Val::Percent(100.0),
+                        border: UiRect::all(Val::Px(6.0)),
+                        ..Default::default()
+                    },
+                    BackgroundColor(Colors::WHITE),
+                    BorderColor(Colors::BLACK),
+                    BorderRadius::all(Val::Px(12.0)),
+                    children![(
+                        Node {
+                            display: Display::Grid,
+                            grid_template_columns: RepeatedGridTrack::flex(2, 1.0),
+                            grid_template_rows: RepeatedGridTrack::flex(4, 1.0),
+                            column_gap: Val::Px(12.0),
+                            row_gap: Val::Px(12.0),
+                            width: Val::Percent(100.0),
+                            height: Val::Percent(100.0),
+                            padding: UiRect::all(Val::Px(12.0)),
+                            ..Default::default()
+                        },
+                        children![
+                            // Tile 1
+                            (
+                                Node {
+                                    border: UiRect::all(Val::Px(6.0)),
+                                    ..Default::default()
+                                },
+                                BackgroundColor(Colors::GRAY_200),
+                                BorderColor(Colors::GRAY_400),
+                                BorderRadius::all(Val::Px(12.0))
+                            ),
+                            // Tile 2
+                            (
+                                Node {
+                                    border: UiRect::all(Val::Px(6.0)),
+                                    ..Default::default()
+                                },
+                                BackgroundColor(Colors::GRAY_200),
+                                BorderColor(Colors::GRAY_400),
+                                BorderRadius::all(Val::Px(12.0))
+                            ),
+                            // Tile 3
+                            (
+                                Node {
+                                    border: UiRect::all(Val::Px(6.0)),
+                                    ..Default::default()
+                                },
+                                BackgroundColor(Colors::GRAY_200),
+                                BorderColor(Colors::GRAY_400),
+                                BorderRadius::all(Val::Px(12.0))
+                            ),
+                            // Tile 4
+                            (
+                                Node {
+                                    border: UiRect::all(Val::Px(6.0)),
+                                    ..Default::default()
+                                },
+                                BackgroundColor(Colors::GRAY_200),
+                                BorderColor(Colors::GRAY_400),
+                                BorderRadius::all(Val::Px(12.0))
+                            ),
+                            // Tile 5
+                            (
+                                Node {
+                                    border: UiRect::all(Val::Px(6.0)),
+                                    ..Default::default()
+                                },
+                                BackgroundColor(Colors::GRAY_200),
+                                BorderColor(Colors::GRAY_400),
+                                BorderRadius::all(Val::Px(12.0))
+                            ),
+                            // Tile 6
+                            (
+                                Node {
+                                    border: UiRect::all(Val::Px(6.0)),
+                                    ..Default::default()
+                                },
+                                BackgroundColor(Colors::GRAY_200),
+                                BorderColor(Colors::GRAY_400),
+                                BorderRadius::all(Val::Px(12.0))
+                            ),
+                            // Tile 7
+                            (
+                                Node {
+                                    border: UiRect::all(Val::Px(6.0)),
+                                    ..Default::default()
+                                },
+                                BackgroundColor(Colors::GRAY_200),
+                                BorderColor(Colors::GRAY_400),
+                                BorderRadius::all(Val::Px(12.0))
+                            ),
+                            // Tile 8
+                            (
+                                Node {
+                                    border: UiRect::all(Val::Px(6.0)),
+                                    ..Default::default()
+                                },
+                                BackgroundColor(Colors::GRAY_200),
+                                BorderColor(Colors::GRAY_400),
+                                BorderRadius::all(Val::Px(12.0))
+                            ),
+                        ]
+                    ),],
+                ),
+                (
+                    Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Percent(50.0),
+                        margin: UiRect::left(Val::Px(-250.0)),
+                        width: Val::Auto,
+                        height: Val::Auto,
+                        ..Default::default()
+                    },
+                    children![
+                        (
+                            Node {
+                                position_type: PositionType::Absolute,
+                                left: Val::Px(0.0),
+                                width: Val::Auto,
+                                height: Val::Auto,
+                                ..Default::default()
+                            },
+                            ImageNode::new(asset_server.load(CharacterWarrior::PORTRAIT)),
+                            CharacterWarrior,
+                        ),
+                        (
+                            Node {
+                                position_type: PositionType::Absolute,
+                                left: Val::Px(0.0),
+                                width: Val::Auto,
+                                height: Val::Auto,
+                                ..Default::default()
+                            },
+                            ImageNode::new(asset_server.load(CharacterThief::PORTRAIT)),
+                            CharacterThief,
+                        )
+                    ],
+                ),
+                (
+                    Node {
+                        position_type: PositionType::Relative,
+                        grid_row: GridPlacement::start_end(13, -1),
+                        grid_column: GridPlacement::start_end(5, -1),
+                        border: UiRect::all(Val::Px(6.0)),
+                        height: Val::Percent(100.0),
+                        ..Default::default()
+                    },
+                    BackgroundColor(Colors::WHITE),
+                    BorderColor(Colors::BLACK),
+                    BorderRadius::all(Val::Px(12.0))
+                ),
+                (
+                    Node {
+                        position_type: PositionType::Relative,
+                        grid_row: GridPlacement::start_span(3, 4),
+                        grid_column: GridPlacement::start_end(9, -1),
+                        border: UiRect::all(Val::Px(6.0)),
+                        ..Default::default()
+                    },
+                    BackgroundColor(Colors::WHITE),
+                    BorderColor(Colors::BLACK),
+                    BorderRadius::all(Val::Px(12.0))
+                )
+            ]
+        )],
     ));
 }
 
