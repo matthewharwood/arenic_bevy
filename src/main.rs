@@ -16,6 +16,7 @@ mod relationships;
 mod tile;
 mod trait_utils;
 mod ui;
+mod utils;
 
 use crate::camera::CameraPlugin;
 use crate::config::display::{WINDOW_HEIGHT, WINDOW_WIDTH};

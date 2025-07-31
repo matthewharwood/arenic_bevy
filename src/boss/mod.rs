@@ -3,13 +3,13 @@ use bevy::prelude::*;
 // Module declarations for each boss type
 pub mod alchemist;
 pub mod cardinal;
-pub mod collector;
-pub mod gatherer;
+pub mod forager;
+pub mod merchant;
 pub mod guild_master;
 pub mod bard;
-pub mod tank;
+pub mod warrior;
 pub mod thief;
-pub mod trapper;
+pub mod hunter;
 
 #[derive(Component)]
 pub struct BossAnimationConfig {

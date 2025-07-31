@@ -33,14 +33,14 @@ each character class gets its own file implementing a shared trait.
 ```
 src/boss/
 ├── mod.rs          // Module declarations and shared Boss trait
-├── trapper.rs      // Trapper-specific implementation
+├── hunter.rs       // Hunter-specific implementation
 ├── alchemist.rs    // Alchemist-specific implementation
-├── bard.rs         // Sprinter-specific implementation
-├── gatherer.rs     // Gatherer-specific implementation
+├── bard.rs         // Bard-specific implementation
+├── forager.rs      // Forager-specific implementation
 ├── thief.rs        // Thief-specific implementation
-├── tank.rs         // Tank-specific implementation
+├── warrior.rs      // Warrior-specific implementation
 ├── cardinal.rs     // Cardinal-specific implementation
-└── collector.rs    // Collector-specific implementation
+└── merchant.rs      // Merchant-specific implementation
 ```
 
 **Core Architecture**: `src/boss/mod.rs`
@@ -51,12 +51,12 @@ use bevy::prelude::*;
 // Module declarations for each boss type
 pub mod alchemist;
 pub mod cardinal;
-pub mod collector;
-pub mod gatherer;
-pub mod sprinter;
-pub mod tank;
+pub mod forager;
+pub mod merchant;
+pub mod bard;
+pub mod warrior;
 pub mod thief;
-pub mod trapper;
+pub mod hunter;
 
 /// Shared trait for all boss/character types
 pub trait Boss {
@@ -69,18 +69,18 @@ pub trait Boss {
 }
 ```
 
-**Individual Character Implementation**: `src/boss/trapper.rs`
+**Individual Character Implementation**: `src/boss/hunter.rs`
 
 ```rust
 use super::Boss;
 use bevy::prelude::*;
 
 #[derive(Component, Debug)]
-pub struct Trapper;
+pub struct BossHunter;
 
-impl Boss for Trapper {
-    const NAME: &'static str = "The Trapper";
-    const TEXTURE_PATH: &'static str = "bosses/trapper.png";
+impl Boss for BossHunter {
+    const NAME: &'static str = "The Hunter";
+    const TEXTURE_PATH: &'static str = "bosses/hunter.png";
     const ANIMATION_FPS: f32 = 10.0;
 }
 ```
@@ -240,10 +240,10 @@ mod character_class_tests {
     #[test]
     fn all_character_classes_have_complete_data() {
         for class in CharacterClass::all() {
-            assert!(!class.display_name().is_empty(),
+            assert!(!class.class_name().is_empty(),
                     "Class {:?} missing display name", class);
-            assert!(!class.tagline().is_empty(),
-                    "Class {:?} missing tagline", class);
+            assert!(!class.skill_description().is_empty(),
+                    "Class {:?} missing skill description", class);
             assert!(class.texture_path().ends_with(".png"),
                     "Class {:?} texture path should end with .png", class);
             assert!(class.texture_path().starts_with("bosses/"),
@@ -258,14 +258,14 @@ mod character_class_tests {
     }
 
     #[test]
-    fn character_display_names_are_unique() {
+    fn character_class_names_are_unique() {
         let classes = CharacterClass::all();
         let mut names = std::collections::HashSet::new();
 
         for class in classes {
-            let display_name = class.display_name();
-            assert!(names.insert(display_name),
-                    "Duplicate display name found: {}", display_name);
+            let class_name = class.class_name();
+            assert!(names.insert(class_name),
+                    "Duplicate class name found: {}", class_name);
         }
     }
 
@@ -294,13 +294,13 @@ mod character_class_tests {
     }
 
     #[test]
-    fn taglines_are_descriptive() {
+    fn skill_descriptions_are_descriptive() {
         for class in CharacterClass::all() {
-            let tagline = class.tagline();
-            assert!(tagline.len() > 10,
-                    "Class {:?} tagline too short: '{}'", class, tagline);
-            assert!(tagline.chars().any(|c| c.is_lowercase()),
-                    "Class {:?} tagline should contain lowercase letters: '{}'", class, tagline);
+            let description = class.skill_description();
+            assert!(description.len() > 10,
+                    "Class {:?} skill description too short: '{}'", class, description);
+            assert!(description.chars().any(|c| c.is_lowercase()),
+                    "Class {:?} skill description should contain lowercase letters: '{}'", class, description);
         }
     }
 }
@@ -318,11 +318,11 @@ cargo test character_class_tests
 - Each character class has complete, unique data
 - Asset paths follow consistent naming convention
 - Display names are unique (prevents UI confusion)
-- Taglines are descriptive enough to guide player choice
+- Skill descriptions are descriptive enough to guide player choice
 
 **Common Issues These Tests Catch:**
 
-- Missing or empty display names/taglines
+- Missing or empty class names/skill descriptions
 - Duplicate asset paths (causes asset conflicts)
 - Inconsistent file naming conventions
 - Classes with identical display names (confusing UX)
@@ -390,14 +390,14 @@ mod state_architecture_tests {
     #[test]
     fn nested_state_transitions_work() {
         let selection_state = GameState::CharacterCreate(CharacterPhase::Selection);
-        let naming_state = GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Trapper));
+        let naming_state = GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Hunter));
 
         assert_ne!(selection_state, naming_state);
 
         if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = naming_state {
-            assert_eq!(class, CharacterClass::Trapper);
+            assert_eq!(class, CharacterClass::Hunter);
         } else {
-            panic!("Expected CharacterCreate Naming state with Trapper class");
+            panic!("Expected CharacterCreate Naming state with Hunter class");
         }
     }
 
@@ -441,7 +441,7 @@ mod state_architecture_tests {
     fn state_pattern_matching_works() {
         let states = vec![
             GameState::CharacterCreate(CharacterPhase::Selection),
-            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Tank)),
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Warrior)),
         ];
 
         for state in states {
@@ -500,16 +500,16 @@ mod state_integration_tests {
 
         // Transition to naming
         app.world_mut().resource_mut::<NextState<GameState>>().set(
-            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Sprinter))
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Bard))
         );
         app.update();
 
         // Verify we're in naming phase with correct class
         let current_state = app.world().resource::<State<GameState>>();
         if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = current_state.get() {
-            assert_eq!(*class, CharacterClass::Sprinter);
+            assert_eq!(*class, CharacterClass::Bard);
         } else {
-            panic!("Should be in naming phase with Sprinter class");
+            panic!("Should be in naming phase with Bard class");
         }
     }
 }
@@ -620,7 +620,7 @@ mod plugin_tests {
         let entity = app.world_mut().spawn((
             Button,
             Interaction::None,
-            CharacterCard { class: CharacterClass::Tank },
+            CharacterCard { class: CharacterClass::Warrior },
         )).id();
 
         // Start in different state - systems shouldn't run
@@ -723,7 +723,7 @@ CharacterEntity, // Marker for easy querying
 // Character creation state: Entity spawned with basic components
 fn complete_character_creation(/* ... */) {
     commands.spawn((
-        Character { class: CharacterClass::Trapper },
+        Character { class: CharacterClass::Hunter },
         Name::new("Hero"),
         CharacterEntity,
     ));
@@ -837,7 +837,7 @@ fn setup_selection_ui(
 
             // Character Portrait - Center (CP-1, CP-2)
             grid.spawn((
-                ImageNode::new(asset_server.load("characters/thief-portrait.png")), // Default to Thief
+                ImageNode::new(asset_server.load("character/thief-portrait.png")), // Default to Thief
                 Node {
                     grid_row: GridPlacement::start_end(1, 15),    // Start at row 1, extend beyond viewport
                     grid_column: GridPlacement::start_end(5, 9),  // Center columns
@@ -950,7 +950,7 @@ fn setup_naming_ui(
         )).with_children(|parent| {
             // Adam's narrative feedback
             parent.spawn((
-                Text::new(format!("Your {} awaits a name, Commander", selected_class.display_name())),
+                Text::new(format!("Your {} awaits a name, Commander", selected_class.class_name())),
                 TextFont {
                     font_size: 36.0,
                     ..default()
@@ -1079,7 +1079,7 @@ mod ui_creation_tests {
 
         // Spawn a character card
         app.world_mut().entity_mut(parent_id).with_children(|parent| {
-            spawn_character_card(parent, CharacterClass::Gatherer, &app.world().resource::<AssetServer>());
+            spawn_character_card(parent, CharacterClass::Merchant, &app.world().resource::<AssetServer>());
         });
         app.update();
 
@@ -1094,7 +1094,7 @@ mod ui_creation_tests {
         assert_eq!(cards.len(), 1, "Should spawn exactly one character card");
 
         let (card, hover_state, _selectable) = cards[0];
-        assert_eq!(card.class, CharacterClass::Gatherer);
+        assert_eq!(card.class, CharacterClass::Merchant);
         assert!(!hover_state.is_hovered, "Card should start unhovered");
     }
 
@@ -1971,7 +1971,7 @@ mod character_selection_tests {
         let card_entity = app.world_mut().spawn((
             Button,
             Interaction::Pressed, // Simulate button press
-            CharacterCard { class: CharacterClass::Tank },
+            CharacterCard { class: CharacterClass::Warrior },
         )).id();
         app.update();
 
@@ -1988,9 +1988,9 @@ mod character_selection_tests {
         // Verify state transitioned to naming
         let current_state = app.world().resource::<State<GameState>>();
         if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = current_state.get() {
-            assert_eq!(*class, CharacterClass::Tank);
+            assert_eq!(*class, CharacterClass::Warrior);
         } else {
-            panic!("Should transition to naming phase with Tank class");
+            panic!("Should transition to naming phase with Warrior class");
         }
     }
 
@@ -2016,7 +2016,7 @@ mod character_selection_tests {
             app.world_mut().spawn((
                 Button,
                 interaction,
-                CharacterCard { class: CharacterClass::Sprinter },
+                CharacterCard { class: CharacterClass::Bard },
             ));
         }
         app.update();
@@ -2060,7 +2060,7 @@ mod character_selection_tests {
         let second_card = app.world_mut().spawn((
             Button,
             Interaction::Pressed,
-            CharacterCard { class: CharacterClass::Collector },
+            CharacterCard { class: CharacterClass::Forager },
         )).id();
         app.update();
 
@@ -2079,7 +2079,7 @@ mod character_selection_tests {
         match current_state.get() {
             GameState::CharacterCreate(CharacterPhase::Naming(class)) => {
                 // Should be one of the two classes (implementation dependent on iteration order)
-                assert!(matches!(class, CharacterClass::Alchemist | CharacterClass::Collector));
+                assert!(matches!(class, CharacterClass::Alchemist | CharacterClass::Forager));
             }
             _ => panic!("Should transition to naming phase"),
         }
@@ -2163,7 +2163,7 @@ mod selection_integration_tests {
             Interaction::None,
             BackgroundColor(Color::srgb(0.92, 0.92, 0.92)),
             HoverState { is_hovered: false },
-            CharacterCard { class: CharacterClass::Trapper },
+            CharacterCard { class: CharacterClass::Hunter },
             SelectableCard,
         )).id();
         app.update();
@@ -2185,9 +2185,9 @@ mod selection_integration_tests {
         // Verify state transition
         let current_state = app.world().resource::<State<GameState>>();
         if let GameState::CharacterCreate(CharacterPhase::Naming(class)) = current_state.get() {
-            assert_eq!(*class, CharacterClass::Trapper);
+            assert_eq!(*class, CharacterClass::Hunter);
         } else {
-            panic!("Should transition to naming phase with Trapper class");
+            panic!("Should transition to naming phase with Hunter class");
         }
     }
 }
@@ -2518,7 +2518,7 @@ mod naming_interface_tests {
 
         // Set state to naming with specific class
         app.world_mut().resource_mut::<NextState<GameState>>().set(
-            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Gatherer))
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Merchant))
         );
         app.update();
 
@@ -2593,7 +2593,7 @@ mod naming_interface_tests {
         let test_classes = vec![
             CharacterClass::Cardinal,
             CharacterClass::Thief,
-            CharacterClass::Tank,
+            CharacterClass::Warrior,
         ];
 
         for class in test_classes {
@@ -2631,7 +2631,7 @@ mod naming_interface_tests {
         app.init_state::<GameState>();
 
         app.world_mut().resource_mut::<NextState<GameState>>().set(
-            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Sprinter))
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Bard))
         );
         app.update();
 
@@ -2894,12 +2894,12 @@ mod keyboard_input_tests {
 
         // Set up naming state
         app.world_mut().resource_mut::<NextState<GameState>>().set(
-            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Collector))
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Forager))
         );
         app.update();
 
         // Simulate character creation with valid name
-        let selected_class = CharacterClass::Collector;
+        let selected_class = CharacterClass::Forager;
         let character_name = "ValidName";
 
         app.world_mut().spawn((
@@ -2916,7 +2916,7 @@ mod keyboard_input_tests {
         assert_eq!(characters.len(), 1, "Should create exactly one character entity");
 
         let (character, name, _marker) = characters[0];
-        assert_eq!(character.class, CharacterClass::Collector);
+        assert_eq!(character.class, CharacterClass::Forager);
         assert_eq!(name.as_str(), "ValidName");
     }
 
@@ -2995,7 +2995,7 @@ mod input_integration_tests {
 
         // Enter naming phase
         app.world_mut().resource_mut::<NextState<GameState>>().set(
-            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Trapper))
+            GameState::CharacterCreate(CharacterPhase::Naming(CharacterClass::Hunter))
         );
         app.update();
 
@@ -3011,7 +3011,7 @@ mod input_integration_tests {
 
         // Create character (simulating the Enter key logic)
         app.world_mut().spawn((
-            Character { class: CharacterClass::Trapper },
+            Character { class: CharacterClass::Hunter },
             Name::new("TestHero".to_string()),
             CharacterEntity,
         ));
@@ -3033,7 +3033,7 @@ mod input_integration_tests {
             .collect();
 
         let (character, name) = characters.last().unwrap();
-        assert_eq!(character.class, CharacterClass::Trapper);
+        assert_eq!(character.class, CharacterClass::Hunter);
         assert_eq!(name.as_str(), "TestHero");
     }
 

@@ -1,4 +1,4 @@
 use bevy::prelude::Component;
 
 #[derive(Component, Debug)]
-pub struct HunterCharacter;
+pub struct CharacterHunter;
