@@ -12,4 +12,6 @@ impl Character for CharacterHunter {
         ("character/hunter-2.mp3", "My traps never miss."),
         ("character/hunter-greet.mp3", "Tracking prey? Or tracking treasure? Either way, I never miss."),
     ];
+    const ICON: &'static str = "characters/hunter-icon.png";
+    const PORTRAIT: &'static str = "characters/hunter.png";
 }

@@ -12,4 +12,6 @@ impl Character for CharacterThief {
         ("character/thief-2.mp3", "Quick and silent death."),
         ("character/thief-greet.mp3", "Oh, you actually saw me?"),
     ];
+    const ICON: &'static str = "characters/thief-icon.png";
+    const PORTRAIT: &'static str = "characters/thief.png";
 }

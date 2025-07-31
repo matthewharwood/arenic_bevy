@@ -12,4 +12,6 @@ impl Character for CharacterWarrior {
         ("character/warrior-2.mp3", "Honor guides my blade."),
         ("character/warrior-greet.mp3", "Hail, friend!"),
     ];
+    const ICON: &'static str = "characters/warrior-icon.png";
+    const PORTRAIT: &'static str = "characters/warrior.png";
 }

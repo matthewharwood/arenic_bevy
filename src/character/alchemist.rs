@@ -12,4 +12,6 @@ impl Character for CharacterAlchemist {
         ("character/alchemist-2.mp3", "Behold the power of transmutation."),
         ("character/alchemist-greet.mp3", "Need a Potion? A Transmutation?"),
     ];
+    const ICON: &'static str = "characters/alchemist-icon.png";
+    const PORTRAIT: &'static str = "characters/alchemist.png";
 }

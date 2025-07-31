@@ -11,4 +11,6 @@ pub mod warrior;
 
 pub trait Character {
     const AUDIO: AudioClips<4>;
+    const ICON: &'static str;
+    const PORTRAIT: &'static str;
 }

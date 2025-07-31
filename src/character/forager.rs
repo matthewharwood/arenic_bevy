@@ -12,4 +12,6 @@ impl Character for CharacterForager {
         ("character/forager-2.mp3", "I'll dig deep for victory."),
         ("character/forager-greet.mp3", "The Earth whispers Secrets to those who listen."),
     ];
+    const ICON: &'static str = "characters/forager-icon.png";
+    const PORTRAIT: &'static str = "characters/forager.png";
 }

@@ -12,4 +12,6 @@ impl Character for CharacterBard {
         ("character/bard-2.mp3", "I'll amplify your strength."),
         ("character/bard-greet.mp3", "Ah, a new face! Let me play you the song of our people."),
     ];
+    const ICON: &'static str = "characters/bard-icon.png";
+    const PORTRAIT: &'static str = "characters/bard.png";
 }

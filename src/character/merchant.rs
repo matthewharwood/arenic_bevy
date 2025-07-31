@@ -12,4 +12,6 @@ impl Character for CharacterMerchant {
         ("character/merchant-2.mp3", "Luck is my greatest weapon."),
         ("character/merchant-greet.mp3", "Every deal's a gamble, but I always win."),
     ];
+    const ICON: &'static str = "characters/merchant-icon.png";
+    const PORTRAIT: &'static str = "characters/merchant.png";
 }

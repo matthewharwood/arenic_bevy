@@ -1,16 +1,29 @@
-use bevy::prelude::*;
 use super::GameState;
+use bevy::prelude::*;
 
 /// Plugin for the Character Creation state
 pub struct CharacterCreatePlugin;
 
 impl Plugin for CharacterCreatePlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems(OnEnter(GameState::CharacterCreate), setup_character_create)
-            .add_systems(Update, character_create_input.run_if(in_state(GameState::CharacterCreate)))
+        app.add_systems(OnEnter(GameState::CharacterCreate), setup_character_create)
+            .add_systems(
+                Update,
+                character_create_input.run_if(in_state(GameState::CharacterCreate)),
+            )
             .add_systems(OnExit(GameState::CharacterCreate), cleanup_character_create);
     }
+}
+
+pub enum CharacterClass {
+    Hunter,    // Eagle Eye precision targeting
+    Bard,      // Inspiring melodies boost party
+    Merchant,  // Trade mastery yields resources
+    Warrior,   // Battle fury area attacks
+    Cardinal,  // Divine grace heals allies
+    Alchemist, // Transmutation creates potions
+    Forager,   // Nature's bounty finds resources
+    Thief,     // Backstab positional attacks
 }
 
 /// Marker component for character creation screen entities
@@ -40,7 +53,6 @@ fn setup_character_create(mut commands: Commands) {
                 },
                 TextColor(Color::WHITE),
             ),
-            
             // Placeholder text
             (
                 Text::new("Character creation coming soon..."),
@@ -54,7 +66,6 @@ fn setup_character_create(mut commands: Commands) {
                     ..default()
                 },
             ),
-            
             // Continue instruction
             (
                 Text::new("Press SPACE to continue"),

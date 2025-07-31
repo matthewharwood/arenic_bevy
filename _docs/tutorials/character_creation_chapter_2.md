@@ -455,10 +455,174 @@ fn handle_gamepad_navigation(
 
 ---
 
+### Step 1: Foundation - Modular Character Class Architecture
 
+First, we establish our modular character class foundation. Following the production-ready architecture in `src/boss/`,
+each character class gets its own file implementing a shared trait.
 
+**File Structure**:
 
+```
+src/boss/
+├── mod.rs          // Module declarations and shared Boss trait
+├── hunter.rs       // Hunter-specific implementation
+├── alchemist.rs    // Alchemist-specific implementation
+├── bard.rs         // Bard-specific implementation
+├── forager.rs      // Forager-specific implementation
+├── thief.rs        // Thief-specific implementation
+├── warrior.rs      // Warrior-specific implementation
+├── cardinal.rs     // Cardinal-specific implementation
+└── merchant.rs      // Merchant-specific implementation
+```
 
+**Core Architecture**: `src/boss/mod.rs`
+
+```rust
+/// The 8 character classes available for selection
+/// This enum bridges the character creation UI with the modular Boss system
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CharacterClass {
+    Hunter,       // Eagle Eye precision targeting
+    Bard,         // Inspiring melodies boost party
+    Merchant,     // Trade mastery yields resources  
+    Warrior,      // Battle fury area attacks
+    Cardinal,     // Divine grace heals allies
+    Alchemist,    // Transmutation creates potions
+    Forager,      // Nature's bounty finds resources
+    Thief,        // Backstab positional attacks
+}
+```
+
+Each boss is implemented in its own module:
+
+```rust
+// src/boss/hunter.rs
+use bevy::prelude::Component;
+use super::Boss;
+
+#[derive(Component, Debug)]
+pub struct BossHunter;
+
+impl Boss for BossHunter {
+    const NAME: &'static str = "The Hunter";
+    const TEXTURE_PATH: &'static str = "bosses/hunter.png";
+    const ANIMATION_FPS: f32 = 10.0;  // Uses default frame dimensions
+}
+```
+
+### Character System Architecture
+
+Similarly, characters use a trait-based approach with audio data:
+
+```rust
+// src/character/mod.rs
+use crate::utils::AudioClips;
+
+pub trait Character {
+    const AUDIO: AudioClips<4>;
+}
+```
+
+Each character component implements the trait:
+
+```rust
+// src/character/alchemist.rs
+use bevy::prelude::Component;
+use crate::character::Character;
+use crate::utils::AudioClips;
+
+#[derive(Component)]
+pub struct CharacterAlchemist;
+
+impl Character for CharacterAlchemist {
+    const AUDIO: AudioClips<4> = [
+        ("character/alchemist-0.mp3", "Science conquers all."),
+        ("character/alchemist-1.mp3", "Every element serves me."),
+        ("character/alchemist-2.mp3", "Behold the power of transmutation."),
+        ("character/alchemist-greet.mp3", "Need a Potion? A Transmutation?"),
+    ];
+}
+```
+
+### Benefits of This Architecture
+
+1. **True Modularity**: Each boss/character is completely self-contained
+   ```rust
+   // Adding a new boss requires only creating a new file
+   // src/boss/necromancer.rs
+   #[derive(Component)]
+   pub struct BossNecromancer;
+   
+   impl Boss for BossNecromancer {
+       const NAME: &'static str = "The Necromancer";
+       const TEXTURE_PATH: &'static str = "bosses/necromancer.png";
+   }
+   ```
+
+2. **Team Scalability**: Multiple developers can work on different characters without conflicts
+    - No central enum file to cause merge conflicts
+    - Each character module is independent
+    - New features can be added to traits without touching implementations
+
+3. **ECS Integration**: Components work naturally with Bevy's query system
+   ```rust
+   // Query for specific boss types
+   fn update_hunters(query: Query<&Transform, With<BossHunter>>) {
+       // Hunter-specific logic
+   }
+   
+   // Or query all bosses generically
+   fn update_all_bosses<T: Boss + Component>(query: Query<&Transform, With<T>>) {
+       // Generic boss logic
+   }
+   ```
+
+4. **Composition Over Inheritance**: Entities can implement multiple traits
+   ```rust
+   // A boss that's also a playable character
+   impl Boss for BossAlchemist { /* ... */ }
+   impl Character for BossAlchemist { /* ... */ }
+   ```
+
+5. **Future Generic Refactoring**: The trait design enables future optimizations
+   ```rust
+   // Future possibility: Generic boss with type parameters
+   #[derive(Component)]
+   pub struct GenericBoss<T: BossConfig> {
+       config: PhantomData<T>,
+   }
+   
+   trait BossConfig {
+       const NAME: &'static str;
+       const TEXTURE_PATH: &'static str;
+   }
+   ```
+
+### File Structure
+
+```bash
+src/boss/
+├── mod.rs          // Boss trait definition
+├── hunter.rs       // BossHunter implementation
+├── alchemist.rs    // BossAlchemist implementation
+├── bard.rs         // BossBard implementation
+├── forager.rs      // BossForager implementation
+├── thief.rs        // BossThief implementation
+├── warrior.rs      // BossWarrior implementation
+├── cardinal.rs     // BossCardinal implementation
+└── merchant.rs     // BossMerchant implementation
+
+src/character/
+├── mod.rs          // Character trait definition
+├── hunter.rs       // CharacterHunter implementation
+├── alchemist.rs    // CharacterAlchemist implementation
+├── bard.rs         // CharacterBard implementation
+├── forager.rs      // CharacterForager implementation
+├── thief.rs        // CharacterThief implementation
+├── warrior.rs      // CharacterWarrior implementation
+├── cardinal.rs     // CharacterCardinal implementation
+└── merchant.rs     // CharacterMerchant implementation
+```
 
 ---
 

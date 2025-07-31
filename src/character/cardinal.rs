@@ -12,4 +12,6 @@ impl Character for CharacterCardinal {
         ("character/cardinal-2.mp3", "I bring divine judgment."),
         ("character/cardinal-greet.mp3", "Blessings upon you, traveler."),
     ];
+    const ICON: &'static str = "characters/cardinal-icon.png";
+    const PORTRAIT: &'static str = "characters/cardinal.png";
 }
