@@ -482,9 +482,11 @@ fn handle_gamepad_navigation(
 
 ### Step 1: Foundation - Modular Character Class Architecture
 
-First, we establish our modular character class foundation. Following the production-ready architecture in `src/boss/`, each character class gets its own file implementing a shared trait.
+First, we establish our modular character class foundation. Following the production-ready architecture in `src/boss/`,
+each character class gets its own file implementing a shared trait.
 
 **File Structure**:
+
 ```
 src/boss/
 ├── mod.rs          // Module declarations and shared Boss trait
@@ -1224,7 +1226,7 @@ fn setup_selection_ui(
 ) {
     // Clear any previous input
     input_buffer.character_name.clear();
-    
+
     // Load Migra-Extrabold font
     let font_handle = asset_server.load("fonts/Migra-Extrabold.ttf");
 
@@ -1674,14 +1676,14 @@ fn spawn_character_card_v2(
         },
         BorderRadius::all(Val::Px(12.0)), // 12px border radius
         // Default state colors (CA-2) or selected state (CA-3)
-        BackgroundColor(if is_selected { 
+        BackgroundColor(if is_selected {
             Color::srgb_u8(246, 250, 254) // #F6FAFE - selected background
-        } else { 
+        } else {
             Color::NONE // Transparent default
         }),
-        BorderColor(if is_selected { 
+        BorderColor(if is_selected {
             Color::srgb_u8(51, 130, 227) // #3382E3 - selected border
-        } else { 
+        } else {
             Color::BLACK // Default border
         }),
         // Tracking components
@@ -1709,26 +1711,26 @@ fn spawn_character_card_v2(
                 font_size: 24.0,
                 ..default()
             },
-            TextColor(if is_selected { 
+            TextColor(if is_selected {
                 Color::srgb_u8(51, 130, 227) // Selected text color
-            } else { 
+            } else {
                 Color::BLACK // Default text color
             }),
             CharacterClassName,
         ));
     })
-    // Add box shadow for selected cards (CA-3)
-    .insert(if is_selected {
-        BoxShadow {
-            color: Color::srgba(0.0, 0.0, 0.0, 0.5),
-            x_offset: Val::Px(0.0),
-            y_offset: Val::Px(0.0),
-            blur_radius: Val::Px(8.0),
-            spread_radius: Val::Px(0.0),
-        }
-    } else {
-        BoxShadow::default()
-    });
+        // Add box shadow for selected cards (CA-3)
+        .insert(if is_selected {
+            BoxShadow {
+                color: Color::srgba(0.0, 0.0, 0.0, 0.5),
+                x_offset: Val::Px(0.0),
+                y_offset: Val::Px(0.0),
+                blur_radius: Val::Px(8.0),
+                spread_radius: Val::Px(0.0),
+            }
+        } else {
+            BoxShadow::default()
+        });
 }
 
 /// Component to track card selection state
@@ -1754,6 +1756,7 @@ struct CharacterClassName;
 - `BoxShadow`: Visual feedback for selected state
 
 **Card Grid Layout (CS-2)**: The 8 cards are arranged in a 2×4 matrix:
+
 ```
 [Hunter]    [Bard]       (Column 1)
 [Merchant]  [Warrior]    (Column 2)  
@@ -1761,9 +1764,11 @@ struct CharacterClassName;
 [Forager]   [Thief]      (Column 4)
 ```
 
-Each card occupies approximately 2 columns × 3 rows in the parent grid including gutters, creating the 193×142px card dimensions.
+Each card occupies approximately 2 columns × 3 rows in the parent grid including gutters, creating the 193×142px card
+dimensions.
 
-**Radio Button Behavior (CA-4)**: Only one card can be selected at a time. When a new card is clicked, the previously selected card automatically reverts to its default state.
+**Radio Button Behavior (CA-4)**: Only one card can be selected at a time. When a new card is clicked, the previously
+selected card automatically reverts to its default state.
 
 🧪 **Validation Tests**
 
@@ -1973,12 +1978,14 @@ fn update_character_portrait(
 ```
 
 **Portrait Specifications (CP-1, CP-2)**:
+
 - **Position**: Rows 1-14+ (extends beyond viewport), Columns 5-8
 - **Dimensions**: Fixed 500px width × 740px height
 - **Overflow**: `clip_y()` to hide portions extending beyond the 720px viewport
 - **Z-Index**: Middle layer (2) - appears above the card panel but below skills/UI
 
 **Z-Index Layering System**:
+
 ```rust
 // Z-index hierarchy for proper visual stacking
 const Z_INDEX_BACKGROUND: i32 = 0;  // Main container background
@@ -1987,7 +1994,9 @@ const Z_INDEX_PORTRAIT: i32 = 2;    // Character portrait (middle)
 const Z_INDEX_UI: i32 = 3;          // Skills panel, title, name input, start button (highest)
 ```
 
-**Design Rationale**: The portrait's vertical overflow creates a dynamic visual effect where the character appears to "break out" of the frame, adding depth and visual interest. The z-index layering ensures the portrait doesn't obscure important UI elements while still providing visual prominence.
+**Design Rationale**: The portrait's vertical overflow creates a dynamic visual effect where the character appears to "
+break out" of the frame, adding depth and visual interest. The z-index layering ensures the portrait doesn't obscure
+important UI elements while still providing visual prominence.
 
 ### Step 7: Skills Panel Implementation
 
@@ -2041,7 +2050,7 @@ fn spawn_skills_panel_content(
                 },
             },
         ];
-        
+
         skill_container.spawn((
             Text::from_sections(sections),
             Node {
@@ -2064,7 +2073,7 @@ fn update_skills_panel(
             // Clear and rebuild skills panel content
             if let Ok(panel_entity) = skills_panel.get_single() {
                 commands.entity(panel_entity).despawn_descendants();
-                
+
                 let font_handle = asset_server.load("fonts/Migra-Extrabold.ttf");
                 commands.entity(panel_entity).with_children(|panel| {
                     spawn_skills_panel_content(panel, card.class, &font_handle);
@@ -2076,6 +2085,7 @@ fn update_skills_panel(
 ```
 
 **Skills Panel Specifications (SP-1 through SP-6)**:
+
 - **Position**: Rows 3-6, Columns 9-12 (4×4 grid cells)
 - **Border**: 6px black border with 12px radius
 - **Padding**: 24px on all sides
@@ -2084,7 +2094,8 @@ fn update_skills_panel(
 - **Skill Format**: Bold skill name followed by description in regular weight
 - **Z-Index**: Highest layer (3) to ensure visibility
 
-**Markup Pattern (SP-5)**: The skill description uses Bevy's `Text::from_sections` to create rich text with different styles for the skill name (bold) and description (regular).
+**Markup Pattern (SP-5)**: The skill description uses Bevy's `Text::from_sections` to create rich text with different
+styles for the skill name (bold) and description (regular).
 
 ### Step 8: Hover Effects Implementation
 
@@ -2690,6 +2701,7 @@ fn update_name_input_typing(
 ```
 
 **Name Input Specifications (NI-1 through NI-5)**:
+
 - **Position**: Row 14, Columns 5-8 (bottom-center, 4 columns wide)
 - **Dimensions**: Height 60px with 24px padding inside
 - **Styling**: 6px black border, 12px radius, white background
@@ -2698,6 +2710,7 @@ fn update_name_input_typing(
 - **Z-Index**: Highest layer (3) for accessibility
 
 **Default Names by Class (NI-4)**:
+
 - Hunter: "Orion"
 - Bard: "Melody"
 - Merchant: "Magnus"
@@ -2707,7 +2720,9 @@ fn update_name_input_typing(
 - Forager: "Willow"
 - Thief: "Ginger"
 
-**Input Behavior Pattern**: The name input shows the default character name but allows user editing. If the user clears the field, a placeholder appears. The default name only updates when selecting a new character if the user hasn't started typing.
+**Input Behavior Pattern**: The name input shows the default character name but allows user editing. If the user clears
+the field, a placeholder appears. The default name only updates when selecting a new character if the user hasn't
+started typing.
 
 ### Step 11: Start Button and Interaction Behaviors
 
@@ -2733,13 +2748,13 @@ fn handle_start_button(
             if let Some((card, _)) = selected_cards.iter().find(|(_, state)| state.is_selected) {
                 // Get the character name from input
                 if let Ok(name_text) = name_input.get_single() {
-                    let character_name = if name_text.sections[0].value.is_empty() 
+                    let character_name = if name_text.sections[0].value.is_empty()
                         || name_text.sections[0].value == "Type your name..." {
                         card.class.default_name().to_string()
                     } else {
                         name_text.sections[0].value.clone()
                     };
-                    
+
                     // Spawn character entity with selected class and name
                     commands.spawn((
                         Character { class: card.class },
@@ -2747,7 +2762,7 @@ fn handle_start_button(
                         TransformBundle::default(),
                         VisibilityBundle::default(),
                     ));
-                    
+
                     // Transition to intro state (SB-3)
                     next_state.set(GameState::Intro);
                 }
@@ -2780,20 +2795,20 @@ fn handle_all_interactions(
                     *other_bg = BackgroundColor(Color::NONE);
                     *other_border = BorderColor(Color::BLACK);
                 }
-                
+
                 // Select this card
                 selected.is_selected = true;
                 *bg_color = BackgroundColor(Color::srgb_u8(246, 250, 254));
                 *border_color = BorderColor(Color::srgb_u8(51, 130, 227));
-                
+
                 // Play selection sound (B-3)
                 audio.play(asset_server.load(card.class.select_audio_path()));
-                
+
                 // Update portrait (B-3)
                 if let Ok(mut portrait) = portrait_query.get_single_mut() {
                     portrait.image = asset_server.load(card.class.portrait_path());
                 }
-                
+
                 // Update skills panel (B-3)
                 if let Ok(panel_entity) = skills_panel.get_single() {
                     commands.entity(panel_entity).despawn_descendants();
@@ -2802,7 +2817,7 @@ fn handle_all_interactions(
                         spawn_skills_panel_content(panel, card.class, &font_handle);
                     });
                 }
-                
+
                 // Update name input default (B-3)
                 if input_buffer.character_name.is_empty() {
                     if let Ok(mut name_text) = name_input.get_single_mut() {
@@ -2821,6 +2836,7 @@ fn handle_all_interactions(
 ```
 
 **Start Button Specifications (SB-1, SB-2)**:
+
 - **Position**: Row 14, Columns 11-12 (bottom-right)
 - **Styling**: Black background, white text
 - **Typography**: "Start" in Migra-Extrabold 24px
@@ -2828,13 +2844,14 @@ fn handle_all_interactions(
 - **Z-Index**: Highest layer (3)
 
 **Interaction Behaviors (B-1 through B-5)**:
+
 1. **Initial State (B-1)**: Hunter card pre-selected on load with corresponding portrait, skills, and name
 2. **Hover Effects (B-2)**: Cards show box shadow on hover without changing selection
 3. **Click Actions (B-3)**:
-   - Play character-specific audio file
-   - Update portrait image
-   - Refresh skills panel content
-   - Update name input (if user hasn't typed)
+    - Play character-specific audio file
+    - Update portrait image
+    - Refresh skills panel content
+    - Update name input (if user hasn't typed)
 4. **Asset Resolution (B-4)**: All assets follow pattern: `assets/character/{class_name}-{type}.{ext}`
 5. **Accessibility (B-5)**: Full keyboard navigation support via Tab/Enter/Space
 
@@ -2853,7 +2870,7 @@ impl CharacterClass {
             // ... etc
         }
     }
-    
+
     /// Character portrait for center display (500x740 px)
     pub fn portrait_path(self) -> &'static str {
         match self {
@@ -2862,7 +2879,7 @@ impl CharacterClass {
             // ... etc
         }
     }
-    
+
     /// Selection audio feedback (MP3 format)
     pub fn select_audio_path(self) -> &'static str {
         match self {
@@ -2877,25 +2894,26 @@ impl CharacterClass {
 **Asset Specifications**:
 
 1. **Icons** (48×48 px PNG):
-   - Used in character selection cards
-   - Transparent background
-   - High contrast for visibility at small size
+    - Used in character selection cards
+    - Transparent background
+    - High contrast for visibility at small size
 
 2. **Portraits** (500×740 px PNG):
-   - Full character artwork
-   - Designed to extend beyond viewport
-   - Transparent or complementary background
+    - Full character artwork
+    - Designed to extend beyond viewport
+    - Transparent or complementary background
 
 3. **Audio Files** (MP3):
-   - Character-specific selection sounds
-   - Duration: 0.5-1.5 seconds
-   - Format: MP3 for web compatibility
+    - Character-specific selection sounds
+    - Duration: 0.5-1.5 seconds
+    - Format: MP3 for web compatibility
 
 4. **Font** (TTF):
-   - Migra-Extrabold.ttf required
-   - Loaded via: `fonts/Migra-Extrabold.ttf`
+    - Migra-Extrabold.ttf required
+    - Loaded via: `fonts/Migra-Extrabold.ttf`
 
 **File Structure**:
+
 ```
 assets/
 ├── character/
@@ -4188,949 +4206,3 @@ mod benchmarks {
     }
 }
 ```
-
----
-
-## Critical Production Issues and Fixes
-
-*After reviewing the current implementation, here are the technical issues that would cause problems in production and
-their solutions:*
-
-### Issue 1: Entity Cleanup Bug
-
-**Problem**: The current cleanup function uses `despawn()` instead of `despawn_recursive()` for UI hierarchies:
-
-```rust
-// Current implementation - BROKEN for UI hierarchies
-fn cleanup_character_create(
-    mut commands: Commands,
-    query: Query<Entity, With<CharacterCreateScreen>>,
-) {
-    for entity in &query {
-        commands.entity(entity).despawn(); // This leaves child entities orphaned!
-    }
-}
-```
-
-**Production Fix**:
-
-```rust
-fn cleanup_character_create(
-    mut commands: Commands,
-    query: Query<Entity, With<CharacterCreateScreen>>,
-) {
-    for entity in &query {
-        commands.entity(entity).despawn_recursive(); // Properly cleans up UI hierarchies
-    }
-}
-```
-
-**Why This Matters**: UI hierarchies have parent-child relationships. `despawn()` only removes the parent entity,
-leaving child entities (buttons, text, images) orphaned in memory. This creates memory leaks that accumulate over
-multiple state transitions.
-
-### Issue 2: Input Event Reader Consumption
-
-**Problem**: The tutorial code assumes `KeyboardInput` events persist, but `EventReader` consumes events:
-
-```rust
-// In handle_naming_input system - this pattern can miss events
-for event in keyboard_events.read() {
-// Events are consumed here - if multiple systems read them, later systems get nothing
-}
-```
-
-**Production Fix**: Use a dedicated input handling system that processes all input events and stores results in a
-resource:
-
-```rust
-#[derive(Resource, Default)]
-struct InputBuffer {
-    characters_this_frame: Vec<char>,
-    backspace_pressed: bool,
-    enter_pressed: bool,
-    escape_pressed: bool,
-}
-
-fn collect_input_events(
-    mut input_buffer: ResMut<InputBuffer>,
-    mut keyboard_events: EventReader<KeyboardInput>,
-    keyboard: Res<ButtonInput<KeyCode>>,
-) {
-    input_buffer.characters_this_frame.clear();
-    input_buffer.backspace_pressed = keyboard.just_pressed(KeyCode::Backspace);
-    input_buffer.enter_pressed = keyboard.just_pressed(KeyCode::Enter);
-    input_buffer.escape_pressed = keyboard.just_pressed(KeyCode::Escape);
-
-    for event in keyboard_events.read() {
-        if let KeyboardInput { logical_key: Key::Character(ch), state: ButtonState::Pressed, .. } = event {
-            if let Some(ch) = ch.chars().next() {
-                input_buffer.characters_this_frame.push(ch);
-            }
-        }
-    }
-}
-
-fn handle_naming_input(
-    input_buffer: Res<InputBuffer>,
-    mut creation_state: ResMut<CharacterCreationState>,
-    // ... other parameters
-) {
-    if let CreationPhase::Naming(_) = creation_state.phase {
-        // Process buffered input events
-        for ch in &input_buffer.characters_this_frame {
-            if is_valid_name_character(*ch) && creation_state.character_name.len() < MAX_NAME_LENGTH {
-                creation_state.character_name.push(*ch);
-            }
-        }
-
-        if input_buffer.backspace_pressed {
-            creation_state.character_name.pop();
-        }
-
-        if input_buffer.enter_pressed && !creation_state.character_name.trim().is_empty() {
-            // Complete character creation
-        }
-    }
-}
-```
-
-### Issue 3: State Transition Timing Bug
-
-**Problem**: The current implementation despawns UI in the selection handler, then immediately calls setup:
-
-```rust
-// This can cause frame-delay issues
-for entity in & screen_query {
-commands.entity(entity).despawn(); // Scheduled for next frame
-}
-setup_naming_interface( & mut commands, card.class); // Happens immediately
-```
-
-**Production Fix**: Use proper state transitions that let Bevy handle the timing:
-
-```rust
-fn handle_character_selection(
-    mut interaction_query: Query<(&Interaction, &CharacterCard), (Changed<Interaction>, With<Button>)>,
-    mut creation_state: ResMut<CharacterCreationState>,
-    mut next_phase: ResMut<NextState<CreationPhase>>, // Use a sub-state system
-) {
-    if !matches!(creation_state.phase, CreationPhase::Selection) {
-        return;
-    }
-
-    for (interaction, card) in &mut interaction_query {
-        if *interaction == Interaction::Pressed {
-            creation_state.phase = CreationPhase::Naming(card.class);
-            next_phase.set(CreationPhase::Naming(card.class));
-            break;
-        }
-    }
-}
-
-// Separate systems for each phase
-impl Plugin for CharacterCreatePlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .init_state::<CreationPhase>()
-            .add_systems(OnEnter(CreationPhase::Selection), setup_selection_ui)
-            .add_systems(OnEnter(CreationPhase::Naming), setup_naming_ui)
-            .add_systems(OnExit(CreationPhase::Selection), cleanup_selection_ui)
-            .add_systems(OnExit(CreationPhase::Naming), cleanup_naming_ui);
-    }
-}
-```
-
-### Issue 4: Asset Loading Race Conditions
-
-**Problem**: The current implementation loads assets during UI setup without checking if they're loaded:
-
-```rust
-// This can show empty images until assets load
-card.spawn((
-ImageNode::new(asset_server.load(class.texture_path())), // Async loading
-// ... rest of setup
-));
-```
-
-**Production Fix**: Implement proper asset loading states with loading screens:
-
-```rust
-#[derive(Resource)]
-struct CharacterAssets {
-    portraits: HashMap<CharacterClass, Handle<Image>>,
-    loading_placeholder: Handle<Image>,
-}
-
-fn preload_character_assets(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-) {
-    let mut portraits = HashMap::new();
-
-    for class in CharacterClass::all() {
-        portraits.insert(class, asset_server.load(class.texture_path()));
-    }
-
-    commands.insert_resource(CharacterAssets {
-        portraits,
-        loading_placeholder: asset_server.load("ui/loading.png"),
-    });
-}
-
-fn spawn_character_card_with_loading(
-    parent: &mut ChildSpawnerCommands,
-    class: CharacterClass,
-    assets: &CharacterAssets,
-) {
-    let image_handle = assets.portraits.get(&class)
-        .cloned()
-        .unwrap_or(assets.loading_placeholder.clone());
-
-    // Use loading placeholder until real asset loads
-    card.spawn((
-        ImageNode::new(image_handle),
-        AssetLoadingState::new(class), // Track loading state
-        // ... rest of setup
-    ));
-}
-
-fn update_loading_assets(
-    mut query: Query<(&mut ImageNode, &mut AssetLoadingState)>,
-    assets: Res<CharacterAssets>,
-    asset_server: Res<AssetServer>,
-) {
-    for (mut image, mut loading_state) in &mut query {
-        if loading_state.is_loading() {
-            if let Some(portrait_handle) = assets.portraits.get(&loading_state.class) {
-                if asset_server.is_loaded_with_dependencies(portrait_handle) {
-                    *image = ImageNode::new(portrait_handle.clone());
-                    loading_state.mark_loaded();
-                }
-            }
-        }
-    }
-}
-```
-
-### Issue 5: Missing Error Boundaries
-
-**Production Pattern**: Always implement error boundaries for user-facing systems:
-
-```rust
-/// Production: Error-resistant card spawning
-fn spawn_character_card(
-    parent: &mut ChildSpawnerCommands,
-    class: CharacterClass,
-    asset_server: &AssetServer,
-) -> Result<(), CharacterCreationError> {
-    // Validate class data before spawning
-    if class.display_name().is_empty() {
-        return Err(CharacterCreationError::InvalidCharacterData(class));
-    }
-
-    // Check asset existence (in production, you'd prevalidate assets)
-    let texture_path = class.texture_path();
-    if !texture_path.ends_with(".png") {
-        return Err(CharacterCreationError::InvalidAssetPath(texture_path.to_string()));
-    }
-
-    // Spawn with error recovery
-    parent.spawn((
-        Button,
-        Node { /* ... */ },
-        BackgroundColor(Color::srgb(0.92, 0.92, 0.92)),
-        BorderColor(Color::WHITE),
-        HoverState { is_hovered: false },
-        CharacterCard { class },
-        SelectableCard,
-    )).with_children(|card| {
-        // Use fallback handling for image loading
-        let image_handle = asset_server.load(texture_path);
-        card.spawn((
-            ImageNode::new(image_handle),
-            Node { /* ... */ },
-            ImageErrorRecovery::new(class), // Component for handling load failures
-        ));
-        // ... rest of card children
-    });
-
-    Ok(())
-}
-
-#[derive(Debug)]
-enum CharacterCreationError {
-    InvalidCharacterData(CharacterClass),
-    InvalidAssetPath(String),
-    UISpawnFailure(String),
-}
-
-#[derive(Component)]
-struct ImageErrorRecovery {
-    class: CharacterClass,
-    retry_count: u8,
-    max_retries: u8,
-}
-```
-
-These fixes address the most critical production issues that would cause memory leaks, race conditions, and poor user
-experience in a shipped game.
-
----
-
-## Integration Points: How Specialist Contributions Merged
-
-### Calvin → Jon: Design Specifications to Code
-
-Calvin's visual specifications translated directly into Bevy UI properties:
-
-- Red background (#E3334B) → `BackgroundColor(Color::srgb_u8(227, 51, 75))`
-- 4×2 grid layout → `grid_template_columns: RepeatedGridTrack::flex(4, 1.0)`
-- Card dimensions → `width: Val::Px(200.0), height: Val::Px(160.0)`
-
-### Adam → Jon: Narrative Content to Data Structures
-
-Adam's character concepts became enum variants with associated data:
-
-- Character archetypes → `CharacterClass` enum variants
-- Taglines → `tagline()` method implementations
-- Narrative voice → UI text strings and messaging
-
-### Damien → Jon: Visual Effects to System Logic
-
-Damien's lighting concepts became component-based state tracking:
-
-- Hover brightness changes → `HoverState` component and color transitions
-- Visual feedback → Query-based systems with `Changed<Interaction>` filters
-- Subtle polish → Carefully tuned color values (0.92 → 1.0 brightness)
-
-### Marcus → Everyone: Documentation and Testing Standards
-
-Marcus's quality standards influenced the entire codebase:
-
-- Comprehensive test coverage → Unit tests for all major functionality
-- Clear documentation → Inline comments explaining design decisions
-- Learning-optimized structure → Code organization that teaches by example
-
-**Key Insight**: Each specialist's domain expertise enhanced the others' work. Calvin's UX decisions made Jon's
-implementation cleaner. Adam's narrative voice made the system more engaging. Damien's visual polish made interactions
-feel responsive. Marcus's documentation made the system maintainable.
-
----
-
-## Active Recall: Knowledge Consolidation
-
-Before moving to lessons learned, test your understanding:
-
-### Challenge 1: Extend the System
-
-Add a "Back" button to the naming interface that returns to character selection. Consider:
-
-- Where should the button be positioned in the UI hierarchy?
-- What systems need to handle the back action?
-- How should the state transition be managed?
-
-### Challenge 2: Improve Visual Feedback
-
-Implement Damien's next suggested feature: a subtle border color change on card hover (white → light blue). Consider:
-
-- Which component needs modification?
-- How can you maintain the existing hover system architecture?
-- What color values would provide good contrast against the red background?
-
-### Challenge 3: Add Input Validation
-
-Enhance the naming system to prevent duplicate character names. Consider:
-
-- Where should previous character names be stored?
-- How should validation errors be displayed to the user?
-- What happens if validation fails during the Enter key handling?
-
-<details>
-<summary>Solution Hints</summary>
-
-**Challenge 1**: Add a `BackButton` component and handle it in `handle_naming_input`. Reset the creation state phase to
-`Selection` and call `setup_character_create`.
-
-**Challenge 2**: Modify `HoverState` to track border color, add `BorderColor` to the hover effects query, and transition
-between `Color::WHITE` and `Color::srgb(0.7, 0.9, 1.0)`.
-
-**Challenge 3**: Create a `PreviousCharacters` resource, check against it in `handle_naming_input`, and display error
-text by modifying the instruction text component.
-
-</details>
-
----
-
-## Lessons Learned: Collaborative Game Development
-
-### What Worked Well
-
-**1. Clear Domain Separation**
-Each specialist focused on their expertise without overlap:
-
-- Calvin owned UX decisions and visual hierarchy
-- Adam controlled narrative voice and character concepts
-- Damien handled visual feedback and interaction polish
-- Jon managed technical architecture and implementation
-- Marcus ensured quality standards and documentation
-
-**Result**: No conflicts over design decisions, faster iteration cycles, higher quality in each domain.
-
-**2. Specification-Driven Development**
-Calvin's detailed visual specifications and Adam's character concepts provided clear requirements:
-
-- Exact color values (#E3334B) eliminated guesswork
-- Grid layout specifications (4×2) provided precise constraints
-- Character taglines offered concrete content requirements
-
-**Result**: Jon could implement with confidence, knowing the design intentions were well-defined.
-
-**3. Iterative Integration**
-Rather than working in isolation, specialists collaborated throughout:
-
-- Damien's hover effects influenced Jon's component architecture
-- Adam's narrative voice informed Calvin's UX copy decisions
-- Marcus's testing requirements shaped Jon's code structure
-
-**Result**: The final system felt cohesive rather than assembled from disparate parts.
-
-### What We'd Do Differently
-
-**1. Earlier Technical Feasibility Discussions**
-Some of Calvin's initial UI concepts required significant technical complexity. Earlier consultation with Jon could have
-identified simpler alternatives that achieved the same UX goals.
-
-**2. Asset Pipeline Coordination**
-Adam's character concepts required specific visual assets. Earlier coordination with art pipeline would have prevented
-placeholder asset dependencies.
-
-**3. Performance Profiling Integration**
-Damien's visual effects look great but could benefit from performance profiling. Future projects should include
-performance constraints in the initial specifications.
-
-### Methodology Insights
-
-**Specialist Collaboration > Generalist Implementation**
-A single developer might have created a functional character creation system, but specialist collaboration produced:
-
-- Better UX through Calvin's game design expertise
-- More engaging narrative through Adam's character development skills
-- Polished interactions through Damien's visual effects knowledge
-- Cleaner architecture through Jon's Bevy/Rust expertise
-- Comprehensive documentation through Marcus's technical writing approach
-
-**Communication Patterns Matter**
-Successful collaboration required specific communication patterns:
-
-- Specifications before implementation (Calvin → Jon)
-- Content creation parallel to technical development (Adam ↔ Jon)
-- Polish integration during implementation (Damien → Jon)
-- Documentation throughout the process (Marcus ↔ Everyone)
-
-**Quality Emerges from Process**
-The high quality of the final system wasn't accidental—it emerged from:
-
-- Clear requirements gathering (Calvin's specs)
-- Content-driven development (Adam's character concepts)
-- Iterative polish integration (Damien's feedback loops)
-- Comprehensive testing (Marcus's quality standards)
-- Expert technical execution (Jon's Bevy implementation)
-
----
-
-## Extensions and Next Steps
-
-### Immediate Enhancements
-
-**1. Character Customization with ECS Components**
-Extend the character entity with additional customization components:
-
-```rust
-#[derive(Component)]
-struct CharacterAppearance {
-    color_palette: ColorPalette,
-    accessories: Vec<Accessory>,
-}
-
-#[derive(Component)]
-struct CharacterStats {
-    health: u32,
-    speed: f32,
-    damage: u32,
-}
-
-// During character creation, add these components:
-commands.entity(character_entity).insert((
-CharacterAppearance { /* customized appearance */ },
-CharacterStats::default_for_class(selected_class),
-));
-```
-
-**2. Character Entity Querying in Game Systems**
-Use the character entity in game systems:
-
-```rust
-fn update_character_stats(
-    mut query: Query<(&mut CharacterStats, &Character), With<Name>>,
-) {
-    for (mut stats, character) in &mut query {
-        // Update stats based on character class
-        stats.apply_class_bonuses(character.class);
-    }
-}
-```
-
-**3. Persistent Character Entities**
-Character entities can be serialized and saved:
-
-```rust
-#[derive(Component, Serialize, Deserialize)]
-struct PersistentCharacter;
-
-// Mark character entities for saving
-commands.entity(character_entity).insert(PersistentCharacter);
-```
-
-### Advanced Extensions
-
-**1. Animated Character Previews**
-Replace static icons with animated character sprites:
-
-- Idle animations for each character class
-- Hover animations that showcase special abilities
-- Smooth transitions between selection and naming phases
-
-**2. Dynamic Character Generation**
-Generate character classes procedurally:
-
-- Modular trait system for character abilities
-- Balanced stat generation algorithms
-- Emergent character archetypes from trait combinations
-
-**3. Multiplayer Character Entity Synchronization**
-Extend for multiplayer sessions with entity replication:
-
-```rust
-#[derive(Component, Serialize, Deserialize)]
-struct NetworkedCharacter {
-    player_id: PlayerId,
-    selected_class: CharacterClass,
-}
-
-// Synchronize character entities across clients
-fn sync_character_selection(
-    mut commands: Commands,
-    query: Query<(Entity, &Character, &Name), Added<NetworkedCharacter>>,
-) {
-    for (entity, character, name) in &query {
-        // Replicate character entity on all clients
-        commands.entity(entity).insert(Replicated);
-    }
-}
-```
-
-### Learning Project Suggestions
-
-**1. Inventory Management System**
-Apply the same collaborative methodology to build:
-
-- Grid-based inventory interface (Calvin's UX design)
-- Item categories and descriptions (Adam's content creation)
-- Item rarity visual effects (Damien's lighting work)
-- Drag-and-drop implementation (Jon's technical work)
-- Comprehensive testing suite (Marcus's quality standards)
-
-**2. Dialogue System**
-Create a branching dialogue system using:
-
-- Conversation flow design (Calvin's game design)
-- Character voice and dialogue writing (Adam's narrative work)
-- Text presentation and visual effects (Damien's presentation polish)
-- State machine implementation (Jon's technical architecture)
-- Documentation and testing patterns (Marcus's methodology)
-
-**3. Combat System**
-Build a turn-based combat system featuring:
-
-- Combat flow and ability design (Calvin's systems design)
-- Ability names, descriptions, and flavor text (Adam's content work)
-- Visual effects for attacks and damage (Damien's effects work)
-- ECS-based combat logic implementation (Jon's technical execution)
-- Comprehensive testing and balance validation (Marcus's quality approach)
-
----
-
-## Resource and Reference Links
-
-### Bevy Documentation
-
-- [Bevy UI Guide](https://bevyengine.org/learn/book/getting-started/ecs/) - ECS fundamentals
-- [Bevy State Management](https://docs.rs/bevy/latest/bevy/state/) - Game state patterns
-- [Bevy Input Handling](https://docs.rs/bevy/latest/bevy/input/) - Keyboard and mouse input
-
-### Design Pattern Resources
-
-- [Game Programming Patterns](https://gameprogrammingpatterns.com/state.html) - State machine patterns
-- [Bevy ECS Best Practices](https://github.com/bevyengine/bevy/blob/main/docs/the_bevy_book.md) - Component architecture
-- [UI Design Principles](https://www.nngroup.com/articles/ten-usability-heuristics/) - User experience guidelines
-
-### Collaborative Development
-
-- [Domain-Driven Design](https://martinfowler.com/bliki/DomainDrivenDesign.html) - Specialist collaboration patterns
-- [Specification by Example](https://gojko.net/books/specification-by-example/) - Requirements-driven development
-- [Test-Driven Development](https://martinfowler.com/bliki/TestDrivenDevelopment.html) - Quality-first development
-
-### Source Code
-
-- [Complete Implementation](file:///Users/matthewharwood/Documents/GitHub/arenic_bevy/arenic_bevy/src/game_state/character_create.rs) -
-  Full character creation system
-- [Game State Integration](file:///Users/matthewharwood/Documents/GitHub/arenic_bevy/arenic_bevy/src/game_state/mod.rs) -
-  State management context
-- [Testing Examples](file:///Users/matthewharwood/Documents/GitHub/arenic_bevy/arenic_bevy/src/game_state/character_create.rs) -
-  Comprehensive test suite
-
----
-
-## Conclusion: Beyond Implementation
-
-This tutorial demonstrates that building game systems isn't just about writing code—it's about orchestrating expertise
-to create experiences that feel cohesive, polished, and engaging.
-
-**Technical Takeaways**:
-
-- Bevy's ECS architecture naturally supports modular system design
-- **Nested enum states provide cleaner, more maintainable state management than separate resource systems**
-- **Single state hierarchy eliminates synchronization issues between multiple state tracking mechanisms**
-- Component-based architecture enables clean separation of concerns
-- Comprehensive testing prevents regressions as systems evolve
-
-**Nested State Architecture Benefits**:
-
-- **Unified State Management**: `GameState::CharacterCreate(CharacterPhase)` provides a single source of truth
-- **Automatic State Transitions**: Bevy's state system handles UI cleanup and setup automatically
-- **Type Safety**: Nested enums prevent invalid state combinations at compile time
-- **Simplified System Registration**: Phase-specific systems use precise state filtering
-- **Reduced Boilerplate**: No manual phase checking or state synchronization code needed
-- **Better Performance**: Leverages Bevy's optimized state system vs manual resource checking
-- **Eliminated Synchronization Issues**: No risk of state resource getting out of sync with actual game state
-
-**Collaborative Takeaways**:
-
-- Specialist expertise elevates every aspect of system quality
-- Clear specifications reduce implementation uncertainty and iteration cycles
-- Iterative integration creates cohesive systems rather than assembled parts
-- Quality emerges from process, not just individual skill
-
-**Next Steps**:
-
-1. Apply this collaborative methodology to your next game system
-2. Experiment with the provided extensions to deepen your understanding
-3. Share your implementations and improvements with the community
-4. Document your own specialist collaboration experiences
-
-The character creation system we built together demonstrates what's possible when game developers embrace collaboration
-over isolation. Each specialist's contributions made the others' work better, creating a sum greater than its parts.
-
----
-
-## Jon's Final Production Deployment Notes
-
-*These are the considerations that separate working prototypes from production-ready game systems:*
-
-### Performance Targets for Shipping
-
-**Frame Time Budget**: Character creation UI must spawn within 16.67ms (60fps target):
-
-- UI entity creation: < 8ms
-- Asset loading initiation: < 2ms
-- Remaining budget for other systems: 6.67ms
-
-**Memory Constraints**: For typical indie game deployment:
-
-- UI entities: < 1MB peak allocation
-- Asset handles: < 500KB permanent allocation
-- String allocations: Use `&'static str` where possible to avoid heap pressure
-
-**Asset Loading Strategy**: Production games preload during loading screens:
-
-```rust
-// Production: Load character assets during initial game load
-fn preload_all_character_assets(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-) {
-    let mut handles = Vec::with_capacity(CharacterClass::all().len() * 4);
-
-    for class in CharacterClass::all() {
-        handles.push(asset_server.load(class.texture_path()));
-        handles.push(asset_server.load(class.model_path()));
-        handles.push(asset_server.load(class.animation_path()));
-        handles.push(asset_server.load(class.selection_sound()));
-    }
-
-    commands.insert_resource(PreloadedAssets { handles });
-}
-```
-
-### Platform-Specific Considerations
-
-**Mobile Deployment** (iOS/Android):
-
-- Reduce card dimensions for touch targets: minimum 44px tap area
-- Implement gesture navigation (swipe between characters)
-- Handle device rotation and safe areas
-- Memory pressure: Use asset streaming for character models
-
-**Console Deployment** (PlayStation/Xbox/Nintendo Switch):
-
-- Implement gamepad navigation with clear focus indicators
-- Handle controller disconnection gracefully
-- Meet platform certification requirements for accessibility
-- Console-specific input mapping (different button layouts)
-
-**Desktop Deployment** (Steam/Epic):
-
-- Support multiple monitor configurations
-- Handle window resizing and fullscreen transitions
-- Implement keyboard shortcuts for power users
-- Support multiple input devices simultaneously
-
-### Telemetry and Analytics Integration
-
-**Production Insight**: Track user behavior to improve the character creation experience:
-
-```rust
-#[derive(Resource)]
-struct CharacterCreationAnalytics {
-    session_start: std::time::Instant,
-    selection_times: HashMap<CharacterClass, Duration>,
-    abandonment_points: Vec<(CreationPhase, Duration)>,
-}
-
-fn track_character_selection_metrics(
-    mut analytics: ResMut<CharacterCreationAnalytics>,
-    mut interaction_query: Query<(&Interaction, &CharacterCard), Changed<Interaction>>,
-) {
-    for (interaction, card) in &mut interaction_query {
-        if *interaction == Interaction::Hovered {
-            // Track which characters players hover over (interest indication)
-            analytics.track_hover(card.class, analytics.session_start.elapsed());
-        }
-        if *interaction == Interaction::Pressed {
-            // Track selection times for balancing
-            analytics.track_selection(card.class, analytics.session_start.elapsed());
-        }
-    }
-}
-```
-
-### Localization and Accessibility
-
-**Text Localization**: Production games support multiple languages:
-
-```rust
-impl CharacterClass {
-    pub fn display_name(self, locale: &Locale) -> String {
-        match locale.language() {
-            "es" => match self {
-                Self::Trapper => "El Cazador".to_string(),
-                Self::Alchemist => "El Alquimista".to_string(),
-                // ... Spanish translations
-            },
-            "fr" => match self {
-                Self::Trapper => "Le Piégeur".to_string(),
-                // ... French translations  
-            },
-            _ => self.display_name_en().to_string(), // English fallback
-        }
-    }
-}
-```
-
-**Accessibility Features**: Essential for inclusive design and platform compliance:
-
-- Screen reader support (alt text for character images)
-- High contrast mode support
-- Colorblind-friendly design (don't rely only on color for information)
-- Keyboard navigation for motor accessibility
-- Adjustable text sizes for visual accessibility
-
-### Production Deployment Checklist
-
-Before shipping the character creation system:
-
-- [ ] **Performance**: All operations complete within frame budget
-- [ ] **Memory**: No memory leaks detected in extended testing
-- [ ] **Error Handling**: Graceful degradation with missing assets
-- [ ] **Input**: Support for all target input devices
-- [ ] **Accessibility**: Meets platform accessibility requirements
-- [ ] **Localization**: Text externalized and translatable
-- [ ] **Analytics**: Key metrics tracked for post-launch optimization
-- [ ] **Testing**: Automated tests cover all user paths
-- [ ] **Documentation**: Code documented for future maintenance
-
-### Architecture for Future Extensions
-
-The character creation system as implemented can extend to support:
-
-**Character Customization**: Add components like `CharacterAppearance` and `CharacterStats` to character entities
-**Save/Load**: Serialize character entities with `PersistentCharacter` component marker
-**Multiplayer**: Synchronize character entities across network clients with replication components
-**Analytics**: Track character entity creation patterns for game balancing
-**A/B Testing**: Test different UI layouts for conversion optimization while maintaining entity-based architecture
-
-The plugin architecture makes these extensions possible without breaking existing functionality.
-
----
-
-### Key Architectural Benefits of ECS Component Approach
-
-**1. Entity Persistence**: Character entities naturally persist across state transitions, eliminating the need for
-complex data marshalling between game states.
-
-**2. Component Composition**: Character data can be extended with additional components (appearance, stats, inventory)
-without modifying core systems.
-
-**3. Query Flexibility**: Game systems can efficiently query for characters with specific component combinations using
-Bevy's powerful query system.
-
-**4. Transform Hierarchy**: Character entities can be easily parented to game world entities, enabling proper spatial
-relationships and transform inheritance.
-
-**5. Debugging Integration**: Using Bevy's built-in `Name` component provides better debugging experience and integrates
-with Bevy's inspection tools.
-
-Your turn: What game system will you build with your specialist team? Remember—production quality comes from addressing
-not just the happy path, but all the edge cases, performance constraints, and user experience details that separate
-prototypes from shipped games. The ECS Component approach provides a solid foundation for extending your character
-system with additional gameplay features while maintaining clean architecture.
-
----
-
-*This tutorial was created through collaborative development involving five specialists, demonstrating the methodology
-it teaches. The complete source code is available in the Arenic Bevy repository, with comprehensive tests and
-documentation for continued learning and adaptation.*
-
-**ECS Component Architecture Summary**: By using ECS Components instead of Resources for character data, we achieve:\n-
-**Entity Persistence**: Characters naturally survive state transitions\n- **Hierarchical Integration**: Characters can
-be easily parented to game world entities\n- **Component Composition**: Character data can be extended with additional
-components without system changes\n- **Query Efficiency**: Game systems can efficiently find and manipulate character
-entities\n- **Debugging Integration**: Built-in `Name` component works seamlessly with Bevy's debugging tools\n\n**File
-Locations**:
-
-- Main Implementation:
-  `/Users/matthewharwood/Documents/GitHub/arenic_bevy/arenic_bevy/src/game_state/character_create.rs`
-- Game State Integration: `/Users/matthewharwood/Documents/GitHub/arenic_bevy/arenic_bevy/src/game_state/mod.rs`
-- Character Assets: `/Users/matthewharwood/Documents/GitHub/arenic_bevy/arenic_bevy/assets/bosses/`
-
-**Production Deployment**: The enhanced tutorial now uses nested enum state architecture combined with ECS Component
-patterns that provide the technical depth needed to ship this system in a production game. The
-`GameState::CharacterCreate(CharacterPhase)` approach eliminates common state synchronization bugs while character
-entities with `Character` and `Name` components integrate seamlessly with Bevy's entity management, transform hierarchy,
-and debugging tools, maintaining the performance considerations, error handling, platform support, and extensibility
-patterns proven in shipped Bevy games.
-
-## Why Nested Enum States Are Superior
-
-The nested enum approach `GameState::CharacterCreate(CharacterPhase)` provides significant advantages over the
-traditional separate resource approach:
-
-### Before (Separate Resources):
-
-```rust
-#[derive(Resource)]
-struct CharacterCreationState {
-    phase: CreationPhase,
-    // ... other state
-}
-
-fn handle_selection(mut state: ResMut<CharacterCreationState>) {
-    if !matches!(state.phase, CreationPhase::Selection) {
-        return; // Manual phase checking required
-    }
-    // ... handle selection
-    state.phase = CreationPhase::Naming; // Manual state mutation
-}
-```
-
-### After (Nested Enum States):
-
-```rust
-#[derive(States)]
-enum GameState {
-    CharacterCreate(CharacterPhase),
-    // ... other states
-}
-
-fn handle_selection(
-    mut next_state: ResMut<NextState<GameState>>
-) {
-    // System only runs during Selection phase - no manual checking needed
-    next_state.set(GameState::CharacterCreate(CharacterPhase::Naming(class)));
-    // Bevy handles all transition logic automatically
-}
-```
-
-### Key Improvements:
-
-1. **Eliminated Manual Checking**: Systems use precise state filters instead of runtime phase validation
-2. **Automatic UI Management**: `OnEnter`/`OnExit` systems handle UI transitions without manual despawning
-3. **Type Safety**: Invalid state combinations prevented at compile time
-4. **Cleaner Code**: Reduced boilerplate and error-prone state synchronization
-5. **Better Performance**: Bevy's optimized state system instead of custom resource polling
-
-This architectural change demonstrates how thoughtful state design can eliminate entire categories of bugs while making
-code more maintainable and performant.
-
-## Why Nested Enum States Are Superior
-
-The nested enum approach `GameState::CharacterCreate(CharacterPhase)` provides significant advantages over the
-traditional separate resource approach:
-
-### Before (Separate Resources):
-
-```rust
-#[derive(Resource)]
-struct CharacterCreationState {
-    phase: CreationPhase,
-    // ... other state
-}
-
-fn handle_selection(mut state: ResMut<CharacterCreationState>) {
-    if !matches!(state.phase, CreationPhase::Selection) {
-        return; // Manual phase checking required
-    }
-    // ... handle selection
-    state.phase = CreationPhase::Naming; // Manual state mutation
-}
-```
-
-### After (Nested Enum States):
-
-```rust
-#[derive(States)]
-enum GameState {
-    CharacterCreate(CharacterPhase),
-    // ... other states
-}
-
-fn handle_selection(
-    mut next_state: ResMut<NextState<GameState>>
-) {
-    // System only runs during Selection phase - no manual checking needed
-    next_state.set(GameState::CharacterCreate(CharacterPhase::Naming(class)));
-    // Bevy handles all transition logic automatically
-}
-```
-
-### Key Improvements:
-
-1. **Eliminated Manual Checking**: Systems use precise state filters instead of runtime phase validation
-2. **Automatic UI Management**: `OnEnter`/`OnExit` systems handle UI transitions without manual despawning
-3. **Type Safety**: Invalid state combinations prevented at compile time
-4. **Cleaner Code**: Reduced boilerplate and error-prone state synchronization
-5. **Better Performance**: Bevy's optimized state system instead of custom resource polling
-
-This architectural change demonstrates how thoughtful state design can eliminate entire categories of bugs while making
-code more maintainable and performant.
