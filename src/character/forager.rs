@@ -6,6 +6,7 @@ use crate::utils::AudioClips;
 pub struct CharacterForager;
 
 impl Character for CharacterForager {
+    const CLASS_NAME: &'static str = "Forager";
     const AUDIO: AudioClips<4> = [
         ("character/forager-0.mp3", "From earth comes power."),
         ("character/forager-1.mp3", "Nature provides everything."),

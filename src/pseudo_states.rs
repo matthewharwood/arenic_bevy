@@ -1,6 +1,8 @@
 use bevy::prelude::Component;
 
 #[derive(Component)]
+pub struct Selected;
+#[derive(Component)]
 pub struct Focused;
 
 #[derive(Component)]

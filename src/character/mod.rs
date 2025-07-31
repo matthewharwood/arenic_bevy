@@ -10,6 +10,7 @@ pub mod thief;
 pub mod warrior;
 
 pub trait Character {
+    const CLASS_NAME: &'static str;
     const AUDIO: AudioClips<4>;
     const ICON: &'static str;
     const PORTRAIT: &'static str;

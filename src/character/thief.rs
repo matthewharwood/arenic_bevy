@@ -6,6 +6,7 @@ use crate::utils::AudioClips;
 pub struct CharacterThief;
 
 impl Character for CharacterThief {
+    const CLASS_NAME: &'static str = "Thief";
     const AUDIO: AudioClips<4> = [
         ("character/thief-0.mp3", "Shadows hide my strikes."),
         ("character/thief-1.mp3", "You'll never see me coming."),
