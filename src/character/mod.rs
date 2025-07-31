@@ -1,5 +1,5 @@
 use bevy::prelude::Component;
-
+pub mod hunter_character;
 #[derive(Component, Debug)]
 pub struct Character {
     name: String,

@@ -35,7 +35,7 @@ src/boss/
 ├── mod.rs          // Module declarations and shared Boss trait
 ├── trapper.rs      // Trapper-specific implementation
 ├── alchemist.rs    // Alchemist-specific implementation
-├── sprinter.rs     // Sprinter-specific implementation
+├── bard.rs         // Sprinter-specific implementation
 ├── gatherer.rs     // Gatherer-specific implementation
 ├── thief.rs        // Thief-specific implementation
 ├── tank.rs         // Tank-specific implementation

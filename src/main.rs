@@ -6,6 +6,7 @@ mod arena;
 mod battleground;
 mod boss;
 mod camera;
+
 mod character;
 mod config;
 mod game_state;

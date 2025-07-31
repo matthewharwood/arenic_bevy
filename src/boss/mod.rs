@@ -6,7 +6,7 @@ pub mod cardinal;
 pub mod collector;
 pub mod gatherer;
 pub mod guild_master;
-pub mod sprinter;
+pub mod bard;
 pub mod tank;
 pub mod thief;
 pub mod trapper;
