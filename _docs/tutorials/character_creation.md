@@ -31,12 +31,9 @@ fn setup_character_create(mut commands: Commands) {
     let (text, font, color) = display_typography.create_text("Choose Your Class");
 
     commands.spawn((
-        Text2dBundle {
-            text,
-            text_font: font,
-            text_color: color,
-            ..default()
-        },
+        text,
+        font,
+        color,
         CharacterCreateScreen,
     ));
 }
@@ -53,13 +50,10 @@ fn spawn_centered_heading(commands: &mut Commands) {
     );
 
     commands.spawn((
-        Text2dBundle {
-            text,
-            text_font: font,
-            text_color: color,
-            text_layout: layout,
-            ..default()
-        },
+        text,
+        font,
+        color,
+        layout,
         CharacterCreateScreen,
     ));
 }
@@ -79,12 +73,9 @@ fn spawn_character_card_text(commands: &mut Commands, class_name: &str, descript
 
     commands
         .spawn((
-            NodeBundle {
-                style: Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: Spacing::XS,
-                    ..default()
-                },
+            Node {
+                flex_direction: FlexDirection::Column,
+                row_gap: Spacing::XS,
                 ..default()
             },
             CharacterCreateScreen,
@@ -92,7 +83,7 @@ fn spawn_character_card_text(commands: &mut Commands, class_name: &str, descript
         .with_children(|parent| {
             // Class name
             parent.spawn((
-                text_class,
+                class_text,
                 class_font,
                 class_color,
             ));
@@ -121,8 +112,11 @@ use bevy::prelude::*;
 fn setup_character_create(mut commands: Commands) {
     let container = commands
         .spawn((
-            NodeBundle {
-                style: Layout::centered_container(),
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
                 ..default()
             },
             CharacterCreateScreen,
@@ -179,8 +173,12 @@ fn setup_character_create(mut commands: Commands) {
 fn spawn_character_class_grid(commands: &mut Commands) -> Entity {
     let grid_container = commands
         .spawn((
-            NodeBundle {
-                style: Layout::character_selection_grid(),
+            Node {
+                display: Display::Grid,
+                grid_template_columns: RepeatedGridTrack::flex(4, 1.0),
+                grid_template_rows: RepeatedGridTrack::flex(2, 1.0),
+                column_gap: Spacing::MD,
+                row_gap: Spacing::MD,
                 ..default()
             },
             CharacterCreateScreen,
@@ -202,20 +200,18 @@ fn spawn_character_card(commands: &mut Commands, character_class: &UICharacterCl
 
     commands
         .spawn((
-            ButtonBundle {
-                style: Node {
-                    width: Val::Px(200.0),
-                    height: Val::Px(120.0),
-                    padding: UiRect::all(Spacing::MD),
-                    flex_direction: FlexDirection::Column,
-                    justify_content: JustifyContent::SpaceBetween,
-                    border: UiRect::all(Val::Px(2.0)),
-                    ..default()
-                },
-                background_color: Colors::WHITE.into(),
-                border_color: Colors::GRAY_300.into(),
+            Node {
+                width: Val::Px(200.0),
+                height: Val::Px(120.0),
+                padding: UiRect::all(Spacing::MD),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::SpaceBetween,
+                border: UiRect::all(Val::Px(2.0)),
                 ..default()
             },
+            BackgroundColor(Colors::WHITE),
+            BorderColor(Colors::GRAY_300),
+            Button,
             CharacterCard { character_class: character_class.clone() },
             CharacterCreateScreen,
         ))

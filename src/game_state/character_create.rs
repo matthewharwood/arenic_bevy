@@ -1,8 +1,14 @@
 use super::GameState;
+use crate::character::alchemist::CharacterAlchemist;
+use crate::character::bard::CharacterBard;
+use crate::character::cardinal::CharacterCardinal;
+use crate::character::forager::CharacterForager;
+use crate::character::hunter::CharacterHunter;
+use crate::character::merchant::CharacterMerchant;
 use crate::character::thief::CharacterThief;
 use crate::character::warrior::CharacterWarrior;
 use crate::character::Character;
-use crate::ui::{Colors, Spacing};
+use crate::ui::{Colors, FontSizes, Spacing};
 use bevy::prelude::*;
 
 /// Plugin for the Character Creation state
@@ -22,6 +28,46 @@ impl Plugin for CharacterCreatePlugin {
 /// Marker component for character creation screen entities
 #[derive(Component)]
 struct CharacterCreateScreen;
+
+/// Creates a character tile with icon and class name for any character type that implements Character
+fn create_character_tile<T: Character>(
+    asset_server: &AssetServer,
+    title_font: Handle<Font>,
+) -> impl Bundle {
+    (
+        Node {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
+            border: UiRect::all(Val::Px(6.0)),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            ..Default::default()
+        },
+        BackgroundColor(Colors::WHITE),
+        BorderColor(Colors::BLACK),
+        BorderRadius::all(Val::Px(12.0)),
+        children![
+            (
+                ImageNode::new(asset_server.load(T::ICON)),
+                Node {
+                    width: Val::Px(48.0),
+                    height: Val::Px(48.0),
+                    ..Default::default()
+                },
+            ),
+            (
+                Text::new(T::CLASS_NAME),
+                TextFont {
+                    font: title_font,
+                    font_size: FontSizes::XXL,
+                    ..Default::default()
+                },
+                TextColor(Color::BLACK),
+                TextLayout::new_with_justify(JustifyText::Center),
+            )
+        ]
+    )
+}
 
 fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>) {
     let title_font = asset_server.load("fonts/Migra-Extrabold.ttf");
@@ -52,7 +98,7 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                 (
                     Text::new("Choose Your Class"),
                     TextFont {
-                        font: title_font,
+                        font: title_font.clone(),
                         font_size: 58.0,
                         ..default()
                     },
@@ -68,12 +114,9 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         grid_row: GridPlacement::start_span(3, 12),
                         grid_column: GridPlacement::span(4),
                         height: Val::Percent(100.0),
-                        border: UiRect::all(Val::Px(6.0)),
                         ..Default::default()
                     },
                     BackgroundColor(Colors::WHITE),
-                    BorderColor(Colors::BLACK),
-                    BorderRadius::all(Val::Px(12.0)),
                     children![(
                         Node {
                             display: Display::Grid,
@@ -87,86 +130,22 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                             ..Default::default()
                         },
                         children![
-                            // Tile 1
-                            (
-                                Node {
-                                    border: UiRect::all(Val::Px(6.0)),
-                                    ..Default::default()
-                                },
-                                BackgroundColor(Colors::GRAY_200),
-                                BorderColor(Colors::GRAY_400),
-                                BorderRadius::all(Val::Px(12.0))
-                            ),
-                            // Tile 2
-                            (
-                                Node {
-                                    border: UiRect::all(Val::Px(6.0)),
-                                    ..Default::default()
-                                },
-                                BackgroundColor(Colors::GRAY_200),
-                                BorderColor(Colors::GRAY_400),
-                                BorderRadius::all(Val::Px(12.0))
-                            ),
-                            // Tile 3
-                            (
-                                Node {
-                                    border: UiRect::all(Val::Px(6.0)),
-                                    ..Default::default()
-                                },
-                                BackgroundColor(Colors::GRAY_200),
-                                BorderColor(Colors::GRAY_400),
-                                BorderRadius::all(Val::Px(12.0))
-                            ),
-                            // Tile 4
-                            (
-                                Node {
-                                    border: UiRect::all(Val::Px(6.0)),
-                                    ..Default::default()
-                                },
-                                BackgroundColor(Colors::GRAY_200),
-                                BorderColor(Colors::GRAY_400),
-                                BorderRadius::all(Val::Px(12.0))
-                            ),
-                            // Tile 5
-                            (
-                                Node {
-                                    border: UiRect::all(Val::Px(6.0)),
-                                    ..Default::default()
-                                },
-                                BackgroundColor(Colors::GRAY_200),
-                                BorderColor(Colors::GRAY_400),
-                                BorderRadius::all(Val::Px(12.0))
-                            ),
-                            // Tile 6
-                            (
-                                Node {
-                                    border: UiRect::all(Val::Px(6.0)),
-                                    ..Default::default()
-                                },
-                                BackgroundColor(Colors::GRAY_200),
-                                BorderColor(Colors::GRAY_400),
-                                BorderRadius::all(Val::Px(12.0))
-                            ),
-                            // Tile 7
-                            (
-                                Node {
-                                    border: UiRect::all(Val::Px(6.0)),
-                                    ..Default::default()
-                                },
-                                BackgroundColor(Colors::GRAY_200),
-                                BorderColor(Colors::GRAY_400),
-                                BorderRadius::all(Val::Px(12.0))
-                            ),
-                            // Tile 8
-                            (
-                                Node {
-                                    border: UiRect::all(Val::Px(6.0)),
-                                    ..Default::default()
-                                },
-                                BackgroundColor(Colors::GRAY_200),
-                                BorderColor(Colors::GRAY_400),
-                                BorderRadius::all(Val::Px(12.0))
-                            ),
+                            // Tile 1 - Warrior
+                            create_character_tile::<CharacterWarrior>(&asset_server, title_font.clone()),
+                            // Tile 2 - Hunter
+                            create_character_tile::<CharacterHunter>(&asset_server, title_font.clone()),
+                            // Tile 3 - Thief
+                            create_character_tile::<CharacterThief>(&asset_server, title_font.clone()),
+                            // Tile 4 - Alchemist
+                            create_character_tile::<CharacterAlchemist>(&asset_server, title_font.clone()),
+                            // Tile 5 - Bard
+                            create_character_tile::<CharacterBard>(&asset_server, title_font.clone()),
+                            // Tile 6 - Cardinal
+                            create_character_tile::<CharacterCardinal>(&asset_server, title_font.clone()),
+                            // Tile 7 - Forager
+                            create_character_tile::<CharacterForager>(&asset_server, title_font.clone()),
+                            // Tile 8 - Merchant
+                            create_character_tile::<CharacterMerchant>(&asset_server, title_font.clone()),
                         ]
                     ),],
                 ),

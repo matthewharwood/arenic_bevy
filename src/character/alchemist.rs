@@ -19,6 +19,6 @@ impl Character for CharacterAlchemist {
             "Need a Potion? A Transmutation?",
         ),
     ];
-    const ICON: &'static str = "characters/alchemist-icon.png";
+    const ICON: &'static str = "characters/alchemist_icon.png";
     const PORTRAIT: &'static str = "characters/alchemist.png";
 }
