@@ -12,16 +12,18 @@ pub struct CharacterSelectionEvent {
     pub previous_character: Option<CharacterType>,
 }
 
-/// Resource that tracks the currently selected character
+/// Resource containing the character creation state
 #[derive(Resource)]
-pub struct SelectedCharacter {
-    pub character_type: CharacterType,
+pub struct CharacterCreateState {
+    pub selected_character: CharacterType,
+    pub current_audio_entity: Option<Entity>,
 }
 
-impl Default for SelectedCharacter {
+impl Default for CharacterCreateState {
     fn default() -> Self {
         Self {
-            character_type: CharacterType::Hunter,
+            selected_character: CharacterType::Hunter,
+            current_audio_entity: None,
         }
     }
 }
@@ -32,8 +34,7 @@ pub struct CharacterCreatePlugin;
 impl Plugin for CharacterCreatePlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<CharacterSelectionEvent>()
-            .init_resource::<SelectedCharacter>()
-            .init_resource::<CurrentCharacterAudio>()
+            .init_resource::<CharacterCreateState>()
             .add_systems(
                 OnEnter(GameState::CharacterCreate),
                 (
@@ -89,16 +90,15 @@ struct CharacterTile {
 fn play_default_character_audio(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    selected_character: Res<SelectedCharacter>,
-    mut current_audio: ResMut<CurrentCharacterAudio>,
+    mut state: ResMut<CharacterCreateState>,
 ) {
-    let audio_clips = selected_character.character_type.audio();
+    let audio_clips = state.selected_character.audio();
     // Play the first audio clip (greeting) for the default selected character
     let (audio_path, _caption) = audio_clips[0];
     let audio_entity = commands.spawn(AudioPlayer::new(asset_server.load(audio_path))).id();
     
     // Track the initial audio entity
-    current_audio.entity = Some(audio_entity);
+    state.current_audio_entity = Some(audio_entity);
 }
 /// Creates a character tile with icon and class name for the specified character type
 fn create_character_tile(
@@ -544,13 +544,13 @@ fn character_tile_interaction_system(
     >,
     mut text_query: Query<&mut TextColor>,
     mut image_query: Query<&mut ImageNode>,
-    selected_character: Res<SelectedCharacter>,
+    state: Res<CharacterCreateState>,
     mut selection_events: EventWriter<CharacterSelectionEvent>,
 ) {
     for (interaction, mut bg_color, mut border_color, children, character_tile, character_type) in
         &mut query
     {
-        let is_selected = *character_type == selected_character.character_type;
+        let is_selected = *character_type == state.selected_character;
 
         match *interaction {
             Interaction::Hovered => {
@@ -597,10 +597,10 @@ fn character_tile_interaction_system(
             }
             Interaction::Pressed => {
                 // Only fire event if selecting a different character
-                if *character_type != selected_character.character_type {
+                if *character_type != state.selected_character {
                     selection_events.write(CharacterSelectionEvent {
                         character_type: *character_type,
-                        previous_character: Some(selected_character.character_type),
+                        previous_character: Some(state.selected_character),
                     });
                 }
             }
@@ -611,10 +611,10 @@ fn character_tile_interaction_system(
 /// Central event handler that updates the SelectedCharacter resource
 fn handle_character_selection_events(
     mut selection_events: EventReader<CharacterSelectionEvent>,
-    mut selected_character: ResMut<SelectedCharacter>,
+    mut state: ResMut<CharacterCreateState>,
 ) {
     for event in selection_events.read() {
-        selected_character.character_type = event.character_type;
+        state.selected_character = event.character_type;
     }
 }
 
@@ -770,28 +770,17 @@ fn handle_start_button_cursor(
     }
 }
 
-/// Resource to track the currently playing character audio
-#[derive(Resource)]
-struct CurrentCharacterAudio {
-    entity: Option<Entity>,
-}
-
-impl Default for CurrentCharacterAudio {
-    fn default() -> Self {
-        Self { entity: None }
-    }
-}
 
 /// Plays audio when character selection changes, ensuring only one plays at a time
 fn play_character_selection_audio(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mut selection_events: EventReader<CharacterSelectionEvent>,
-    mut current_audio: ResMut<CurrentCharacterAudio>,
+    mut state: ResMut<CharacterCreateState>,
 ) {
     for event in selection_events.read() {
         // Cancel previous audio if it exists
-        if let Some(previous_entity) = current_audio.entity.take() {
+        if let Some(previous_entity) = state.current_audio_entity.take() {
             commands.entity(previous_entity).despawn();
         }
 
@@ -801,7 +790,7 @@ fn play_character_selection_audio(
         let audio_entity = commands.spawn(AudioPlayer::new(asset_server.load(audio_path))).id();
         
         // Track the new audio entity
-        current_audio.entity = Some(audio_entity);
+        state.current_audio_entity = Some(audio_entity);
     }
 }
 
