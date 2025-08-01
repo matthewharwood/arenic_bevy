@@ -25,6 +25,8 @@ impl Plugin for CharacterCreatePlugin {
                     character_tile_interaction_system,
                     character_tile_selection_system,
                     character_tile_deselection_system,
+                    character_portrait_selection_system,
+                    character_portrait_deselection_system,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -101,7 +103,7 @@ fn create_character_portrait<T: Character + Component + Default>(
             height: Val::Auto,
             ..Default::default()
         },
-        ImageNode::new(asset_server.load(T::PORTRAIT)),
+        ImageNode::new(asset_server.load(T::PORTRAIT)).with_color(Color::srgba(1.0, 1.0, 1.0, 0.0)),
         T::default(),
     )
 }
@@ -224,7 +226,10 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                     children![
                         create_character_portrait::<CharacterWarrior>(&asset_server),
                         create_character_portrait::<CharacterThief>(&asset_server),
-                        create_character_portrait::<CharacterHunter>(&asset_server),
+                        (
+                            create_character_portrait::<CharacterHunter>(&asset_server),
+                            Selected
+                        ),
                         create_character_portrait::<CharacterAlchemist>(&asset_server),
                         create_character_portrait::<CharacterBard>(&asset_server),
                         create_character_portrait::<CharacterCardinal>(&asset_server),
@@ -409,6 +414,25 @@ fn character_tile_deselection_system(
                     }
                 }
             }
+        }
+    }
+}
+
+fn character_portrait_selection_system(
+    mut selected_portraits: Query<&mut ImageNode, (Added<Selected>, Or<(With<CharacterWarrior>, With<CharacterHunter>, With<CharacterThief>, With<CharacterAlchemist>, With<CharacterBard>, With<CharacterCardinal>, With<CharacterForager>, With<CharacterMerchant>)>)>,
+) {
+    for mut image_node in &mut selected_portraits {
+        image_node.color = Color::srgba(1.0, 1.0, 1.0, 1.0);
+    }
+}
+
+fn character_portrait_deselection_system(
+    mut removed: RemovedComponents<Selected>,
+    mut query: Query<&mut ImageNode, Or<(With<CharacterWarrior>, With<CharacterHunter>, With<CharacterThief>, With<CharacterAlchemist>, With<CharacterBard>, With<CharacterCardinal>, With<CharacterForager>, With<CharacterMerchant>)>>,
+) {
+    for entity in removed.read() {
+        if let Ok(mut image_node) = query.get_mut(entity) {
+            image_node.color = Color::srgba(1.0, 1.0, 1.0, 0.0);
         }
     }
 }
