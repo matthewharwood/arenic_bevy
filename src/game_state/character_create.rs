@@ -23,6 +23,8 @@ impl Plugin for CharacterCreatePlugin {
                     sync_character_tile_to_portrait,
                     // Character name input field synchronization
                     sync_character_name_input_field,
+                    // Start button interaction system
+                    start_button_interaction_system,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -37,6 +39,10 @@ struct CharacterCreateScreen;
 /// Marker component for the character name input field
 #[derive(Component)]
 struct CharacterNameInputField;
+
+/// Marker component for the start button
+#[derive(Component)]
+struct StartButton;
 
 /// Marker component for character tiles that stores preloaded icon handles
 #[derive(Component)]
@@ -292,33 +298,70 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         ),),
                     ],
                 ),
+                // Container for CharacterNameInputField (left) and StartButton (right)
                 (
                     Node {
                         position_type: PositionType::Relative,
                         grid_row: GridPlacement::start_end(13, -1),
                         grid_column: GridPlacement::start_end(5, -1),
                         height: Val::Percent(100.0),
-                        width: Val::Px(398.0), // Approximately 50% / 4 sub-columns
+                        width: Val::Percent(100.0), // Adjusted to fit both components
                         display: Display::Flex,
-                        justify_content: JustifyContent::Center,
+                        justify_content: JustifyContent::SpaceBetween,
                         align_items: AlignItems::Center,
-                        border: UiRect::all(Val::Px(6.0)),
                         ..Default::default()
                     },
-                    CharacterNameInputField,
-                    BackgroundColor(Colors::WHITE),
-                    BorderColor(Colors::BLACK),
-                    BorderRadius::all(Val::Px(12.0)),
-                    children![(
-                        Text::new(CharacterType::Hunter.class_name()),
-                        TextFont {
-                            font: title_font.clone(),
-                            font_size: 24.0,
-                            ..Default::default()
-                        },
-                        TextColor(Colors::BLACK),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                    )]
+                    children![
+                        (
+                            Node {
+                                width: Val::Px(398.0), // CharacterNameInputField
+                                height: Val::Percent(100.0),
+                                display: Display::Flex,
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                border: UiRect::all(Val::Px(6.0)),
+                                ..Default::default()
+                            },
+                            CharacterNameInputField,
+                            BackgroundColor(Colors::WHITE),
+                            BorderColor(Colors::BLACK),
+                            BorderRadius::all(Val::Px(12.0)),
+                            children![(
+                                Text::new(CharacterType::Hunter.class_name()),
+                                TextFont {
+                                    font: title_font.clone(),
+                                    font_size: FontSizes::XXL,
+                                    ..Default::default()
+                                },
+                                TextColor(Colors::BLACK),
+                                TextLayout::new_with_justify(JustifyText::Center),
+                            )]
+                        ),
+                        (
+                            Node {
+                                width: Val::Px(220.0), // Approx. 20% / 2 sub-columns
+                                height: Val::Percent(100.0),
+                                display: Display::Flex,
+                                justify_content: JustifyContent::Center,
+                                align_items: AlignItems::Center,
+                                ..Default::default()
+                            },
+                            StartButton,
+                            BackgroundColor(Colors::BLACK),
+                            BorderRadius::all(Val::Px(4.0)),
+                            Interaction::default(),
+                            children![(
+                                Text::new("Start"),
+                                TextFont {
+                                    font: title_font.clone(),
+                                    font_size: 24.0,
+                                    ..Default::default()
+                                },
+                                TextColor(Colors::WHITE),
+                                TextLayout::new_with_justify(JustifyText::Center),
+                            )]
+                        )
+                    ]
                 ),
                 (
                     Node {
@@ -337,12 +380,61 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
     ));
 }
 
+/// Handle navigation to next state via Space key or StartButton click
 fn character_create_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<GameState>>,
+    start_button_query: Query<&Interaction, (Changed<Interaction>, With<StartButton>)>,
 ) {
-    if keyboard.just_pressed(KeyCode::Space) {
+    // Check for Space key press OR StartButton click
+    let should_advance = keyboard.just_pressed(KeyCode::Space)
+        || start_button_query
+            .iter()
+            .any(|&interaction| interaction == Interaction::Pressed);
+
+    if should_advance {
         next_state.set(GameState::Intro);
+    }
+}
+
+/// StartButton interaction system - handles hover and click visual feedback
+fn start_button_interaction_system(
+    mut query: Query<
+        (&Interaction, &mut BackgroundColor, &Children),
+        (Changed<Interaction>, With<StartButton>),
+    >,
+    mut text_query: Query<&mut TextColor>,
+) {
+    for (interaction, mut bg_color, children) in &mut query {
+        match *interaction {
+            Interaction::Hovered => {
+                *bg_color = BackgroundColor(Colors::PRIMARY);
+                // Update text color for better contrast
+                for child in children.iter() {
+                    if let Ok(mut text_color) = text_query.get_mut(child) {
+                        *text_color = TextColor(Colors::WHITE);
+                    }
+                }
+            }
+            Interaction::None => {
+                // Reset to default appearance
+                *bg_color = BackgroundColor(Colors::BLACK);
+                for child in children.iter() {
+                    if let Ok(mut text_color) = text_query.get_mut(child) {
+                        *text_color = TextColor(Colors::WHITE);
+                    }
+                }
+            }
+            Interaction::Pressed => {
+                // Visual feedback on press (handled by character_create_input for navigation)
+                *bg_color = BackgroundColor(Colors::PRIMARY_ACTIVE);
+                for child in children.iter() {
+                    if let Ok(mut text_color) = text_query.get_mut(child) {
+                        *text_color = TextColor(Colors::WHITE);
+                    }
+                }
+            }
+        }
     }
 }
 
