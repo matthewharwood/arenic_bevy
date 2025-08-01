@@ -2,6 +2,8 @@ use super::GameState;
 use crate::character::CharacterType;
 use crate::ui::{Colors, FontSizes, Spacing};
 use bevy::prelude::*;
+use bevy::window::SystemCursorIcon;
+use bevy::winit::cursor::CursorIcon;
 
 /// Event fired when a character is selected
 #[derive(Event)]
@@ -46,6 +48,7 @@ impl Plugin for CharacterCreatePlugin {
                     update_character_name_input,
                     update_character_ability_pane,
                     start_button_interaction_system,
+                    handle_button_cursor,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -522,6 +525,7 @@ fn character_tile_interaction_system(
             Interaction::Hovered => {
                 *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
                 *border_color = BorderColor(Colors::PRIMARY);
+
                 // Update text color and icon
                 for child in children.iter() {
                     if let Ok(mut text_color) = text_query.get_mut(child) {
@@ -537,6 +541,7 @@ fn character_tile_interaction_system(
                     // Keep selected appearance
                     *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
                     *border_color = BorderColor(Colors::PRIMARY);
+
                     for child in children.iter() {
                         if let Ok(mut text_color) = text_query.get_mut(child) {
                             *text_color = TextColor(Colors::PRIMARY);
@@ -699,6 +704,34 @@ fn update_character_ability_pane(
                     let ability_data = event.character_type.data();
                     let (ability_name, ability_description) = ability_data.ability_1;
                     text.0 = format!("{}: {}", ability_name, ability_description);
+                }
+            }
+        }
+    }
+}
+fn handle_button_cursor(
+    mut commands: Commands,
+    windows: Query<Entity, With<Window>>,
+    button_query: Query<&Interaction, (Changed<Interaction>, With<CharacterTile>)>,
+) {
+    if let Ok(window_entity) = windows.single() {
+        for interaction in &button_query {
+            match *interaction {
+                Interaction::Hovered => {
+                    commands
+                        .entity(window_entity)
+                        .insert(CursorIcon::System(SystemCursorIcon::Pointer));
+                }
+                Interaction::None => {
+                    commands
+                        .entity(window_entity)
+                        .insert(CursorIcon::System(SystemCursorIcon::Default));
+                }
+                Interaction::Pressed => {
+                    // Keep pointer cursor while pressed
+                    commands
+                        .entity(window_entity)
+                        .insert(CursorIcon::System(SystemCursorIcon::Pointer));
                 }
             }
         }
