@@ -25,6 +25,8 @@ impl Plugin for CharacterCreatePlugin {
                     sync_character_name_input_field,
                     // Start button interaction system
                     start_button_interaction_system,
+                    // Character ability pane synchronization
+                    sync_character_ability_pane,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -44,6 +46,9 @@ struct CharacterNameInputField;
 #[derive(Component)]
 struct StartButton;
 
+/// Marker component for the character ability pane
+#[derive(Component)]
+struct CharacterAbilityPane;
 /// Marker component for character tiles that stores preloaded icon handles
 #[derive(Component)]
 struct CharacterTile {
@@ -197,7 +202,6 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                                 CharacterType::Hunter,
                                 Selected,
                             ),
-                            // Tile 3 - Thief
                             (
                                 create_character_tile(
                                     CharacterType::Thief,
@@ -369,12 +373,38 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         grid_row: GridPlacement::start_span(3, 4),
                         grid_column: GridPlacement::start_end(9, -1),
                         border: UiRect::all(Val::Px(6.0)),
+                        flex_direction: FlexDirection::Column,
+                        padding: UiRect::all(Spacing::MD),
                         ..Default::default()
                     },
                     BackgroundColor(Colors::WHITE),
                     BorderColor(Colors::BLACK),
-                    BorderRadius::all(Val::Px(12.0))
-                )
+                    BorderRadius::all(Val::Px(12.0)),
+                    CharacterAbilityPane,
+                    children![
+                        (
+                            Text::new(format!("{} Skills", CharacterType::Hunter.class_name())),
+                            TextFont {
+                                font: title_font.clone(),
+                                font_size: 32.0,
+                                ..default()
+                            },
+                            TextColor(Color::BLACK),
+                        ),
+                        (
+                            Text::new({
+                                let (ability_name, ability_description) = CharacterType::Hunter.ability_1();
+                                format!("{}: {}", ability_name, ability_description)
+                            }),
+                            TextFont {
+                                font: title_font.clone(),
+                                font_size: 16.0,
+                                ..default()
+                            },
+                            TextColor(Color::BLACK),
+                        )
+                    ]
+                ),
             ]
         )],
     ));
@@ -659,6 +689,40 @@ fn sync_character_name_input_field(
                 if let Ok(mut text) = text_query.get_mut(child) {
                     text.0 = character_type.class_name().to_string();
                     break; // Only one text child in the input field
+                }
+            }
+        }
+    }
+}
+
+/// System that synchronizes the character ability pane with the selected character type
+fn sync_character_ability_pane(
+    // Query for tiles that were just selected
+    tiles_selected: Query<&CharacterType, (Added<Selected>, With<CharacterTile>)>,
+    // Query for the character ability pane
+    ability_pane_query: Query<&Children, With<CharacterAbilityPane>>,
+    // Query for text components to update
+    mut text_query: Query<&mut Text>,
+) {
+    // Handle Selected being added to tiles - update ability pane text
+    for &character_type in &tiles_selected {
+        // Find the ability pane and update its text children
+        if let Ok(children) = ability_pane_query.single() {
+            let mut child_iter = children.iter();
+
+            // Update title (first child)
+            if let Some(title_child) = child_iter.next() {
+                if let Ok(mut text) = text_query.get_mut(title_child) {
+                    text.0 = format!("{} Skills", character_type.class_name());
+                }
+            }
+
+            // Update ability description (second child)
+            if let Some(ability_child) = child_iter.next() {
+                if let Ok(mut text) = text_query.get_mut(ability_child) {
+                    let ability_data = character_type.data();
+                    let (ability_name, ability_description) = ability_data.ability_1;
+                    text.0 = format!("{}: {}", ability_name, ability_description);
                 }
             }
         }
