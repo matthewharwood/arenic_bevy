@@ -453,7 +453,22 @@ fn character_tile_deselection_system(
 }
 
 fn character_portrait_selection_system(
-    mut selected_portraits: Query<&mut ImageNode, (Added<Selected>, Or<(With<CharacterWarrior>, With<CharacterHunter>, With<CharacterThief>, With<CharacterAlchemist>, With<CharacterBard>, With<CharacterCardinal>, With<CharacterForager>, With<CharacterMerchant>)>)>,
+    mut selected_portraits: Query<
+        &mut ImageNode,
+        (
+            Added<Selected>,
+            Or<(
+                With<CharacterWarrior>,
+                With<CharacterHunter>,
+                With<CharacterThief>,
+                With<CharacterAlchemist>,
+                With<CharacterBard>,
+                With<CharacterCardinal>,
+                With<CharacterForager>,
+                With<CharacterMerchant>,
+            )>,
+        ),
+    >,
 ) {
     for mut image_node in &mut selected_portraits {
         image_node.color = Color::srgba(1.0, 1.0, 1.0, 1.0);
@@ -462,7 +477,19 @@ fn character_portrait_selection_system(
 
 fn character_portrait_deselection_system(
     mut removed: RemovedComponents<Selected>,
-    mut query: Query<&mut ImageNode, Or<(With<CharacterWarrior>, With<CharacterHunter>, With<CharacterThief>, With<CharacterAlchemist>, With<CharacterBard>, With<CharacterCardinal>, With<CharacterForager>, With<CharacterMerchant>)>>,
+    mut query: Query<
+        &mut ImageNode,
+        Or<(
+            With<CharacterWarrior>,
+            With<CharacterHunter>,
+            With<CharacterThief>,
+            With<CharacterAlchemist>,
+            With<CharacterBard>,
+            With<CharacterCardinal>,
+            With<CharacterForager>,
+            With<CharacterMerchant>,
+        )>,
+    >,
 ) {
     for entity in removed.read() {
         if let Ok(mut image_node) = query.get_mut(entity) {
@@ -474,13 +501,12 @@ fn character_portrait_deselection_system(
 /// Synchronizes Selected marker between Warrior tile and portrait
 fn sync_warrior_tile_to_portrait(
     mut commands: Commands,
-    // Detect when Selected is added to a Warrior tile
-    warrior_tiles_selected: Query<(), (Added<Selected>, With<CharacterTile>, With<CharacterWarrior>)>,
-    // Find the Warrior portrait entity
+    warrior_tiles_selected: Query<
+        (),
+        (Added<Selected>, With<CharacterTile>, With<CharacterWarrior>),
+    >,
     warrior_portrait: Query<Entity, (With<CharacterWarrior>, Without<CharacterTile>)>,
-    // Detect when Selected is removed from Warrior tiles
     mut removed_selected: RemovedComponents<Selected>,
-    // Query to check if removed entity was a Warrior tile
     warrior_tile_query: Query<(), (With<CharacterTile>, With<CharacterWarrior>)>,
 ) {
     // Handle Selected being added to a Warrior tile
@@ -489,7 +515,7 @@ fn sync_warrior_tile_to_portrait(
             commands.entity(portrait_entity).insert(Selected);
         }
     }
-    
+
     // Handle Selected being removed from a Warrior tile
     for removed_entity in removed_selected.read() {
         if warrior_tile_query.get(removed_entity).is_ok() {
@@ -513,7 +539,7 @@ fn sync_hunter_tile_to_portrait(
             commands.entity(portrait_entity).insert(Selected);
         }
     }
-    
+
     for removed_entity in removed_selected.read() {
         if hunter_tile_query.get(removed_entity).is_ok() {
             if let Ok(portrait_entity) = hunter_portrait.single() {
@@ -536,7 +562,7 @@ fn sync_thief_tile_to_portrait(
             commands.entity(portrait_entity).insert(Selected);
         }
     }
-    
+
     for removed_entity in removed_selected.read() {
         if thief_tile_query.get(removed_entity).is_ok() {
             if let Ok(portrait_entity) = thief_portrait.single() {
@@ -549,7 +575,14 @@ fn sync_thief_tile_to_portrait(
 /// Synchronizes Selected marker between Alchemist tile and portrait
 fn sync_alchemist_tile_to_portrait(
     mut commands: Commands,
-    alchemist_tiles_selected: Query<(), (Added<Selected>, With<CharacterTile>, With<CharacterAlchemist>)>,
+    alchemist_tiles_selected: Query<
+        (),
+        (
+            Added<Selected>,
+            With<CharacterTile>,
+            With<CharacterAlchemist>,
+        ),
+    >,
     alchemist_portrait: Query<Entity, (With<CharacterAlchemist>, Without<CharacterTile>)>,
     mut removed_selected: RemovedComponents<Selected>,
     alchemist_tile_query: Query<(), (With<CharacterTile>, With<CharacterAlchemist>)>,
@@ -559,7 +592,7 @@ fn sync_alchemist_tile_to_portrait(
             commands.entity(portrait_entity).insert(Selected);
         }
     }
-    
+
     for removed_entity in removed_selected.read() {
         if alchemist_tile_query.get(removed_entity).is_ok() {
             if let Ok(portrait_entity) = alchemist_portrait.single() {
@@ -582,7 +615,7 @@ fn sync_bard_tile_to_portrait(
             commands.entity(portrait_entity).insert(Selected);
         }
     }
-    
+
     for removed_entity in removed_selected.read() {
         if bard_tile_query.get(removed_entity).is_ok() {
             if let Ok(portrait_entity) = bard_portrait.single() {
@@ -595,7 +628,14 @@ fn sync_bard_tile_to_portrait(
 /// Synchronizes Selected marker between Cardinal tile and portrait
 fn sync_cardinal_tile_to_portrait(
     mut commands: Commands,
-    cardinal_tiles_selected: Query<(), (Added<Selected>, With<CharacterTile>, With<CharacterCardinal>)>,
+    cardinal_tiles_selected: Query<
+        (),
+        (
+            Added<Selected>,
+            With<CharacterTile>,
+            With<CharacterCardinal>,
+        ),
+    >,
     cardinal_portrait: Query<Entity, (With<CharacterCardinal>, Without<CharacterTile>)>,
     mut removed_selected: RemovedComponents<Selected>,
     cardinal_tile_query: Query<(), (With<CharacterTile>, With<CharacterCardinal>)>,
@@ -605,7 +645,7 @@ fn sync_cardinal_tile_to_portrait(
             commands.entity(portrait_entity).insert(Selected);
         }
     }
-    
+
     for removed_entity in removed_selected.read() {
         if cardinal_tile_query.get(removed_entity).is_ok() {
             if let Ok(portrait_entity) = cardinal_portrait.single() {
@@ -618,7 +658,10 @@ fn sync_cardinal_tile_to_portrait(
 /// Synchronizes Selected marker between Forager tile and portrait
 fn sync_forager_tile_to_portrait(
     mut commands: Commands,
-    forager_tiles_selected: Query<(), (Added<Selected>, With<CharacterTile>, With<CharacterForager>)>,
+    forager_tiles_selected: Query<
+        (),
+        (Added<Selected>, With<CharacterTile>, With<CharacterForager>),
+    >,
     forager_portrait: Query<Entity, (With<CharacterForager>, Without<CharacterTile>)>,
     mut removed_selected: RemovedComponents<Selected>,
     forager_tile_query: Query<(), (With<CharacterTile>, With<CharacterForager>)>,
@@ -628,7 +671,7 @@ fn sync_forager_tile_to_portrait(
             commands.entity(portrait_entity).insert(Selected);
         }
     }
-    
+
     for removed_entity in removed_selected.read() {
         if forager_tile_query.get(removed_entity).is_ok() {
             if let Ok(portrait_entity) = forager_portrait.single() {
@@ -641,7 +684,14 @@ fn sync_forager_tile_to_portrait(
 /// Synchronizes Selected marker between Merchant tile and portrait
 fn sync_merchant_tile_to_portrait(
     mut commands: Commands,
-    merchant_tiles_selected: Query<(), (Added<Selected>, With<CharacterTile>, With<CharacterMerchant>)>,
+    merchant_tiles_selected: Query<
+        (),
+        (
+            Added<Selected>,
+            With<CharacterTile>,
+            With<CharacterMerchant>,
+        ),
+    >,
     merchant_portrait: Query<Entity, (With<CharacterMerchant>, Without<CharacterTile>)>,
     mut removed_selected: RemovedComponents<Selected>,
     merchant_tile_query: Query<(), (With<CharacterTile>, With<CharacterMerchant>)>,
@@ -651,7 +701,7 @@ fn sync_merchant_tile_to_portrait(
             commands.entity(portrait_entity).insert(Selected);
         }
     }
-    
+
     for removed_entity in removed_selected.read() {
         if merchant_tile_query.get(removed_entity).is_ok() {
             if let Ok(portrait_entity) = merchant_portrait.single() {
