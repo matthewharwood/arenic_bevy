@@ -31,11 +31,11 @@ impl Plugin for CharacterCreatePlugin {
 #[derive(Component)]
 struct CharacterCreateScreen;
 
-/// Marker component for character tiles that stores icon paths
+/// Marker component for character tiles that stores preloaded icon handles
 #[derive(Component)]
 struct CharacterTile {
-    normal_icon: String,
-    selected_icon: String,
+    normal_icon: Handle<Image>,
+    selected_icon: Handle<Image>,
 }
 
 /// Creates a character tile with icon and class name for any character type that implements Character
@@ -58,8 +58,8 @@ fn create_character_tile<T: Character>(
         BorderRadius::all(Val::Px(12.0)),
         Interaction::default(),
         CharacterTile {
-            normal_icon: T::ICON.0.to_string(),
-            selected_icon: T::ICON.1.to_string(),
+            normal_icon: asset_server.load(T::ICON.0),
+            selected_icon: asset_server.load(T::ICON.1),
         },
         children![
             (
@@ -264,7 +264,6 @@ fn character_create_input(
 }
 
 fn character_tile_hover_system(
-    asset_server: Res<AssetServer>,
     mut query: Query<
         (&Interaction, &mut BackgroundColor, &mut BorderColor, &Children, &CharacterTile, Option<&Selected>),
         (Changed<Interaction>, With<CharacterTile>),
@@ -283,7 +282,7 @@ fn character_tile_hover_system(
                         *text_color = TextColor(Colors::PRIMARY);
                     }
                     if let Ok(mut image_node) = image_query.get_mut(child) {
-                        *image_node = ImageNode::new(asset_server.load(&character_tile.selected_icon));
+                        image_node.image = character_tile.selected_icon.clone();
                     }
                 }
             }
@@ -297,7 +296,7 @@ fn character_tile_hover_system(
                             *text_color = TextColor(Colors::PRIMARY);
                         }
                         if let Ok(mut image_node) = image_query.get_mut(child) {
-                            *image_node = ImageNode::new(asset_server.load(&character_tile.selected_icon));
+                            image_node.image = character_tile.selected_icon.clone();
                         }
                     }
                 } else {
@@ -309,7 +308,7 @@ fn character_tile_hover_system(
                             *text_color = TextColor(Color::BLACK);
                         }
                         if let Ok(mut image_node) = image_query.get_mut(child) {
-                            *image_node = ImageNode::new(asset_server.load(&character_tile.normal_icon));
+                            image_node.image = character_tile.normal_icon.clone();
                         }
                     }
                 }
@@ -340,7 +339,6 @@ fn character_tile_click_system(
 }
 
 fn character_tile_selection_system(
-    asset_server: Res<AssetServer>,
     mut query: Query<
         (&mut BackgroundColor, &mut BorderColor, &Children, &CharacterTile),
         (Added<Selected>, With<CharacterTile>),
@@ -358,7 +356,7 @@ fn character_tile_selection_system(
                 *text_color = TextColor(Colors::PRIMARY);
             }
             if let Ok(mut image_node) = image_query.get_mut(child) {
-                *image_node = ImageNode::new(asset_server.load(&character_tile.selected_icon));
+                image_node.image = character_tile.selected_icon.clone();
             }
         }
     }
