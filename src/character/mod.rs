@@ -14,4 +14,8 @@ pub trait Character {
     const AUDIO: AudioClips<4>;
     const ICON: (&'static str, &'static str);
     const PORTRAIT: &'static str;
+    const ABILITY_1: (&'static str, &'static str);
+    const ABILITY_2: (&'static str, &'static str);
+    const ABILITY_3: (&'static str, &'static str);
+    const ABILITY_4: (&'static str, &'static str);
 }

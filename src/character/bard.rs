@@ -18,4 +18,8 @@ impl Character for CharacterBard {
     ];
     const ICON: (&'static str, &'static str) = ("characters/bard_icon.png", "characters/bard_icon_selected.png");
     const PORTRAIT: &'static str = "characters/bard.png";
+    const ABILITY_1: (&'static str, &'static str) = ("Cleanse", "Removes any debuffs from any heros within a 4x4 grid");
+    const ABILITY_2: (&'static str, &'static str) = ("Dance", "Quick Time Event sequence of keyclicks");
+    const ABILITY_3: (&'static str, &'static str) = ("Helix", "haste or heal");
+    const ABILITY_4: (&'static str, &'static str) = ("Mimic", "Bard will instant cast mimic the previous damage spell casted by adjacent hero");
 }

@@ -15,4 +15,8 @@ impl Character for CharacterThief {
     ];
     const ICON: (&'static str, &'static str) = ("characters/thief_icon.png", "characters/thief_icon_selected.png");
     const PORTRAIT: &'static str = "characters/thief.png";
+    const ABILITY_1: (&'static str, &'static str) = ("Smoke Screen", "Any hero in the smoke screen can walk through enemies without taking damage");
+    const ABILITY_2: (&'static str, &'static str) = ("Backstab", "any positional move is an attack. Back attacks do more damage");
+    const ABILITY_3: (&'static str, &'static str) = ("Pickpocket", "Lets you steal gold, buffs, or minor items from an enemy without interrupting its sequence. The enemy doesn't break stride; you just gain extra resources if you succeed.");
+    const ABILITY_4: (&'static str, &'static str) = ("Shadow Step", "A forward dash that grants brief invulnerability. You pass through hazards, enemy spells, or boss patterns without altering the enemy's routine. Can result in a bump attack can be a backstab");
 }

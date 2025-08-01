@@ -18,4 +18,8 @@ impl Character for CharacterCardinal {
     ];
     const ICON: (&'static str, &'static str) = ("characters/cardinal_icon.png", "characters/cardinal_icon_selected.png");
     const PORTRAIT: &'static str = "characters/cardinal.png";
+    const ABILITY_1: (&'static str, &'static str) = ("Barrier", "Applies a defense and barrier on the nearest round robin hero within a 8x8 grid space 5s cooldown");
+    const ABILITY_2: (&'static str, &'static str) = ("Beam", "Fires a straight beam 1x8 grid that hurts foes. Cannot move while casting");
+    const ABILITY_3: (&'static str, &'static str) = ("Heal", "Applies a heal nearest and weakest hero within a 8x8 grid space 5s cooldown");
+    const ABILITY_4: (&'static str, &'static str) = ("Resurrect", "Resurrects any nearby hero within 4x4 grid 1min cooldown");
 }

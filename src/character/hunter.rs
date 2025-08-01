@@ -18,4 +18,8 @@ impl Character for CharacterHunter {
     ];
     const ICON: (&'static str, &'static str) = ("characters/hunter_icon.png", "characters/hunter_icon_selected.png");
     const PORTRAIT: &'static str = "characters/hunter.png";
+    const ABILITY_1: (&'static str, &'static str) = ("Poison Shot", "A shot that pushes hero back one prev square does DOT Damage for next 20s with 12s cooldown.");
+    const ABILITY_2: (&'static str, &'static str) = ("Auto Shot", "Gun will auto fire against closest enemy");
+    const ABILITY_3: (&'static str, &'static str) = ("Trap", "Lays a trap down on current grid space. If enemy touch it small AOE explosion 2x2.");
+    const ABILITY_4: (&'static str, &'static str) = ("Sniper", "Fires any distance always at the boss 4 second cd, instant cast");
 }
