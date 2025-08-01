@@ -1,13 +1,5 @@
 use super::GameState;
-use crate::character::alchemist::CharacterAlchemist;
-use crate::character::bard::CharacterBard;
-use crate::character::cardinal::CharacterCardinal;
-use crate::character::forager::CharacterForager;
-use crate::character::hunter::CharacterHunter;
-use crate::character::merchant::CharacterMerchant;
-use crate::character::thief::CharacterThief;
-use crate::character::warrior::CharacterWarrior;
-use crate::character::Character;
+use crate::character::CharacterType;
 use crate::pseudo_states::Selected;
 use crate::ui::{Colors, FontSizes, Spacing};
 use bevy::prelude::*;
@@ -27,15 +19,8 @@ impl Plugin for CharacterCreatePlugin {
                     character_tile_deselection_system,
                     character_portrait_selection_system,
                     character_portrait_deselection_system,
-                    // Synchronization systems for each character type
-                    sync_warrior_tile_to_portrait,
-                    sync_hunter_tile_to_portrait,
-                    sync_thief_tile_to_portrait,
-                    sync_alchemist_tile_to_portrait,
-                    sync_bard_tile_to_portrait,
-                    sync_cardinal_tile_to_portrait,
-                    sync_forager_tile_to_portrait,
-                    sync_merchant_tile_to_portrait,
+                    // Unified synchronization system for all character types
+                    sync_character_tile_to_portrait,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -54,11 +39,14 @@ struct CharacterTile {
     selected_icon: Handle<Image>,
 }
 
-/// Creates a character tile with icon and class name for any character type that implements Character
-fn create_character_tile<T: Character>(
+
+/// Creates a character tile with icon and class name for the specified character type
+fn create_character_tile(
+    character_type: CharacterType,
     asset_server: &AssetServer,
     title_font: Handle<Font>,
 ) -> impl Bundle {
+    let icons = character_type.icon();
     (
         Node {
             display: Display::Flex,
@@ -74,12 +62,12 @@ fn create_character_tile<T: Character>(
         BorderRadius::all(Val::Px(12.0)),
         Interaction::default(),
         CharacterTile {
-            normal_icon: asset_server.load(T::ICON.0),
-            selected_icon: asset_server.load(T::ICON.1),
+            normal_icon: asset_server.load(icons.0),
+            selected_icon: asset_server.load(icons.1),
         },
         children![
             (
-                ImageNode::new(asset_server.load(T::ICON.0)),
+                ImageNode::new(asset_server.load(icons.0)),
                 Node {
                     width: Val::Px(48.0),
                     height: Val::Px(48.0),
@@ -87,7 +75,7 @@ fn create_character_tile<T: Character>(
                 },
             ),
             (
-                Text::new(T::CLASS_NAME),
+                Text::new(character_type.class_name()),
                 TextFont {
                     font: title_font,
                     font_size: FontSizes::XXL,
@@ -100,8 +88,9 @@ fn create_character_tile<T: Character>(
     )
 }
 
-/// Creates a character portrait bundle for any character type that implements Character
-fn create_character_portrait<T: Character + Component + Default>(
+/// Creates a character portrait bundle for the specified character type
+fn create_character_portrait(
+    character_type: CharacterType,
     asset_server: &AssetServer,
 ) -> impl Bundle {
     (
@@ -112,8 +101,8 @@ fn create_character_portrait<T: Character + Component + Default>(
             height: Val::Auto,
             ..Default::default()
         },
-        ImageNode::new(asset_server.load(T::PORTRAIT)).with_color(Color::srgba(1.0, 1.0, 1.0, 0.0)),
-        T::default(),
+        ImageNode::new(asset_server.load(character_type.portrait())).with_color(Color::srgba(1.0, 1.0, 1.0, 0.0)),
+        character_type,
     )
 }
 
@@ -179,68 +168,76 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         children![
                             // Tile 1 - Warrior
                             (
-                                create_character_tile::<CharacterWarrior>(
+                                create_character_tile(
+                                    CharacterType::Warrior,
                                     &asset_server,
                                     title_font.clone()
                                 ),
-                                CharacterWarrior,
+                                CharacterType::Warrior,
                             ),
                             // Tile 2 - Hunter (default selected)
                             (
-                                create_character_tile::<CharacterHunter>(
+                                create_character_tile(
+                                    CharacterType::Hunter,
                                     &asset_server,
                                     title_font.clone()
                                 ),
-                                CharacterHunter,
+                                CharacterType::Hunter,
                                 Selected,
                             ),
                             // Tile 3 - Thief
                             (
-                                create_character_tile::<CharacterThief>(
+                                create_character_tile(
+                                    CharacterType::Thief,
                                     &asset_server,
                                     title_font.clone()
                                 ),
-                                CharacterThief,
+                                CharacterType::Thief,
                             ),
                             // Tile 4 - Alchemist
                             (
-                                create_character_tile::<CharacterAlchemist>(
+                                create_character_tile(
+                                    CharacterType::Alchemist,
                                     &asset_server,
                                     title_font.clone()
                                 ),
-                                CharacterAlchemist,
+                                CharacterType::Alchemist,
                             ),
                             // Tile 5 - Bard
                             (
-                                create_character_tile::<CharacterBard>(
+                                create_character_tile(
+                                    CharacterType::Bard,
                                     &asset_server,
                                     title_font.clone()
                                 ),
-                                CharacterBard,
+                                CharacterType::Bard,
                             ),
                             // Tile 6 - Cardinal
                             (
-                                create_character_tile::<CharacterCardinal>(
+                                create_character_tile(
+                                    CharacterType::Cardinal,
                                     &asset_server,
                                     title_font.clone()
                                 ),
-                                CharacterCardinal,
+                                CharacterType::Cardinal,
                             ),
                             // Tile 7 - Forager
                             (
-                                create_character_tile::<CharacterForager>(
+                                create_character_tile(
+                                    CharacterType::Forager,
                                     &asset_server,
                                     title_font.clone()
                                 ),
-                                CharacterForager,
+                                CharacterType::Forager,
                             ),
                             // Tile 8 - Merchant
                             (
-                                create_character_tile::<CharacterMerchant>(
+                                create_character_tile(
+                                    CharacterType::Merchant,
                                     &asset_server,
                                     title_font.clone()
                                 ),
-                                CharacterMerchant,
+                                CharacterType::Merchant,
                             ),
                         ]
                     )],
@@ -255,17 +252,31 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         ..Default::default()
                     },
                     children![
-                        create_character_portrait::<CharacterWarrior>(&asset_server),
-                        create_character_portrait::<CharacterThief>(&asset_server),
                         (
-                            create_character_portrait::<CharacterHunter>(&asset_server),
+                            create_character_portrait(CharacterType::Warrior, &asset_server),
+                        ),
+                        (
+                            create_character_portrait(CharacterType::Thief, &asset_server),
+                        ),
+                        (
+                            create_character_portrait(CharacterType::Hunter, &asset_server),
                             Selected
                         ),
-                        create_character_portrait::<CharacterAlchemist>(&asset_server),
-                        create_character_portrait::<CharacterBard>(&asset_server),
-                        create_character_portrait::<CharacterCardinal>(&asset_server),
-                        create_character_portrait::<CharacterForager>(&asset_server),
-                        create_character_portrait::<CharacterMerchant>(&asset_server),
+                        (
+                            create_character_portrait(CharacterType::Alchemist, &asset_server),
+                        ),
+                        (
+                            create_character_portrait(CharacterType::Bard, &asset_server),
+                        ),
+                        (
+                            create_character_portrait(CharacterType::Cardinal, &asset_server),
+                        ),
+                        (
+                            create_character_portrait(CharacterType::Forager, &asset_server),
+                        ),
+                        (
+                            create_character_portrait(CharacterType::Merchant, &asset_server),
+                        ),
                     ],
                 ),
                 (
@@ -455,19 +466,7 @@ fn character_tile_deselection_system(
 fn character_portrait_selection_system(
     mut selected_portraits: Query<
         &mut ImageNode,
-        (
-            Added<Selected>,
-            Or<(
-                With<CharacterWarrior>,
-                With<CharacterHunter>,
-                With<CharacterThief>,
-                With<CharacterAlchemist>,
-                With<CharacterBard>,
-                With<CharacterCardinal>,
-                With<CharacterForager>,
-                With<CharacterMerchant>,
-            )>,
-        ),
+        (Added<Selected>, With<CharacterType>, Without<CharacterTile>),
     >,
 ) {
     for mut image_node in &mut selected_portraits {
@@ -477,19 +476,7 @@ fn character_portrait_selection_system(
 
 fn character_portrait_deselection_system(
     mut removed: RemovedComponents<Selected>,
-    mut query: Query<
-        &mut ImageNode,
-        Or<(
-            With<CharacterWarrior>,
-            With<CharacterHunter>,
-            With<CharacterThief>,
-            With<CharacterAlchemist>,
-            With<CharacterBard>,
-            With<CharacterCardinal>,
-            With<CharacterForager>,
-            With<CharacterMerchant>,
-        )>,
-    >,
+    mut query: Query<&mut ImageNode, (With<CharacterType>, Without<CharacterTile>)>,
 ) {
     for entity in removed.read() {
         if let Ok(mut image_node) = query.get_mut(entity) {
@@ -498,214 +485,38 @@ fn character_portrait_deselection_system(
     }
 }
 
-/// Synchronizes Selected marker between Warrior tile and portrait
-fn sync_warrior_tile_to_portrait(
+/// Unified system that synchronizes Selected marker between tiles and portraits using CharacterType
+fn sync_character_tile_to_portrait(
     mut commands: Commands,
-    warrior_tiles_selected: Query<
-        (),
-        (Added<Selected>, With<CharacterTile>, With<CharacterWarrior>),
-    >,
-    warrior_portrait: Query<Entity, (With<CharacterWarrior>, Without<CharacterTile>)>,
+    // Query for tiles that were just selected
+    tiles_selected: Query<&CharacterType, (Added<Selected>, With<CharacterTile>)>,
+    // Query for all portraits by character type, excluding tiles
+    portraits: Query<(Entity, &CharacterType), (Without<CharacterTile>, With<CharacterType>)>,
+    // Get entities that just had Selected removed
     mut removed_selected: RemovedComponents<Selected>,
-    warrior_tile_query: Query<(), (With<CharacterTile>, With<CharacterWarrior>)>,
+    // Query to check if a removed entity was a tile with a specific character type
+    tile_query: Query<&CharacterType, (With<CharacterTile>, With<CharacterType>)>,
 ) {
-    // Handle Selected being added to a Warrior tile
-    if !warrior_tiles_selected.is_empty() {
-        if let Ok(portrait_entity) = warrior_portrait.single() {
-            commands.entity(portrait_entity).insert(Selected);
-        }
-    }
-
-    // Handle Selected being removed from a Warrior tile
-    for removed_entity in removed_selected.read() {
-        if warrior_tile_query.get(removed_entity).is_ok() {
-            if let Ok(portrait_entity) = warrior_portrait.single() {
-                commands.entity(portrait_entity).remove::<Selected>();
+    // Handle Selected being added to tiles
+    for &character_type in &tiles_selected {
+        // Find the portrait with matching character type
+        for (portrait_entity, &portrait_character_type) in &portraits {
+            if character_type == portrait_character_type {
+                commands.entity(portrait_entity).insert(Selected);
+                break; // Only one portrait per character type
             }
         }
     }
-}
 
-/// Synchronizes Selected marker between Hunter tile and portrait
-fn sync_hunter_tile_to_portrait(
-    mut commands: Commands,
-    hunter_tiles_selected: Query<(), (Added<Selected>, With<CharacterTile>, With<CharacterHunter>)>,
-    hunter_portrait: Query<Entity, (With<CharacterHunter>, Without<CharacterTile>)>,
-    mut removed_selected: RemovedComponents<Selected>,
-    hunter_tile_query: Query<(), (With<CharacterTile>, With<CharacterHunter>)>,
-) {
-    if !hunter_tiles_selected.is_empty() {
-        if let Ok(portrait_entity) = hunter_portrait.single() {
-            commands.entity(portrait_entity).insert(Selected);
-        }
-    }
-
+    // Handle Selected being removed from tiles
     for removed_entity in removed_selected.read() {
-        if hunter_tile_query.get(removed_entity).is_ok() {
-            if let Ok(portrait_entity) = hunter_portrait.single() {
-                commands.entity(portrait_entity).remove::<Selected>();
-            }
-        }
-    }
-}
-
-/// Synchronizes Selected marker between Thief tile and portrait
-fn sync_thief_tile_to_portrait(
-    mut commands: Commands,
-    thief_tiles_selected: Query<(), (Added<Selected>, With<CharacterTile>, With<CharacterThief>)>,
-    thief_portrait: Query<Entity, (With<CharacterThief>, Without<CharacterTile>)>,
-    mut removed_selected: RemovedComponents<Selected>,
-    thief_tile_query: Query<(), (With<CharacterTile>, With<CharacterThief>)>,
-) {
-    if !thief_tiles_selected.is_empty() {
-        if let Ok(portrait_entity) = thief_portrait.single() {
-            commands.entity(portrait_entity).insert(Selected);
-        }
-    }
-
-    for removed_entity in removed_selected.read() {
-        if thief_tile_query.get(removed_entity).is_ok() {
-            if let Ok(portrait_entity) = thief_portrait.single() {
-                commands.entity(portrait_entity).remove::<Selected>();
-            }
-        }
-    }
-}
-
-/// Synchronizes Selected marker between Alchemist tile and portrait
-fn sync_alchemist_tile_to_portrait(
-    mut commands: Commands,
-    alchemist_tiles_selected: Query<
-        (),
-        (
-            Added<Selected>,
-            With<CharacterTile>,
-            With<CharacterAlchemist>,
-        ),
-    >,
-    alchemist_portrait: Query<Entity, (With<CharacterAlchemist>, Without<CharacterTile>)>,
-    mut removed_selected: RemovedComponents<Selected>,
-    alchemist_tile_query: Query<(), (With<CharacterTile>, With<CharacterAlchemist>)>,
-) {
-    if !alchemist_tiles_selected.is_empty() {
-        if let Ok(portrait_entity) = alchemist_portrait.single() {
-            commands.entity(portrait_entity).insert(Selected);
-        }
-    }
-
-    for removed_entity in removed_selected.read() {
-        if alchemist_tile_query.get(removed_entity).is_ok() {
-            if let Ok(portrait_entity) = alchemist_portrait.single() {
-                commands.entity(portrait_entity).remove::<Selected>();
-            }
-        }
-    }
-}
-
-/// Synchronizes Selected marker between Bard tile and portrait
-fn sync_bard_tile_to_portrait(
-    mut commands: Commands,
-    bard_tiles_selected: Query<(), (Added<Selected>, With<CharacterTile>, With<CharacterBard>)>,
-    bard_portrait: Query<Entity, (With<CharacterBard>, Without<CharacterTile>)>,
-    mut removed_selected: RemovedComponents<Selected>,
-    bard_tile_query: Query<(), (With<CharacterTile>, With<CharacterBard>)>,
-) {
-    if !bard_tiles_selected.is_empty() {
-        if let Ok(portrait_entity) = bard_portrait.single() {
-            commands.entity(portrait_entity).insert(Selected);
-        }
-    }
-
-    for removed_entity in removed_selected.read() {
-        if bard_tile_query.get(removed_entity).is_ok() {
-            if let Ok(portrait_entity) = bard_portrait.single() {
-                commands.entity(portrait_entity).remove::<Selected>();
-            }
-        }
-    }
-}
-
-/// Synchronizes Selected marker between Cardinal tile and portrait
-fn sync_cardinal_tile_to_portrait(
-    mut commands: Commands,
-    cardinal_tiles_selected: Query<
-        (),
-        (
-            Added<Selected>,
-            With<CharacterTile>,
-            With<CharacterCardinal>,
-        ),
-    >,
-    cardinal_portrait: Query<Entity, (With<CharacterCardinal>, Without<CharacterTile>)>,
-    mut removed_selected: RemovedComponents<Selected>,
-    cardinal_tile_query: Query<(), (With<CharacterTile>, With<CharacterCardinal>)>,
-) {
-    if !cardinal_tiles_selected.is_empty() {
-        if let Ok(portrait_entity) = cardinal_portrait.single() {
-            commands.entity(portrait_entity).insert(Selected);
-        }
-    }
-
-    for removed_entity in removed_selected.read() {
-        if cardinal_tile_query.get(removed_entity).is_ok() {
-            if let Ok(portrait_entity) = cardinal_portrait.single() {
-                commands.entity(portrait_entity).remove::<Selected>();
-            }
-        }
-    }
-}
-
-/// Synchronizes Selected marker between Forager tile and portrait
-fn sync_forager_tile_to_portrait(
-    mut commands: Commands,
-    forager_tiles_selected: Query<
-        (),
-        (Added<Selected>, With<CharacterTile>, With<CharacterForager>),
-    >,
-    forager_portrait: Query<Entity, (With<CharacterForager>, Without<CharacterTile>)>,
-    mut removed_selected: RemovedComponents<Selected>,
-    forager_tile_query: Query<(), (With<CharacterTile>, With<CharacterForager>)>,
-) {
-    if !forager_tiles_selected.is_empty() {
-        if let Ok(portrait_entity) = forager_portrait.single() {
-            commands.entity(portrait_entity).insert(Selected);
-        }
-    }
-
-    for removed_entity in removed_selected.read() {
-        if forager_tile_query.get(removed_entity).is_ok() {
-            if let Ok(portrait_entity) = forager_portrait.single() {
-                commands.entity(portrait_entity).remove::<Selected>();
-            }
-        }
-    }
-}
-
-/// Synchronizes Selected marker between Merchant tile and portrait
-fn sync_merchant_tile_to_portrait(
-    mut commands: Commands,
-    merchant_tiles_selected: Query<
-        (),
-        (
-            Added<Selected>,
-            With<CharacterTile>,
-            With<CharacterMerchant>,
-        ),
-    >,
-    merchant_portrait: Query<Entity, (With<CharacterMerchant>, Without<CharacterTile>)>,
-    mut removed_selected: RemovedComponents<Selected>,
-    merchant_tile_query: Query<(), (With<CharacterTile>, With<CharacterMerchant>)>,
-) {
-    if !merchant_tiles_selected.is_empty() {
-        if let Ok(portrait_entity) = merchant_portrait.single() {
-            commands.entity(portrait_entity).insert(Selected);
-        }
-    }
-
-    for removed_entity in removed_selected.read() {
-        if merchant_tile_query.get(removed_entity).is_ok() {
-            if let Ok(portrait_entity) = merchant_portrait.single() {
-                commands.entity(portrait_entity).remove::<Selected>();
+        if let Ok(&character_type) = tile_query.get(removed_entity) {
+            // Find the portrait with matching character type and remove Selected
+            for (portrait_entity, &portrait_character_type) in &portraits {
+                if character_type == portrait_character_type {
+                    commands.entity(portrait_entity).remove::<Selected>();
+                    break; // Only one portrait per character type
+                }
             }
         }
     }
