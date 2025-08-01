@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::ui::styles_config::{Colors, Spacing, FontSizes, BorderRadius, BoxShadow};
+use crate::ui::styles_config::{Colors, Spacing, BorderRadius, BoxShadow};
 
 #[derive(Component, Debug, Clone)]
 pub struct UiTile {
