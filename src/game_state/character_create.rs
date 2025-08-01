@@ -33,12 +33,14 @@ impl Plugin for CharacterCreatePlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<CharacterSelectionEvent>()
             .init_resource::<SelectedCharacter>()
+            .init_resource::<CurrentCharacterAudio>()
             .add_systems(
                 OnEnter(GameState::CharacterCreate),
                 (
                     setup_character_create,
                     initialize_default_selection,
                     setup_cursor_icon,
+                    play_default_character_audio,
                 ),
             )
             .add_systems(
@@ -54,6 +56,7 @@ impl Plugin for CharacterCreatePlugin {
                     start_button_interaction_system,
                     handle_tile_cursor,
                     handle_start_button_cursor,
+                    play_character_selection_audio,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -83,6 +86,20 @@ struct CharacterTile {
     selected_icon: Handle<Image>,
 }
 
+fn play_default_character_audio(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    selected_character: Res<SelectedCharacter>,
+    mut current_audio: ResMut<CurrentCharacterAudio>,
+) {
+    let audio_clips = selected_character.character_type.audio();
+    // Play the first audio clip (greeting) for the default selected character
+    let (audio_path, _caption) = audio_clips[0];
+    let audio_entity = commands.spawn(AudioPlayer::new(asset_server.load(audio_path))).id();
+    
+    // Track the initial audio entity
+    current_audio.entity = Some(audio_entity);
+}
 /// Creates a character tile with icon and class name for the specified character type
 fn create_character_tile(
     character_type: CharacterType,
@@ -750,6 +767,41 @@ fn handle_start_button_cursor(
             Interaction::None => SystemCursorIcon::Default,
         };
         *cursor_icon = CursorIcon::System(system_cursor);
+    }
+}
+
+/// Resource to track the currently playing character audio
+#[derive(Resource)]
+struct CurrentCharacterAudio {
+    entity: Option<Entity>,
+}
+
+impl Default for CurrentCharacterAudio {
+    fn default() -> Self {
+        Self { entity: None }
+    }
+}
+
+/// Plays audio when character selection changes, ensuring only one plays at a time
+fn play_character_selection_audio(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut selection_events: EventReader<CharacterSelectionEvent>,
+    mut current_audio: ResMut<CurrentCharacterAudio>,
+) {
+    for event in selection_events.read() {
+        // Cancel previous audio if it exists
+        if let Some(previous_entity) = current_audio.entity.take() {
+            commands.entity(previous_entity).despawn();
+        }
+
+        // Play new character audio
+        let audio_clips = event.character_type.audio();
+        let (audio_path, _caption) = audio_clips[0];
+        let audio_entity = commands.spawn(AudioPlayer::new(asset_server.load(audio_path))).id();
+        
+        // Track the new audio entity
+        current_audio.entity = Some(audio_entity);
     }
 }
 
