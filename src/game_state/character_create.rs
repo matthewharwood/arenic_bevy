@@ -39,8 +39,9 @@ fn create_character_tile<T: Character>(
             display: Display::Flex,
             flex_direction: FlexDirection::Column,
             border: UiRect::all(Val::Px(6.0)),
-            justify_content: JustifyContent::Center,
+            justify_content: JustifyContent::SpaceBetween,
             align_items: AlignItems::Center,
+            padding: UiRect::axes(Val::Px(24.0), Val::Px(16.0)),
             ..Default::default()
         },
         BackgroundColor(Colors::WHITE),
@@ -65,7 +66,7 @@ fn create_character_tile<T: Character>(
                 TextColor(Color::BLACK),
                 TextLayout::new_with_justify(JustifyText::Center),
             )
-        ]
+        ],
     )
 }
 
@@ -126,28 +127,51 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                             row_gap: Val::Px(12.0),
                             width: Val::Percent(100.0),
                             height: Val::Percent(100.0),
-                            padding: UiRect::all(Val::Px(12.0)),
                             ..Default::default()
                         },
                         children![
                             // Tile 1 - Warrior
-                            create_character_tile::<CharacterWarrior>(&asset_server, title_font.clone()),
+                            create_character_tile::<CharacterWarrior>(
+                                &asset_server,
+                                title_font.clone()
+                            ),
                             // Tile 2 - Hunter
-                            create_character_tile::<CharacterHunter>(&asset_server, title_font.clone()),
+                            create_character_tile::<CharacterHunter>(
+                                &asset_server,
+                                title_font.clone()
+                            ),
                             // Tile 3 - Thief
-                            create_character_tile::<CharacterThief>(&asset_server, title_font.clone()),
+                            create_character_tile::<CharacterThief>(
+                                &asset_server,
+                                title_font.clone()
+                            ),
                             // Tile 4 - Alchemist
-                            create_character_tile::<CharacterAlchemist>(&asset_server, title_font.clone()),
+                            create_character_tile::<CharacterAlchemist>(
+                                &asset_server,
+                                title_font.clone()
+                            ),
                             // Tile 5 - Bard
-                            create_character_tile::<CharacterBard>(&asset_server, title_font.clone()),
+                            create_character_tile::<CharacterBard>(
+                                &asset_server,
+                                title_font.clone()
+                            ),
                             // Tile 6 - Cardinal
-                            create_character_tile::<CharacterCardinal>(&asset_server, title_font.clone()),
+                            create_character_tile::<CharacterCardinal>(
+                                &asset_server,
+                                title_font.clone()
+                            ),
                             // Tile 7 - Forager
-                            create_character_tile::<CharacterForager>(&asset_server, title_font.clone()),
+                            create_character_tile::<CharacterForager>(
+                                &asset_server,
+                                title_font.clone()
+                            ),
                             // Tile 8 - Merchant
-                            create_character_tile::<CharacterMerchant>(&asset_server, title_font.clone()),
+                            create_character_tile::<CharacterMerchant>(
+                                &asset_server,
+                                title_font.clone()
+                            ),
                         ]
-                    ),],
+                    )],
                 ),
                 (
                     Node {
