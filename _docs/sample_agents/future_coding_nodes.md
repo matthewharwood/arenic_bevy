@@ -1,0 +1,21 @@
+Any refactors you make should focus on these key terms you would make for these areas:
+
+- Clarity
+- Simplicity
+- Conciseness
+- Elegance
+- Self-documenting
+- Consistency
+- Efficiency
+- Performance
+- Scalability
+- Optimized
+- Predictable
+- Modularity
+- Extensibility
+- Flexibility
+- Testability
+- Cohesion
+- Decoupling
+- Usability
+- Configurability
