@@ -21,6 +21,8 @@ impl Plugin for CharacterCreatePlugin {
                     character_portrait_deselection_system,
                     // Unified synchronization system for all character types
                     sync_character_tile_to_portrait,
+                    // Character name input field synchronization
+                    sync_character_name_input_field,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -32,13 +34,16 @@ impl Plugin for CharacterCreatePlugin {
 #[derive(Component)]
 struct CharacterCreateScreen;
 
+/// Marker component for the character name input field
+#[derive(Component)]
+struct CharacterNameInputField;
+
 /// Marker component for character tiles that stores preloaded icon handles
 #[derive(Component)]
 struct CharacterTile {
     normal_icon: Handle<Image>,
     selected_icon: Handle<Image>,
 }
-
 
 /// Creates a character tile with icon and class name for the specified character type
 fn create_character_tile(
@@ -101,7 +106,8 @@ fn create_character_portrait(
             height: Val::Auto,
             ..Default::default()
         },
-        ImageNode::new(asset_server.load(character_type.portrait())).with_color(Color::srgba(1.0, 1.0, 1.0, 0.0)),
+        ImageNode::new(asset_server.load(character_type.portrait()))
+            .with_color(Color::srgba(1.0, 1.0, 1.0, 0.0)),
         character_type,
     )
 }
@@ -252,31 +258,38 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         ..Default::default()
                     },
                     children![
-                        (
-                            create_character_portrait(CharacterType::Warrior, &asset_server),
-                        ),
-                        (
-                            create_character_portrait(CharacterType::Thief, &asset_server),
-                        ),
+                        (create_character_portrait(
+                            CharacterType::Warrior,
+                            &asset_server
+                        ),),
+                        (create_character_portrait(
+                            CharacterType::Thief,
+                            &asset_server
+                        ),),
                         (
                             create_character_portrait(CharacterType::Hunter, &asset_server),
                             Selected
                         ),
-                        (
-                            create_character_portrait(CharacterType::Alchemist, &asset_server),
-                        ),
-                        (
-                            create_character_portrait(CharacterType::Bard, &asset_server),
-                        ),
-                        (
-                            create_character_portrait(CharacterType::Cardinal, &asset_server),
-                        ),
-                        (
-                            create_character_portrait(CharacterType::Forager, &asset_server),
-                        ),
-                        (
-                            create_character_portrait(CharacterType::Merchant, &asset_server),
-                        ),
+                        (create_character_portrait(
+                            CharacterType::Alchemist,
+                            &asset_server
+                        ),),
+                        (create_character_portrait(
+                            CharacterType::Bard,
+                            &asset_server
+                        ),),
+                        (create_character_portrait(
+                            CharacterType::Cardinal,
+                            &asset_server
+                        ),),
+                        (create_character_portrait(
+                            CharacterType::Forager,
+                            &asset_server
+                        ),),
+                        (create_character_portrait(
+                            CharacterType::Merchant,
+                            &asset_server
+                        ),),
                     ],
                 ),
                 (
@@ -284,13 +297,28 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         position_type: PositionType::Relative,
                         grid_row: GridPlacement::start_end(13, -1),
                         grid_column: GridPlacement::start_end(5, -1),
-                        border: UiRect::all(Val::Px(6.0)),
                         height: Val::Percent(100.0),
+                        width: Val::Px(398.0), // Approximately 50% / 4 sub-columns
+                        display: Display::Flex,
+                        justify_content: JustifyContent::Center,
+                        align_items: AlignItems::Center,
+                        border: UiRect::all(Val::Px(6.0)),
                         ..Default::default()
                     },
+                    CharacterNameInputField,
                     BackgroundColor(Colors::WHITE),
                     BorderColor(Colors::BLACK),
-                    BorderRadius::all(Val::Px(12.0))
+                    BorderRadius::all(Val::Px(12.0)),
+                    children![(
+                        Text::new(CharacterType::Hunter.class_name()),
+                        TextFont {
+                            font: title_font.clone(),
+                            font_size: 24.0,
+                            ..Default::default()
+                        },
+                        TextColor(Colors::BLACK),
+                        TextLayout::new_with_justify(JustifyText::Center),
+                    )]
                 ),
                 (
                     Node {
@@ -516,6 +544,29 @@ fn sync_character_tile_to_portrait(
                 if character_type == portrait_character_type {
                     commands.entity(portrait_entity).remove::<Selected>();
                     break; // Only one portrait per character type
+                }
+            }
+        }
+    }
+}
+
+/// System that synchronizes the character name input field with the selected character type
+fn sync_character_name_input_field(
+    // Query for tiles that were just selected
+    tiles_selected: Query<&CharacterType, (Added<Selected>, With<CharacterTile>)>,
+    // Query for the character name input field
+    input_field_query: Query<&Children, With<CharacterNameInputField>>,
+    // Query for text components to update
+    mut text_query: Query<&mut Text>,
+) {
+    // Handle Selected being added to tiles - update input field text
+    for &character_type in &tiles_selected {
+        // Find the input field and update its text child
+        if let Ok(children) = input_field_query.single() {
+            for child in children.iter() {
+                if let Ok(mut text) = text_query.get_mut(child) {
+                    text.0 = character_type.class_name().to_string();
+                    break; // Only one text child in the input field
                 }
             }
         }
