@@ -362,8 +362,7 @@ fn character_tile_selection_system(
         ),
         (Added<Selected>, With<CharacterTile>),
     >,
-    mut text_query: Query<&mut TextColor>,
-    mut image_query: Query<&mut ImageNode>,
+    mut child_query: Query<(Option<&mut TextColor>, Option<&mut ImageNode>)>,
 ) {
     let (mut bg_color, mut border_color, children, character_tile) = selected_tile.into_inner();
     // Apply selected appearance
@@ -371,11 +370,13 @@ fn character_tile_selection_system(
     *border_color = BorderColor(Colors::PRIMARY);
 
     for child in children.iter() {
-        if let Ok(mut text_color) = text_query.get_mut(child) {
-            *text_color = TextColor(Colors::PRIMARY);
-        }
-        if let Ok(mut image_node) = image_query.get_mut(child) {
-            image_node.image = character_tile.selected_icon.clone();
+        if let Ok((text_color, image_node)) = child_query.get_mut(child) {
+            if let Some(mut text_color) = text_color {
+                *text_color = TextColor(Colors::PRIMARY);
+            }
+            if let Some(mut image_node) = image_node {
+                image_node.image = character_tile.selected_icon.clone();
+            }
         }
     }
 }
@@ -388,8 +389,7 @@ fn character_tile_deselection_system(
         &Children,
         &CharacterTile,
     )>,
-    mut text_query: Query<&mut TextColor>,
-    mut image_query: Query<&mut ImageNode>,
+    mut child_query: Query<(Option<&mut TextColor>, Option<&mut ImageNode>)>,
 ) {
     for entity in removed.read() {
         if let Ok((mut bg_color, mut border_color, children, character_tile)) =
@@ -400,11 +400,13 @@ fn character_tile_deselection_system(
             *border_color = BorderColor(Colors::BLACK);
 
             for child in children.iter() {
-                if let Ok(mut text_color) = text_query.get_mut(child) {
-                    *text_color = TextColor(Color::BLACK);
-                }
-                if let Ok(mut image_node) = image_query.get_mut(child) {
-                    image_node.image = character_tile.normal_icon.clone();
+                if let Ok((text_color, image_node)) = child_query.get_mut(child) {
+                    if let Some(mut text_color) = text_color {
+                        *text_color = TextColor(Color::BLACK);
+                    }
+                    if let Some(mut image_node) = image_node {
+                        image_node.image = character_tile.normal_icon.clone();
+                    }
                 }
             }
         }
