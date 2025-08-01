@@ -20,7 +20,12 @@ impl Plugin for CharacterCreatePlugin {
         app.add_systems(OnEnter(GameState::CharacterCreate), setup_character_create)
             .add_systems(
                 Update,
-                (character_create_input, character_tile_hover_system, character_tile_click_system, character_tile_selection_system)
+                (
+                    character_create_input,
+                    character_tile_interaction_system,
+                    character_tile_selection_system,
+                    character_tile_deselection_system,
+                )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
             .add_systems(OnExit(GameState::CharacterCreate), cleanup_character_create);
@@ -166,10 +171,13 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                                 &asset_server,
                                 title_font.clone()
                             ),
-                            // Tile 2 - Hunter
-                            create_character_tile::<CharacterHunter>(
-                                &asset_server,
-                                title_font.clone()
+                            // Tile 2 - Hunter (default selected)
+                            (
+                                create_character_tile::<CharacterHunter>(
+                                    &asset_server,
+                                    title_font.clone()
+                                ),
+                                Selected,
                             ),
                             // Tile 3 - Thief
                             create_character_tile::<CharacterThief>(
@@ -263,15 +271,35 @@ fn character_create_input(
     }
 }
 
-fn character_tile_hover_system(
+/// Combined hover and click system for character tiles - processes all interaction states in one query
+fn character_tile_interaction_system(
+    mut commands: Commands,
     mut query: Query<
-        (&Interaction, &mut BackgroundColor, &mut BorderColor, &Children, &CharacterTile, Option<&Selected>),
+        (
+            Entity,
+            &Interaction,
+            &mut BackgroundColor,
+            &mut BorderColor,
+            &Children,
+            &CharacterTile,
+            Option<&Selected>,
+        ),
         (Changed<Interaction>, With<CharacterTile>),
     >,
     mut text_query: Query<&mut TextColor>,
     mut image_query: Query<&mut ImageNode>,
+    selected_entity: Single<Entity, (With<Selected>, With<CharacterTile>)>,
 ) {
-    for (interaction, mut bg_color, mut border_color, children, character_tile, is_selected) in &mut query {
+    for (
+        entity,
+        interaction,
+        mut bg_color,
+        mut border_color,
+        children,
+        character_tile,
+        is_selected,
+    ) in &mut query
+    {
         match *interaction {
             Interaction::Hovered => {
                 *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
@@ -314,49 +342,70 @@ fn character_tile_hover_system(
                 }
             }
             Interaction::Pressed => {
-                // Handled by separate click system
-            }
-        }
-    }
-}
+                // Remove Selected from currently selected tile
+                commands.entity(*selected_entity).remove::<Selected>();
 
-fn character_tile_click_system(
-    mut commands: Commands,
-    mut query: Query<(Entity, &Interaction), (Changed<Interaction>, With<CharacterTile>)>,
-    selected_query: Query<Entity, With<Selected>>,
-) {
-    for (entity, interaction) in &mut query {
-        if *interaction == Interaction::Pressed {
-            // Remove Selected from all other tiles
-            for selected_entity in &selected_query {
-                commands.entity(selected_entity).remove::<Selected>();
+                // Add Selected to clicked tile
+                commands.entity(entity).insert(Selected);
             }
-            
-            // Add Selected to clicked tile
-            commands.entity(entity).insert(Selected);
         }
     }
 }
 
 fn character_tile_selection_system(
-    mut query: Query<
-        (&mut BackgroundColor, &mut BorderColor, &Children, &CharacterTile),
+    selected_tile: Single<
+        (
+            &mut BackgroundColor,
+            &mut BorderColor,
+            &Children,
+            &CharacterTile,
+        ),
         (Added<Selected>, With<CharacterTile>),
     >,
     mut text_query: Query<&mut TextColor>,
     mut image_query: Query<&mut ImageNode>,
 ) {
-    for (mut bg_color, mut border_color, children, character_tile) in &mut query {
-        // Apply selected appearance
-        *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
-        *border_color = BorderColor(Colors::PRIMARY);
-        
-        for child in children.iter() {
-            if let Ok(mut text_color) = text_query.get_mut(child) {
-                *text_color = TextColor(Colors::PRIMARY);
-            }
-            if let Ok(mut image_node) = image_query.get_mut(child) {
-                image_node.image = character_tile.selected_icon.clone();
+    let (mut bg_color, mut border_color, children, character_tile) = selected_tile.into_inner();
+    // Apply selected appearance
+    *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
+    *border_color = BorderColor(Colors::PRIMARY);
+
+    for child in children.iter() {
+        if let Ok(mut text_color) = text_query.get_mut(child) {
+            *text_color = TextColor(Colors::PRIMARY);
+        }
+        if let Ok(mut image_node) = image_query.get_mut(child) {
+            image_node.image = character_tile.selected_icon.clone();
+        }
+    }
+}
+
+fn character_tile_deselection_system(
+    mut removed: RemovedComponents<Selected>,
+    mut query: Query<(
+        &mut BackgroundColor,
+        &mut BorderColor,
+        &Children,
+        &CharacterTile,
+    )>,
+    mut text_query: Query<&mut TextColor>,
+    mut image_query: Query<&mut ImageNode>,
+) {
+    for entity in removed.read() {
+        if let Ok((mut bg_color, mut border_color, children, character_tile)) =
+            query.get_mut(entity)
+        {
+            // Reset to normal appearance
+            *bg_color = BackgroundColor(Colors::WHITE);
+            *border_color = BorderColor(Colors::BLACK);
+
+            for child in children.iter() {
+                if let Ok(mut text_color) = text_query.get_mut(child) {
+                    *text_color = TextColor(Color::BLACK);
+                }
+                if let Ok(mut image_node) = image_query.get_mut(child) {
+                    image_node.image = character_tile.normal_icon.clone();
+                }
             }
         }
     }
