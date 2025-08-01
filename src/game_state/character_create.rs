@@ -19,7 +19,8 @@ impl Plugin for CharacterCreatePlugin {
         app.add_systems(OnEnter(GameState::CharacterCreate), setup_character_create)
             .add_systems(
                 Update,
-                character_create_input.run_if(in_state(GameState::CharacterCreate)),
+                (character_create_input, character_tile_hover_system)
+                    .run_if(in_state(GameState::CharacterCreate)),
             )
             .add_systems(OnExit(GameState::CharacterCreate), cleanup_character_create);
     }
@@ -28,6 +29,13 @@ impl Plugin for CharacterCreatePlugin {
 /// Marker component for character creation screen entities
 #[derive(Component)]
 struct CharacterCreateScreen;
+
+/// Marker component for character tiles that stores icon paths
+#[derive(Component)]
+struct CharacterTile {
+    normal_icon: String,
+    selected_icon: String,
+}
 
 /// Creates a character tile with icon and class name for any character type that implements Character
 fn create_character_tile<T: Character>(
@@ -47,9 +55,14 @@ fn create_character_tile<T: Character>(
         BackgroundColor(Colors::WHITE),
         BorderColor(Colors::BLACK),
         BorderRadius::all(Val::Px(12.0)),
+        Interaction::default(),
+        CharacterTile {
+            normal_icon: T::ICON.0.to_string(),
+            selected_icon: T::ICON.1.to_string(),
+        },
         children![
             (
-                ImageNode::new(asset_server.load(T::ICON)),
+                ImageNode::new(asset_server.load(T::ICON.0)),
                 Node {
                     width: Val::Px(48.0),
                     height: Val::Px(48.0),
@@ -243,6 +256,50 @@ fn character_create_input(
 ) {
     if keyboard.just_pressed(KeyCode::Space) {
         next_state.set(GameState::Intro);
+    }
+}
+
+fn character_tile_hover_system(
+    asset_server: Res<AssetServer>,
+    mut query: Query<
+        (&Interaction, &mut BackgroundColor, &mut BorderColor, &Children, &CharacterTile),
+        (Changed<Interaction>, With<CharacterTile>),
+    >,
+    mut text_query: Query<&mut TextColor>,
+    mut image_query: Query<&mut ImageNode>,
+) {
+    for (interaction, mut bg_color, mut border_color, children, character_tile) in &mut query {
+        match *interaction {
+            Interaction::Hovered => {
+                *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
+                *border_color = BorderColor(Colors::PRIMARY);
+                // Update text color and icon
+                for child in children.iter() {
+                    if let Ok(mut text_color) = text_query.get_mut(child) {
+                        *text_color = TextColor(Colors::PRIMARY);
+                    }
+                    if let Ok(mut image_node) = image_query.get_mut(child) {
+                        *image_node = ImageNode::new(asset_server.load(&character_tile.selected_icon));
+                    }
+                }
+            }
+            Interaction::None => {
+                *bg_color = BackgroundColor(Colors::WHITE);
+                *border_color = BorderColor(Colors::BLACK);
+                // Reset text color and icon
+                for child in children.iter() {
+                    if let Ok(mut text_color) = text_query.get_mut(child) {
+                        *text_color = TextColor(Color::BLACK);
+                    }
+                    if let Ok(mut image_node) = image_query.get_mut(child) {
+                        *image_node = ImageNode::new(asset_server.load(&character_tile.normal_icon));
+                    }
+                }
+            }
+            Interaction::Pressed => {
+                // Handle click if needed
+            }
+        }
     }
 }
 

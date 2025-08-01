@@ -12,6 +12,6 @@ pub mod warrior;
 pub trait Character {
     const CLASS_NAME: &'static str;
     const AUDIO: AudioClips<4>;
-    const ICON: &'static str;
+    const ICON: (&'static str, &'static str);
     const PORTRAIT: &'static str;
 }

@@ -16,6 +16,6 @@ impl Character for CharacterCardinal {
             "Blessings upon you, traveler.",
         ),
     ];
-    const ICON: &'static str = "characters/cardinal_icon.png";
+    const ICON: (&'static str, &'static str) = ("characters/cardinal_icon.png", "characters/cardinal_icon_selected.png");
     const PORTRAIT: &'static str = "characters/cardinal.png";
 }

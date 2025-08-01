@@ -5,8 +5,8 @@ pub struct Colors;
 
 impl Colors {
     // Primary colors
-    pub const PRIMARY: Color = Color::srgb(0.2, 0.6, 0.8);
-    pub const PRIMARY_HOVER: Color = Color::srgb(0.1, 0.5, 0.7);
+    pub const PRIMARY: Color = Color::srgb(0.2, 0.5098, 0.8902);
+    pub const PRIMARY_HOVER: Color = Color::srgb(0.9647, 0.9804, 0.9961);
     pub const PRIMARY_ACTIVE: Color = Color::srgb(0.0, 0.4, 0.6);
 
     // Secondary colors

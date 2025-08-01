@@ -16,6 +16,6 @@ impl Character for CharacterBard {
             "Ah, a new face! Let me play you the song of our people.",
         ),
     ];
-    const ICON: &'static str = "characters/bard_icon.png";
+    const ICON: (&'static str, &'static str) = ("characters/bard_icon.png", "characters/bard_icon_selected.png");
     const PORTRAIT: &'static str = "characters/bard.png";
 }

@@ -16,6 +16,6 @@ impl Character for CharacterForager {
             "The Earth whispers Secrets to those who listen.",
         ),
     ];
-    const ICON: &'static str = "characters/forager_icon.png";
+    const ICON: (&'static str, &'static str) = ("characters/forager_icon.png", "characters/forager_icon_selected.png");
     const PORTRAIT: &'static str = "characters/forager.png";
 }

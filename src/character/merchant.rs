@@ -16,6 +16,6 @@ impl Character for CharacterMerchant {
             "Every deal's a gamble, but I always win.",
         ),
     ];
-    const ICON: &'static str = "characters/merchant_icon.png";
+    const ICON: (&'static str, &'static str) = ("characters/merchant_icon.png", "characters/merchant_icon_selected.png");
     const PORTRAIT: &'static str = "characters/merchant.png";
 }

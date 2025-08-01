@@ -16,6 +16,6 @@ impl Character for CharacterHunter {
             "Tracking prey? Or tracking treasure? Either way, I never miss.",
         ),
     ];
-    const ICON: &'static str = "characters/hunter_icon.png";
+    const ICON: (&'static str, &'static str) = ("characters/hunter_icon.png", "characters/hunter_icon_selected.png");
     const PORTRAIT: &'static str = "characters/hunter.png";
 }
