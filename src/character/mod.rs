@@ -23,6 +23,7 @@ use warrior::WARRIOR_DATA;
 #[derive(Clone, Copy, Debug)]
 pub struct CharacterData {
     pub name: &'static str,
+    pub default_name: &'static str,
     pub audio: AudioClips<4>,
     pub icon: (&'static str, &'static str),
     pub portrait: &'static str,
@@ -72,6 +73,9 @@ impl CharacterType {
     /// Get character class name
     pub const fn class_name(self) -> &'static str {
         self.data().name
+    }
+    pub const fn default_name(self) -> &'static str {
+        self.data().default_name
     }
 
     /// Get character audio clips

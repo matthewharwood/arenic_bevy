@@ -2,6 +2,7 @@ use super::CharacterData;
 
 pub const FORAGER_DATA: CharacterData = CharacterData {
     name: "Forager",
+    default_name: "Daisy",
     audio: [
         ("characters/forager-0.mp3", "From earth comes power."),
         ("characters/forager-1.mp3", "Nature provides everything."),

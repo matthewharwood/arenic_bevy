@@ -2,6 +2,7 @@ use super::CharacterData;
 
 pub const CARDINAL_DATA: CharacterData = CharacterData {
     name: "Cardinal",
+    default_name: "Pius",
     audio: [
         ("characters/cardinal-0.mp3", "Light shall heal and harm."),
         (

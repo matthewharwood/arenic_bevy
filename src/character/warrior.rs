@@ -2,6 +2,7 @@ use super::CharacterData;
 
 pub const WARRIOR_DATA: CharacterData = CharacterData {
     name: "Warrior",
+    default_name: "King",
     audio: [
         ("characters/warrior-0.mp3", "My shield protects all."),
         ("characters/warrior-1.mp3", "Stand behind me!"),

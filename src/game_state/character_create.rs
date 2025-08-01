@@ -1,32 +1,51 @@
 use super::GameState;
 use crate::character::CharacterType;
-use crate::pseudo_states::Selected;
 use crate::ui::{Colors, FontSizes, Spacing};
 use bevy::prelude::*;
+
+/// Event fired when a character is selected
+#[derive(Event)]
+pub struct CharacterSelectionEvent {
+    pub character_type: CharacterType,
+    pub previous_character: Option<CharacterType>,
+}
+
+/// Resource that tracks the currently selected character
+#[derive(Resource)]
+pub struct SelectedCharacter {
+    pub character_type: CharacterType,
+}
+
+impl Default for SelectedCharacter {
+    fn default() -> Self {
+        Self {
+            character_type: CharacterType::Hunter,
+        }
+    }
+}
 
 /// Plugin for the Character Creation state
 pub struct CharacterCreatePlugin;
 
 impl Plugin for CharacterCreatePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::CharacterCreate), setup_character_create)
+        app.add_event::<CharacterSelectionEvent>()
+            .init_resource::<SelectedCharacter>()
+            .add_systems(
+                OnEnter(GameState::CharacterCreate),
+                (setup_character_create, initialize_default_selection),
+            )
             .add_systems(
                 Update,
                 (
                     character_create_input,
                     character_tile_interaction_system,
-                    character_tile_selection_system,
-                    character_tile_deselection_system,
-                    character_portrait_selection_system,
-                    character_portrait_deselection_system,
-                    // Unified synchronization system for all character types
-                    sync_character_tile_to_portrait,
-                    // Character name input field synchronization
-                    sync_character_name_input_field,
-                    // Start button interaction system
+                    handle_character_selection_events,
+                    update_tile_visuals,
+                    update_portrait_visuals,
+                    update_character_name_input,
+                    update_character_ability_pane,
                     start_button_interaction_system,
-                    // Character ability pane synchronization
-                    sync_character_ability_pane,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -123,6 +142,14 @@ fn create_character_portrait(
     )
 }
 
+/// Fires initial selection event to set up default state
+fn initialize_default_selection(mut selection_events: EventWriter<CharacterSelectionEvent>) {
+    selection_events.write(CharacterSelectionEvent {
+        character_type: CharacterType::Hunter,
+        previous_character: None,
+    });
+}
+
 fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>) {
     let title_font = asset_server.load("fonts/Migra-Extrabold.ttf");
 
@@ -200,7 +227,6 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                                     title_font.clone()
                                 ),
                                 CharacterType::Hunter,
-                                Selected,
                             ),
                             (
                                 create_character_tile(
@@ -276,10 +302,10 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                             CharacterType::Thief,
                             &asset_server
                         ),),
-                        (
-                            create_character_portrait(CharacterType::Hunter, &asset_server),
-                            Selected
-                        ),
+                        (create_character_portrait(
+                            CharacterType::Hunter,
+                            &asset_server
+                        ),),
                         (create_character_portrait(
                             CharacterType::Alchemist,
                             &asset_server
@@ -331,7 +357,7 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                             BorderColor(Colors::BLACK),
                             BorderRadius::all(Val::Px(12.0)),
                             children![(
-                                Text::new(CharacterType::Hunter.class_name()),
+                                Text::new(CharacterType::Hunter.default_name()),
                                 TextFont {
                                     font: title_font.clone(),
                                     font_size: FontSizes::XXL,
@@ -393,7 +419,8 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         ),
                         (
                             Text::new({
-                                let (ability_name, ability_description) = CharacterType::Hunter.ability_1();
+                                let (ability_name, ability_description) =
+                                    CharacterType::Hunter.ability_1();
                                 format!("{}: {}", ability_name, ability_description)
                             }),
                             TextFont {
@@ -470,33 +497,27 @@ fn start_button_interaction_system(
 
 /// Combined hover and click system for character tiles - processes all interaction states in one query
 fn character_tile_interaction_system(
-    mut commands: Commands,
     mut query: Query<
         (
-            Entity,
             &Interaction,
             &mut BackgroundColor,
             &mut BorderColor,
             &Children,
             &CharacterTile,
-            Option<&Selected>,
+            &CharacterType,
         ),
         (Changed<Interaction>, With<CharacterTile>),
     >,
     mut text_query: Query<&mut TextColor>,
     mut image_query: Query<&mut ImageNode>,
-    selected_entity: Single<Entity, (With<Selected>, With<CharacterTile>)>,
+    selected_character: Res<SelectedCharacter>,
+    mut selection_events: EventWriter<CharacterSelectionEvent>,
 ) {
-    for (
-        entity,
-        interaction,
-        mut bg_color,
-        mut border_color,
-        children,
-        character_tile,
-        is_selected,
-    ) in &mut query
+    for (interaction, mut bg_color, mut border_color, children, character_tile, character_type) in
+        &mut query
     {
+        let is_selected = *character_type == selected_character.character_type;
+
         match *interaction {
             Interaction::Hovered => {
                 *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
@@ -512,7 +533,7 @@ fn character_tile_interaction_system(
                 }
             }
             Interaction::None => {
-                if is_selected.is_some() {
+                if is_selected {
                     // Keep selected appearance
                     *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
                     *border_color = BorderColor(Colors::PRIMARY);
@@ -539,73 +560,72 @@ fn character_tile_interaction_system(
                 }
             }
             Interaction::Pressed => {
-                // Only change selection if clicking on a different tile
-                if entity != *selected_entity {
-                    // Remove Selected from currently selected tile
-                    commands.entity(*selected_entity).remove::<Selected>();
-
-                    // Add Selected to clicked tile
-                    commands.entity(entity).insert(Selected);
+                // Only fire event if selecting a different character
+                if *character_type != selected_character.character_type {
+                    selection_events.write(CharacterSelectionEvent {
+                        character_type: *character_type,
+                        previous_character: Some(selected_character.character_type),
+                    });
                 }
             }
         }
     }
 }
 
-fn character_tile_selection_system(
-    selected_tile: Single<
-        (
-            &mut BackgroundColor,
-            &mut BorderColor,
-            &Children,
-            &CharacterTile,
-        ),
-        (Added<Selected>, With<CharacterTile>),
-    >,
-    mut child_query: Query<(Option<&mut TextColor>, Option<&mut ImageNode>)>,
+/// Central event handler that updates the SelectedCharacter resource
+fn handle_character_selection_events(
+    mut selection_events: EventReader<CharacterSelectionEvent>,
+    mut selected_character: ResMut<SelectedCharacter>,
 ) {
-    let (mut bg_color, mut border_color, children, character_tile) = selected_tile.into_inner();
-    // Apply selected appearance
-    *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
-    *border_color = BorderColor(Colors::PRIMARY);
-
-    for child in children.iter() {
-        if let Ok((text_color, image_node)) = child_query.get_mut(child) {
-            if let Some(mut text_color) = text_color {
-                *text_color = TextColor(Colors::PRIMARY);
-            }
-            if let Some(mut image_node) = image_node {
-                image_node.image = character_tile.selected_icon.clone();
-            }
-        }
+    for event in selection_events.read() {
+        selected_character.character_type = event.character_type;
     }
 }
 
-fn character_tile_deselection_system(
-    mut removed: RemovedComponents<Selected>,
-    mut query: Query<(
+/// Updates tile visuals when selection changes
+fn update_tile_visuals(
+    mut selection_events: EventReader<CharacterSelectionEvent>,
+    mut tile_query: Query<(
         &mut BackgroundColor,
         &mut BorderColor,
         &Children,
         &CharacterTile,
+        &CharacterType,
     )>,
     mut child_query: Query<(Option<&mut TextColor>, Option<&mut ImageNode>)>,
 ) {
-    for entity in removed.read() {
-        if let Ok((mut bg_color, mut border_color, children, character_tile)) =
-            query.get_mut(entity)
+    for event in selection_events.read() {
+        for (mut bg_color, mut border_color, children, character_tile, character_type) in
+            &mut tile_query
         {
-            // Reset to normal appearance
-            *bg_color = BackgroundColor(Colors::WHITE);
-            *border_color = BorderColor(Colors::BLACK);
-
-            for child in children.iter() {
-                if let Ok((text_color, image_node)) = child_query.get_mut(child) {
-                    if let Some(mut text_color) = text_color {
-                        *text_color = TextColor(Color::BLACK);
+            if *character_type == event.character_type {
+                // Apply selected appearance to new selection
+                *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
+                *border_color = BorderColor(Colors::PRIMARY);
+                for child in children.iter() {
+                    if let Ok((text_color, image_node)) = child_query.get_mut(child) {
+                        if let Some(mut text_color) = text_color {
+                            *text_color = TextColor(Colors::PRIMARY);
+                        }
+                        if let Some(mut image_node) = image_node {
+                            image_node.image = character_tile.selected_icon.clone();
+                        }
                     }
-                    if let Some(mut image_node) = image_node {
-                        image_node.image = character_tile.normal_icon.clone();
+                }
+            } else if let Some(previous) = event.previous_character {
+                if *character_type == previous {
+                    // Reset previous selection to normal appearance
+                    *bg_color = BackgroundColor(Colors::WHITE);
+                    *border_color = BorderColor(Colors::BLACK);
+                    for child in children.iter() {
+                        if let Ok((text_color, image_node)) = child_query.get_mut(child) {
+                            if let Some(mut text_color) = text_color {
+                                *text_color = TextColor(Color::BLACK);
+                            }
+                            if let Some(mut image_node) = image_node {
+                                image_node.image = character_tile.normal_icon.clone();
+                            }
+                        }
                     }
                 }
             }
@@ -613,81 +633,41 @@ fn character_tile_deselection_system(
     }
 }
 
-fn character_portrait_selection_system(
-    mut selected_portraits: Query<
-        &mut ImageNode,
-        (Added<Selected>, With<CharacterType>, Without<CharacterTile>),
+/// Updates portrait visuals when selection changes
+fn update_portrait_visuals(
+    mut selection_events: EventReader<CharacterSelectionEvent>,
+    mut portrait_query: Query<
+        (&mut ImageNode, &CharacterType),
+        (With<CharacterType>, Without<CharacterTile>),
     >,
 ) {
-    for mut image_node in &mut selected_portraits {
-        image_node.color = Color::srgba(1.0, 1.0, 1.0, 1.0);
-    }
-}
-
-fn character_portrait_deselection_system(
-    mut removed: RemovedComponents<Selected>,
-    mut query: Query<&mut ImageNode, (With<CharacterType>, Without<CharacterTile>)>,
-) {
-    for entity in removed.read() {
-        if let Ok(mut image_node) = query.get_mut(entity) {
-            image_node.color = Color::srgba(1.0, 1.0, 1.0, 0.0);
-        }
-    }
-}
-
-/// Unified system that synchronizes Selected marker between tiles and portraits using CharacterType
-fn sync_character_tile_to_portrait(
-    mut commands: Commands,
-    // Query for tiles that were just selected
-    tiles_selected: Query<&CharacterType, (Added<Selected>, With<CharacterTile>)>,
-    // Query for all portraits by character type, excluding tiles
-    portraits: Query<(Entity, &CharacterType), (Without<CharacterTile>, With<CharacterType>)>,
-    // Get entities that just had Selected removed
-    mut removed_selected: RemovedComponents<Selected>,
-    // Query to check if a removed entity was a tile with a specific character type
-    tile_query: Query<&CharacterType, (With<CharacterTile>, With<CharacterType>)>,
-) {
-    // Handle Selected being added to tiles
-    for &character_type in &tiles_selected {
-        // Find the portrait with matching character type
-        for (portrait_entity, &portrait_character_type) in &portraits {
-            if character_type == portrait_character_type {
-                commands.entity(portrait_entity).insert(Selected);
-                break; // Only one portrait per character type
-            }
-        }
-    }
-
-    // Handle Selected being removed from tiles
-    for removed_entity in removed_selected.read() {
-        if let Ok(&character_type) = tile_query.get(removed_entity) {
-            // Find the portrait with matching character type and remove Selected
-            for (portrait_entity, &portrait_character_type) in &portraits {
-                if character_type == portrait_character_type {
-                    commands.entity(portrait_entity).remove::<Selected>();
-                    break; // Only one portrait per character type
+    for event in selection_events.read() {
+        for (mut image_node, character_type) in &mut portrait_query {
+            if *character_type == event.character_type {
+                // Show selected portrait
+                image_node.color = Color::srgba(1.0, 1.0, 1.0, 1.0);
+            } else if let Some(previous) = event.previous_character {
+                if *character_type == previous {
+                    // Hide previous portrait
+                    image_node.color = Color::srgba(1.0, 1.0, 1.0, 0.0);
                 }
             }
         }
     }
 }
 
-/// System that synchronizes the character name input field with the selected character type
-fn sync_character_name_input_field(
-    // Query for tiles that were just selected
-    tiles_selected: Query<&CharacterType, (Added<Selected>, With<CharacterTile>)>,
-    // Query for the character name input field
+/// Updates the character name input field when selection changes
+fn update_character_name_input(
+    mut selection_events: EventReader<CharacterSelectionEvent>,
     input_field_query: Query<&Children, With<CharacterNameInputField>>,
-    // Query for text components to update
     mut text_query: Query<&mut Text>,
 ) {
-    // Handle Selected being added to tiles - update input field text
-    for &character_type in &tiles_selected {
+    for event in selection_events.read() {
         // Find the input field and update its text child
         if let Ok(children) = input_field_query.single() {
             for child in children.iter() {
                 if let Ok(mut text) = text_query.get_mut(child) {
-                    text.0 = character_type.class_name().to_string();
+                    text.0 = event.character_type.default_name().to_string();
                     break; // Only one text child in the input field
                 }
             }
@@ -695,17 +675,13 @@ fn sync_character_name_input_field(
     }
 }
 
-/// System that synchronizes the character ability pane with the selected character type
-fn sync_character_ability_pane(
-    // Query for tiles that were just selected
-    tiles_selected: Query<&CharacterType, (Added<Selected>, With<CharacterTile>)>,
-    // Query for the character ability pane
+/// Updates the character ability pane when selection changes
+fn update_character_ability_pane(
+    mut selection_events: EventReader<CharacterSelectionEvent>,
     ability_pane_query: Query<&Children, With<CharacterAbilityPane>>,
-    // Query for text components to update
     mut text_query: Query<&mut Text>,
 ) {
-    // Handle Selected being added to tiles - update ability pane text
-    for &character_type in &tiles_selected {
+    for event in selection_events.read() {
         // Find the ability pane and update its text children
         if let Ok(children) = ability_pane_query.single() {
             let mut child_iter = children.iter();
@@ -713,14 +689,14 @@ fn sync_character_ability_pane(
             // Update title (first child)
             if let Some(title_child) = child_iter.next() {
                 if let Ok(mut text) = text_query.get_mut(title_child) {
-                    text.0 = format!("{} Skills", character_type.class_name());
+                    text.0 = format!("{} Skills", event.character_type.class_name());
                 }
             }
 
             // Update ability description (second child)
             if let Some(ability_child) = child_iter.next() {
                 if let Ok(mut text) = text_query.get_mut(ability_child) {
-                    let ability_data = character_type.data();
+                    let ability_data = event.character_type.data();
                     let (ability_name, ability_description) = ability_data.ability_1;
                     text.0 = format!("{}: {}", ability_name, ability_description);
                 }
