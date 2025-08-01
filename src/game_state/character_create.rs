@@ -8,6 +8,7 @@ use crate::character::merchant::CharacterMerchant;
 use crate::character::thief::CharacterThief;
 use crate::character::warrior::CharacterWarrior;
 use crate::character::Character;
+use crate::pseudo_states::Selected;
 use crate::ui::{Colors, FontSizes, Spacing};
 use bevy::prelude::*;
 
@@ -19,7 +20,7 @@ impl Plugin for CharacterCreatePlugin {
         app.add_systems(OnEnter(GameState::CharacterCreate), setup_character_create)
             .add_systems(
                 Update,
-                (character_create_input, character_tile_hover_system)
+                (character_create_input, character_tile_hover_system, character_tile_click_system, character_tile_selection_system)
                     .run_if(in_state(GameState::CharacterCreate)),
             )
             .add_systems(OnExit(GameState::CharacterCreate), cleanup_character_create);
@@ -80,6 +81,23 @@ fn create_character_tile<T: Character>(
                 TextLayout::new_with_justify(JustifyText::Center),
             )
         ],
+    )
+}
+
+/// Creates a character portrait bundle for any character type that implements Character
+fn create_character_portrait<T: Character + Component + Default>(
+    asset_server: &AssetServer,
+) -> impl Bundle {
+    (
+        Node {
+            position_type: PositionType::Absolute,
+            left: Val::Px(0.0),
+            width: Val::Auto,
+            height: Val::Auto,
+            ..Default::default()
+        },
+        ImageNode::new(asset_server.load(T::PORTRAIT)),
+        T::default(),
     )
 }
 
@@ -196,28 +214,14 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                         ..Default::default()
                     },
                     children![
-                        (
-                            Node {
-                                position_type: PositionType::Absolute,
-                                left: Val::Px(0.0),
-                                width: Val::Auto,
-                                height: Val::Auto,
-                                ..Default::default()
-                            },
-                            ImageNode::new(asset_server.load(CharacterWarrior::PORTRAIT)),
-                            CharacterWarrior,
-                        ),
-                        (
-                            Node {
-                                position_type: PositionType::Absolute,
-                                left: Val::Px(0.0),
-                                width: Val::Auto,
-                                height: Val::Auto,
-                                ..Default::default()
-                            },
-                            ImageNode::new(asset_server.load(CharacterThief::PORTRAIT)),
-                            CharacterThief,
-                        )
+                        create_character_portrait::<CharacterWarrior>(&asset_server),
+                        create_character_portrait::<CharacterThief>(&asset_server),
+                        create_character_portrait::<CharacterHunter>(&asset_server),
+                        create_character_portrait::<CharacterAlchemist>(&asset_server),
+                        create_character_portrait::<CharacterBard>(&asset_server),
+                        create_character_portrait::<CharacterCardinal>(&asset_server),
+                        create_character_portrait::<CharacterForager>(&asset_server),
+                        create_character_portrait::<CharacterMerchant>(&asset_server),
                     ],
                 ),
                 (
@@ -262,13 +266,13 @@ fn character_create_input(
 fn character_tile_hover_system(
     asset_server: Res<AssetServer>,
     mut query: Query<
-        (&Interaction, &mut BackgroundColor, &mut BorderColor, &Children, &CharacterTile),
+        (&Interaction, &mut BackgroundColor, &mut BorderColor, &Children, &CharacterTile, Option<&Selected>),
         (Changed<Interaction>, With<CharacterTile>),
     >,
     mut text_query: Query<&mut TextColor>,
     mut image_query: Query<&mut ImageNode>,
 ) {
-    for (interaction, mut bg_color, mut border_color, children, character_tile) in &mut query {
+    for (interaction, mut bg_color, mut border_color, children, character_tile, is_selected) in &mut query {
         match *interaction {
             Interaction::Hovered => {
                 *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
@@ -284,20 +288,77 @@ fn character_tile_hover_system(
                 }
             }
             Interaction::None => {
-                *bg_color = BackgroundColor(Colors::WHITE);
-                *border_color = BorderColor(Colors::BLACK);
-                // Reset text color and icon
-                for child in children.iter() {
-                    if let Ok(mut text_color) = text_query.get_mut(child) {
-                        *text_color = TextColor(Color::BLACK);
+                if is_selected.is_some() {
+                    // Keep selected appearance
+                    *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
+                    *border_color = BorderColor(Colors::PRIMARY);
+                    for child in children.iter() {
+                        if let Ok(mut text_color) = text_query.get_mut(child) {
+                            *text_color = TextColor(Colors::PRIMARY);
+                        }
+                        if let Ok(mut image_node) = image_query.get_mut(child) {
+                            *image_node = ImageNode::new(asset_server.load(&character_tile.selected_icon));
+                        }
                     }
-                    if let Ok(mut image_node) = image_query.get_mut(child) {
-                        *image_node = ImageNode::new(asset_server.load(&character_tile.normal_icon));
+                } else {
+                    // Reset to normal appearance
+                    *bg_color = BackgroundColor(Colors::WHITE);
+                    *border_color = BorderColor(Colors::BLACK);
+                    for child in children.iter() {
+                        if let Ok(mut text_color) = text_query.get_mut(child) {
+                            *text_color = TextColor(Color::BLACK);
+                        }
+                        if let Ok(mut image_node) = image_query.get_mut(child) {
+                            *image_node = ImageNode::new(asset_server.load(&character_tile.normal_icon));
+                        }
                     }
                 }
             }
             Interaction::Pressed => {
-                // Handle click if needed
+                // Handled by separate click system
+            }
+        }
+    }
+}
+
+fn character_tile_click_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &Interaction), (Changed<Interaction>, With<CharacterTile>)>,
+    selected_query: Query<Entity, With<Selected>>,
+) {
+    for (entity, interaction) in &mut query {
+        if *interaction == Interaction::Pressed {
+            // Remove Selected from all other tiles
+            for selected_entity in &selected_query {
+                commands.entity(selected_entity).remove::<Selected>();
+            }
+            
+            // Add Selected to clicked tile
+            commands.entity(entity).insert(Selected);
+        }
+    }
+}
+
+fn character_tile_selection_system(
+    asset_server: Res<AssetServer>,
+    mut query: Query<
+        (&mut BackgroundColor, &mut BorderColor, &Children, &CharacterTile),
+        (Added<Selected>, With<CharacterTile>),
+    >,
+    mut text_query: Query<&mut TextColor>,
+    mut image_query: Query<&mut ImageNode>,
+) {
+    for (mut bg_color, mut border_color, children, character_tile) in &mut query {
+        // Apply selected appearance
+        *bg_color = BackgroundColor(Colors::PRIMARY_HOVER);
+        *border_color = BorderColor(Colors::PRIMARY);
+        
+        for child in children.iter() {
+            if let Ok(mut text_color) = text_query.get_mut(child) {
+                *text_color = TextColor(Colors::PRIMARY);
+            }
+            if let Ok(mut image_node) = image_query.get_mut(child) {
+                *image_node = ImageNode::new(asset_server.load(&character_tile.selected_icon));
             }
         }
     }

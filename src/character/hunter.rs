@@ -2,7 +2,7 @@ use crate::character::Character;
 use crate::utils::AudioClips;
 use bevy::prelude::Component;
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Default)]
 pub struct CharacterHunter;
 
 impl Character for CharacterHunter {
