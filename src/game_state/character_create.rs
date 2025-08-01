@@ -35,7 +35,11 @@ impl Plugin for CharacterCreatePlugin {
             .init_resource::<SelectedCharacter>()
             .add_systems(
                 OnEnter(GameState::CharacterCreate),
-                (setup_character_create, initialize_default_selection),
+                (
+                    setup_character_create,
+                    initialize_default_selection,
+                    setup_cursor_icon,
+                ),
             )
             .add_systems(
                 Update,
@@ -48,7 +52,8 @@ impl Plugin for CharacterCreatePlugin {
                     update_character_name_input,
                     update_character_ability_pane,
                     start_button_interaction_system,
-                    handle_button_cursor,
+                    handle_tile_cursor,
+                    handle_start_button_cursor,
                 )
                     .run_if(in_state(GameState::CharacterCreate)),
             )
@@ -151,6 +156,15 @@ fn initialize_default_selection(mut selection_events: EventWriter<CharacterSelec
         character_type: CharacterType::Hunter,
         previous_character: None,
     });
+}
+
+/// Sets up the cursor icon component on the primary window at startup
+fn setup_cursor_icon(mut commands: Commands, windows: Query<Entity, With<Window>>) {
+    if let Ok(window_entity) = windows.single() {
+        commands
+            .entity(window_entity)
+            .insert(CursorIcon::System(SystemCursorIcon::Default));
+    }
 }
 
 fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -709,32 +723,33 @@ fn update_character_ability_pane(
         }
     }
 }
-fn handle_button_cursor(
-    mut commands: Commands,
-    windows: Query<Entity, With<Window>>,
-    button_query: Query<&Interaction, (Changed<Interaction>, With<CharacterTile>)>,
+fn handle_tile_cursor(
+    mut cursor_query: Query<&mut CursorIcon, With<Window>>,
+    tile_query: Query<&Interaction, (Changed<Interaction>, With<CharacterTile>)>,
 ) {
-    if let Ok(window_entity) = windows.single() {
-        for interaction in &button_query {
-            match *interaction {
-                Interaction::Hovered => {
-                    commands
-                        .entity(window_entity)
-                        .insert(CursorIcon::System(SystemCursorIcon::Pointer));
-                }
-                Interaction::None => {
-                    commands
-                        .entity(window_entity)
-                        .insert(CursorIcon::System(SystemCursorIcon::Default));
-                }
-                Interaction::Pressed => {
-                    // Keep pointer cursor while pressed
-                    commands
-                        .entity(window_entity)
-                        .insert(CursorIcon::System(SystemCursorIcon::Pointer));
-                }
-            }
+    if let Ok(mut cursor_icon) = cursor_query.single_mut() {
+        for interaction in &tile_query {
+            let system_cursor = match *interaction {
+                Interaction::Hovered => SystemCursorIcon::Pointer,
+                Interaction::Pressed => SystemCursorIcon::Pointer,
+                Interaction::None => SystemCursorIcon::Default,
+            };
+            *cursor_icon = CursorIcon::System(system_cursor);
         }
+    }
+}
+
+fn handle_start_button_cursor(
+    mut cursor_query: Query<&mut CursorIcon, With<Window>>,
+    start_button_interaction: Single<&Interaction, (Changed<Interaction>, With<StartButton>)>,
+) {
+    if let Ok(mut cursor_icon) = cursor_query.single_mut() {
+        let system_cursor = match start_button_interaction.into_inner() {
+            Interaction::Hovered => SystemCursorIcon::Pointer,
+            Interaction::Pressed => SystemCursorIcon::Pointer,
+            Interaction::None => SystemCursorIcon::Default,
+        };
+        *cursor_icon = CursorIcon::System(system_cursor);
     }
 }
 
