@@ -1,6 +1,6 @@
 use super::GameState;
 use crate::character::CharacterType;
-use crate::ui::{Colors, FontSizes, Spacing};
+use crate::ui::styles_config::{Colors, FontSizes, Spacing};
 use bevy::prelude::*;
 use bevy::window::SystemCursorIcon;
 use bevy::winit::cursor::CursorIcon;
@@ -95,8 +95,10 @@ fn play_default_character_audio(
     let audio_clips = state.selected_character.audio();
     // Play the first audio clip (greeting) for the default selected character
     let (audio_path, _caption) = audio_clips[0];
-    let audio_entity = commands.spawn(AudioPlayer::new(asset_server.load(audio_path))).id();
-    
+    let audio_entity = commands
+        .spawn(AudioPlayer::new(asset_server.load(audio_path)))
+        .id();
+
     // Track the initial audio entity
     state.current_audio_entity = Some(audio_entity);
 }
@@ -770,7 +772,6 @@ fn handle_start_button_cursor(
     }
 }
 
-
 /// Plays audio when character selection changes, ensuring only one plays at a time
 fn play_character_selection_audio(
     mut commands: Commands,
@@ -787,8 +788,10 @@ fn play_character_selection_audio(
         // Play new character audio
         let audio_clips = event.character_type.audio();
         let (audio_path, _caption) = audio_clips[0];
-        let audio_entity = commands.spawn(AudioPlayer::new(asset_server.load(audio_path))).id();
-        
+        let audio_entity = commands
+            .spawn(AudioPlayer::new(asset_server.load(audio_path)))
+            .id();
+
         // Track the new audio entity
         state.current_audio_entity = Some(audio_entity);
     }

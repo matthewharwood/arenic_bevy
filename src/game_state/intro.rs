@@ -10,7 +10,7 @@ use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH};
 use crate::config::display::TILE_SIZE;
 use crate::pseudo_states::Checked;
 use crate::trait_utils::ComponentDisplay;
-use crate::ui::Colors;
+use crate::ui::styles_config::Colors;
 use crate::ui_navigation::UiPlugin;
 use bevy::prelude::*;
 
@@ -19,20 +19,19 @@ pub struct IntroPlugin;
 
 impl Plugin for IntroPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins(UiPlugin)
-            .add_systems(
-                OnEnter(GameState::Intro),
-                (setup_intro, setup_arena_tiles, spawn_guild_master).chain(),
-            )
-            .add_systems(
-                OnEnter(GameState::Intro),
-                spawn_circle_shape.after(spawn_guild_master),
-            )
-            .add_systems(
-                Update,
-                animate_guild_master.run_if(in_state(GameState::Intro)),
-            )
-            .add_systems(OnExit(GameState::Intro), cleanup_intro);
+        app.add_systems(
+            OnEnter(GameState::Intro),
+            (setup_intro, setup_arena_tiles, spawn_guild_master).chain(),
+        )
+        .add_systems(
+            OnEnter(GameState::Intro),
+            spawn_circle_shape.after(spawn_guild_master),
+        )
+        .add_systems(
+            Update,
+            animate_guild_master.run_if(in_state(GameState::Intro)),
+        )
+        .add_systems(OnExit(GameState::Intro), cleanup_intro);
     }
 }
 

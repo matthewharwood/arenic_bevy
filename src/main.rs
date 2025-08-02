@@ -22,7 +22,7 @@ mod utils;
 use crate::camera::CameraPlugin;
 use crate::config::display::{WINDOW_HEIGHT, WINDOW_WIDTH};
 use crate::game_state::GameStatePlugin;
-use crate::ui::UiComponentsPlugin;
+use crate::ui_navigation::UiPlugin;
 use recording::RecordingPlugin;
 
 const GAME_NAME: &str = "Arenic";
@@ -39,7 +39,6 @@ fn main() {
         .add_plugins(GameStatePlugin)
         .add_plugins(CameraPlugin)
         .add_plugins(RecordingPlugin)
-        // .add_plugins(UiPlugin)
-        .add_plugins(UiComponentsPlugin)
+        .add_plugins(UiPlugin)
         .run();
 }
