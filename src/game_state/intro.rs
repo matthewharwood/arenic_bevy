@@ -6,8 +6,10 @@ use crate::arena::{
 use crate::battleground::Battleground;
 use crate::boss::guild_master::GuildMaster;
 use crate::boss::{Boss, BossAnimationConfig};
+use crate::character::CharacterType;
 use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH};
 use crate::config::display::TILE_SIZE;
+use crate::game_state::character_create::CharacterCreateState;
 use crate::trait_utils::ComponentDisplay;
 use crate::ui::styles_config::Colors;
 use bevy::prelude::*;
@@ -23,7 +25,9 @@ impl Plugin for IntroPlugin {
         )
         .add_systems(
             OnEnter(GameState::Intro),
-            spawn_circle_shape.after(spawn_guild_master),
+            (spawn_circle_shape, debug_circle_character_type)
+                .chain()
+                .after(spawn_guild_master),
         )
         .add_systems(
             Update,
@@ -275,6 +279,7 @@ fn spawn_circle_shape(
     guild_house_query: Single<Entity, With<GuildHouse>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    character_state: Res<CharacterCreateState>,
 ) {
     let guild_house_entity = guild_house_query.into_inner();
 
@@ -291,8 +296,21 @@ fn spawn_circle_shape(
             MeshMaterial2d(materials.add(Colors::BLACK)),
             Transform::from_xyz(world_x, world_y, 1.0),
             CircleShape,
+            character_state.selected_character,
         ));
     });
+}
+
+/// Debug system that prints the CharacterType of entities with CircleShape
+fn debug_circle_character_type(
+    circle_query: Query<(Entity, &CharacterType), With<CircleShape>>,
+) {
+    for (entity, character_type) in &circle_query {
+        info!(
+            "CircleShape entity {:?} has CharacterType: {:?}", 
+            entity, character_type
+        );
+    }
 }
 
 #[cfg(test)]
