@@ -1,13 +1,15 @@
 # Comprehensive Bevy Migration Guide: 0.13 → 0.16
 
-This guide covers all breaking changes when migrating from Bevy 0.13 to 0.16, with emphasis on major architectural shifts that fundamentally change how Bevy applications are structured.
+This guide covers all breaking changes when migrating from Bevy 0.13 to 0.16, with emphasis on major architectural
+shifts that fundamentally change how Bevy applications are structured.
 
 ## 🚨 Major Architectural Changes Overview
 
 Bevy 0.14-0.16 introduces several paradigm shifts that affect the entire framework design philosophy:
 
 1. **Bundle Elimination**: Bundles are being phased out in favor of required components and component constructors
-2. **Required Components Pattern**: Components can now automatically include other components, eliminating manual bundle management
+2. **Required Components Pattern**: Components can now automatically include other components, eliminating manual bundle
+   management
 3. **Typed Asset Components**: Generic `Handle<T>` components replaced with specific typed components
 4. **Error-Safe ECS**: Query and world access methods now return `Result` types instead of panicking
 5. **Graph-Based Animation**: Complete replacement of clip-based animation with animation graphs
@@ -19,148 +21,201 @@ Bevy 0.14-0.16 introduces several paradigm shifts that affect the entire framewo
 
 ### ⚠️ DEPRECATED: All Bundle Patterns
 
-**The bundle system is being completely phased out.** Bundles were the primary method for spawning entities with multiple related components, but Bevy now uses required components and component constructors instead.
+**The bundle system is being completely phased out.** Bundles were the primary method for spawning entities with
+multiple related components, but Bevy now uses required components and component constructors instead.
 
 ### Camera Bundles → Camera Components
 
 ```rust
 // 0.13/0.14/0.15 - DEPRECATED
-commands.spawn(Camera2dBundle::default());
-commands.spawn(Camera3dBundle::default());
+commands.spawn(Camera2dBundle::default ());
+commands.spawn(Camera3dBundle::default ());
 commands.spawn(PerspectiveCameraBundle {
-    camera: Camera::default(),
-    perspective_projection: PerspectiveProjection::default(),
-    transform: Transform::from_xyz(0.0, 0.0, 5.0),
-    ..default()
+camera: Camera::default (),
+perspective_projection: PerspectiveProjection::default (),
+transform: Transform::from_xyz(0.0, 0.0, 5.0),
+..default ()
 });
 
 // 0.16 - NEW REQUIRED COMPONENT PATTERN
 commands.spawn(Camera2d);
 commands.spawn(Camera3d);
 commands.spawn((
-    Camera3d,
-    Transform::from_xyz(0.0, 0.0, 5.0),
-    Projection::Perspective(PerspectiveProjection::default()),
+Camera3d,
+Transform::from_xyz(0.0, 0.0, 5.0),
+Projection::Perspective(PerspectiveProjection::default ()),
 ));
 ```
 
-**Migration Strategy**: Replace all camera bundles with individual camera components. The camera components now automatically include required components like `Camera`, `GlobalTransform`, `ViewVisibility`, etc.
+**Migration Strategy**: Replace all camera bundles with individual camera components. The camera components now
+automatically include required components like `Camera`, `GlobalTransform`, `ViewVisibility`, etc.
 
 ### Sprite Bundles → Sprite Components
 
 ```rust
 // 0.13/0.14/0.15 - DEPRECATED
 commands.spawn(SpriteBundle {
-    texture: asset_server.load("sprite.png"),
-    transform: Transform::from_xyz(0.0, 0.0, 0.0),
-    sprite: Sprite {
-        color: Color::RED,
-        ..default()
-    },
-    ..default()
+texture: asset_server.load("sprite.png"),
+transform: Transform::from_xyz(0.0, 0.0, 0.0),
+sprite: Sprite {
+color: Color::RED,
+..default ()
+},
+..default ()
 });
 
 // 0.16 - NEW COMPONENT CONSTRUCTOR PATTERN
 commands.spawn((
-    Sprite {
-        image: asset_server.load("sprite.png"),
-        color: Color::srgb(1.0, 0.0, 0.0),
-        ..default()
-    },
-    Transform::from_xyz(0.0, 0.0, 0.0),
+Sprite {
+image: asset_server.load("sprite.png"),
+color: Color::srgb(1.0, 0.0, 0.0),
+..default ()
+},
+Transform::from_xyz(0.0, 0.0, 0.0),
 ));
 ```
 
-**Migration Strategy**: Replace `SpriteBundle` with `Sprite` component. The image field moves from a separate component to within the `Sprite` struct itself.
+**Migration Strategy**: Replace `SpriteBundle` with `Sprite` component. The image field moves from a separate component
+to within the `Sprite` struct itself.
 
 ### Mesh Bundles → Mesh Components
 
 ```rust
 // 0.13/0.14/0.15 - DEPRECATED
 commands.spawn(MaterialMeshBundle {
-    mesh: meshes.add(Mesh::from(Cuboid::default())),
-    material: materials.add(Color::RED),
-    transform: Transform::from_xyz(0.0, 0.0, 0.0),
-    ..default()
+mesh: meshes.add(Mesh::from(Cuboid::default ())),
+material: materials.add(Color::RED),
+transform: Transform::from_xyz(0.0, 0.0, 0.0),
+..default ()
 });
 
 // 0.16 - NEW TYPED COMPONENT PATTERN
 commands.spawn((
-    Mesh3d(meshes.add(Mesh::from(Cuboid::default()))),
-    MeshMaterial3d(materials.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.0, 0.0),
-        ..default()
-    })),
-    Transform::from_xyz(0.0, 0.0, 0.0),
+Mesh3d(meshes.add(Mesh::from(Cuboid::default ()))),
+MeshMaterial3d(materials.add(StandardMaterial {
+base_color: Color::srgb(1.0, 0.0, 0.0),
+..default ()
+})),
+Transform::from_xyz(0.0, 0.0, 0.0),
 ));
 ```
 
-**Migration Strategy**: Replace `MaterialMeshBundle` with `Mesh3d` and `MeshMaterial3d` components. This eliminates the generic `Handle<T>` pattern in favor of specifically typed components.
+**Migration Strategy**: Replace `MaterialMeshBundle` with `Mesh3d` and `MeshMaterial3d` components. This eliminates the
+generic `Handle<T>` pattern in favor of specifically typed components.
 
 ### UI Bundles → UI Components
 
 ```rust
 // 0.13/0.14/0.15 - DEPRECATED
 commands.spawn(NodeBundle {
-    style: Style {
-        width: Val::Px(200.0),
-        height: Val::Px(100.0),
-        ..default()
-    },
-    background_color: Color::BLUE.into(),
-    ..default()
+style: Style {
+width: Val::Px(200.0),
+height: Val::Px(100.0),
+..default ()
+},
+background_color: Color::BLUE.into(),
+..default ()
 });
 
 commands.spawn(TextBundle::from_section(
-    "Hello World",
-    TextStyle {
-        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-        font_size: 40.0,
-        color: Color::WHITE,
-    },
+"Hello World",
+TextStyle {
+font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+font_size: 40.0,
+color: Color::WHITE,
+},
 ));
 
 // 0.16 - NEW REQUIRED COMPONENT PATTERN
 commands.spawn((
-    Node {
-        width: Val::Px(200.0),
-        height: Val::Px(100.0),
-        ..default()
-    },
-    BackgroundColor(Color::srgb(0.0, 0.0, 1.0)),
+Node {
+width: Val::Px(200.0),
+height: Val::Px(100.0),
+..default ()
+},
+BackgroundColor(Color::srgb(0.0, 0.0, 1.0)),
 ));
 
 commands.spawn((
-    Text::new("Hello World"),
-    TextFont {
-        font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-        font_size: 40.0,
-        ..default()
-    },
-    TextColor(Color::srgb(1.0, 1.0, 1.0)),
+Text::new("Hello World"),
+TextFont {
+font: asset_server.load("fonts/FiraSans-Bold.ttf"),
+font_size: 40.0,
+..default ()
+},
+TextColor(Color::srgb(1.0, 1.0, 1.0)),
 ));
 ```
 
-**Migration Strategy**: Replace all UI bundles with individual components. UI components now use required components to automatically include necessary functionality like `GlobalTransform`, `ViewVisibility`, and `InheritedVisibility`.
+**Migration Strategy**: Replace all UI bundles with individual components. UI components now use required components to
+automatically include necessary functionality like `GlobalTransform`, `ViewVisibility`, and `InheritedVisibility`.
 
 ### Audio Bundles → Audio Components
 
 ```rust
 // 0.13/0.14/0.15 - DEPRECATED
 commands.spawn(AudioSourceBundle {
-    source: asset_server.load("sounds/music.ogg"),
-    settings: PlaybackSettings::LOOP,
-    ..default()
+source: asset_server.load("sounds/music.ogg"),
+settings: PlaybackSettings::LOOP,
+..default ()
 });
 
 // 0.16 - NEW AUDIO COMPONENT PATTERN
 commands.spawn((
-    AudioPlayer(asset_server.load("sounds/music.ogg")),
-    PlaybackSettings::LOOP,
+AudioPlayer(asset_server.load("sounds/music.ogg")),
+PlaybackSettings::LOOP,
 ));
 ```
 
-**Migration Strategy**: Replace `AudioSourceBundle` with `AudioPlayer` component and separate settings components.
+## Camera Bundles
+
+- `Camera2dBundle` → `Camera2d`
+- `Camera3dBundle` → `Camera3d`
+- `PerspectiveCameraBundle` → `(Camera3d, Transform, Projection::Perspective(PerspectiveProjection))`
+- `OrthographicCameraBundle` → `(Camera3d, Transform, Projection::Orthographic(OrthographicProjection))`
+
+## Sprite Bundles
+
+- `SpriteBundle` → `Sprite` (with `image` field integrated)
+- `SpriteSheetBundle` → `(Sprite, TextureAtlas)` (with sprite sheet data integrated)
+
+## Mesh/Material Bundles
+
+- `MaterialMeshBundle` → `(Mesh3d(...), MeshMaterial3d(...))`
+- `MaterialMesh2dBundle` → `(Mesh2d(...), MeshMaterial2d(...))`
+- `PbrBundle` → `(Mesh3d(...), MeshMaterial3d<StandardMaterial>(...))`
+
+## UI Bundles
+
+- `NodeBundle` → `Node` (with style properties integrated)
+- `TextBundle` → `(Text::new(...), TextFont, TextColor)`
+- `ButtonBundle` → `(Button, Node)` (with style in Node)
+- `ImageBundle` → `(UiImage, Node)`
+
+## Audio Bundles
+
+- `AudioSourceBundle` → `(AudioPlayer(...), PlaybackSettings)`
+- `SpatialAudioSourceBundle` → `(AudioPlayer(...), SpatialSettings, PlaybackSettings)`
+
+## Light Bundles
+
+- `PointLightBundle` → `PointLight`
+- `DirectionalLightBundle` → `DirectionalLight`
+- `SpotLightBundle` → `SpotLight`
+
+## Transform Bundles
+
+- `TransformBundle` → `Transform` (GlobalTransform automatically included via required components)
+- `SpatialBundle` → `(Transform, Visibility)` (other spatial components auto-included)
+
+## Additional Bundle Patterns
+
+- Generic asset bundles with `Handle<T>` → Typed components like `Mesh3d(Handle<Mesh>)`,
+  `MeshMaterial3d(Handle<Material>)`
+
+The key architectural change is that components now use the `#[require()]` attribute to automatically include their
+dependencies, eliminating the need for bundles entirely. Required components like `GlobalTransform`, `ViewVisibility`,
+`InheritedVisibility` are automatically added when spawning entities with components that require them.
 
 ---
 
@@ -168,7 +223,8 @@ commands.spawn((
 
 ### Understanding Required Components
 
-Required components automatically add dependent components when a component is inserted, eliminating the need for bundles.
+Required components automatically add dependent components when a component is inserted, eliminating the need for
+bundles.
 
 ```rust
 // 0.16 - Component with requirements
@@ -205,7 +261,8 @@ fn spawn_enemy(mut commands: Commands) {
 }
 ```
 
-**Migration Strategy**: When creating custom components that previously required bundles, use the `#[require()]` attribute to specify dependent components automatically.
+**Migration Strategy**: When creating custom components that previously required bundles, use the `#[require()]`
+attribute to specify dependent components automatically.
 
 ---
 
@@ -220,14 +277,14 @@ fn spawn_enemy(mut commands: Commands) {
 ```rust
 // 0.13/0.14/0.15 - DEPRECATED
 commands.spawn((
-    Handle::<Mesh>::default(),
-    Handle::<StandardMaterial>::default(),
+Handle::<Mesh>::default (),
+Handle::<StandardMaterial>::default (),
 ));
 
 // 0.16 - NEW TYPED COMPONENT SYSTEM
 commands.spawn((
-    Mesh3d(meshes.add(Mesh::from(Sphere::default()))),
-    MeshMaterial3d(materials.add(StandardMaterial::default())),
+Mesh3d(meshes.add(Mesh::from(Sphere::default ()))),
+MeshMaterial3d(materials.add(StandardMaterial::default ())),
 ));
 ```
 
@@ -236,14 +293,14 @@ commands.spawn((
 ```rust
 // 0.13/0.14/0.15 - DEPRECATED
 commands.spawn((
-    Handle::<Image>::default(),
-    Sprite::default(),
+Handle::<Image>::default (),
+Sprite::default (),
 ));
 
 // 0.16 - NEW INTEGRATED COMPONENT SYSTEM
 commands.spawn(Sprite {
-    image: asset_server.load("texture.png"),
-    ..default()
+image: asset_server.load("texture.png"),
+..default ()
 });
 ```
 
@@ -251,13 +308,14 @@ commands.spawn(Sprite {
 
 ```rust
 // 0.13/0.14/0.15 - DEPRECATED
-commands.spawn(Handle::<AudioSource>::default());
+commands.spawn(Handle::<AudioSource>::default ());
 
 // 0.16 - NEW AUDIO PLAYER SYSTEM
 commands.spawn(AudioPlayer::<AudioSource>(asset_server.load("sound.ogg")));
 ```
 
-**Migration Strategy**: Replace all generic `Handle<T>` components with the new typed components. This provides better type safety and eliminates the need for separate handle and configuration components.
+**Migration Strategy**: Replace all generic `Handle<T>` components with the new typed components. This provides better
+type safety and eliminates the need for separate handle and configuration components.
 
 ---
 
@@ -265,7 +323,8 @@ commands.spawn(AudioPlayer::<AudioSource>(asset_server.load("sound.ogg")));
 
 ### ⚠️ DEPRECATED: Clip-Based Animation
 
-**The entire clip-based animation system has been replaced** with a graph-based animation system that uses UUIDs instead of hierarchical paths.
+**The entire clip-based animation system has been replaced** with a graph-based animation system that uses UUIDs instead
+of hierarchical paths.
 
 ### Animation Player Setup
 
@@ -285,7 +344,7 @@ fn setup_animation(
             interpolation: Interpolation::Linear,
         },
     );
-    
+
     let mut player = AnimationPlayer::default();
     player.play(animations.add(animation));
     commands.spawn(player);
@@ -305,15 +364,15 @@ fn setup_animation(
             Quat::IDENTITY,
             Quat::from_rotation_y(PI),
         ]))
-        .map(RotationCurve)
-        .expect("Failed to build rotation curve"),
+            .map(RotationCurve)
+            .expect("Failed to build rotation curve"),
     );
 
     // Create animation graph
     let (graph, animation_index) = AnimationGraph::from_clip(animations.add(animation));
     let mut player = AnimationPlayer::default();
     player.play(animation_index);
-    
+
     commands.spawn((
         player,
         AnimationGraphHandle(graphs.add(graph)),
@@ -333,7 +392,7 @@ fn setup_complex_animation(
     let blend_node = graph.add_blend();
     let clip1 = graph.add_clip(clip1_handle, 1.0, blend_node);
     let clip2 = graph.add_clip(clip2_handle, 1.0, blend_node);
-    
+
     commands.spawn((
         AnimationPlayer::default(),
         AnimationGraphHandle(graphs.add(graph)),
@@ -341,7 +400,9 @@ fn setup_complex_animation(
 }
 ```
 
-**Migration Strategy**: Completely rewrite animation code to use the new graph-based system. This requires restructuring how animations are created, managed, and played. The new system provides much more powerful blending and transition capabilities but requires understanding the graph architecture.
+**Migration Strategy**: Completely rewrite animation code to use the new graph-based system. This requires restructuring
+how animations are created, managed, and played. The new system provides much more powerful blending and transition
+capabilities but requires understanding the graph architecture.
 
 ---
 
@@ -349,7 +410,8 @@ fn setup_complex_animation(
 
 ### ⚠️ DEPRECATED: Single Color Enum
 
-**The monolithic Color enum has been completely replaced** with specific color space structs for better type safety and color accuracy.
+**The monolithic Color enum has been completely replaced** with specific color space structs for better type safety and
+color accuracy.
 
 ### Color Creation and Usage
 
@@ -392,14 +454,16 @@ let oklcha: Oklcha = srgb.into();
 
 // Work with specific color spaces for better accuracy
 let warm_color = Oklcha {
-    lightness: 0.7,
-    chroma: 0.15,
-    hue: 50.0,
-    alpha: 1.0,
+lightness: 0.7,
+chroma: 0.15,
+hue: 50.0,
+alpha: 1.0,
 };
 ```
 
-**Migration Strategy**: Replace all `Color::rgb()` calls with `Color::srgb()` and import specific color constants from `bevy::color::palettes`. Use appropriate color space structs when you need to manipulate color channels or perform color operations.
+**Migration Strategy**: Replace all `Color::rgb()` calls with `Color::srgb()` and import specific color constants from
+`bevy::color::palettes`. Use appropriate color space structs when you need to manipulate color channels or perform color
+operations.
 
 ---
 
@@ -456,7 +520,8 @@ fn update_entity(world: &mut World, entity: Entity) -> Result<(), String> {
 }
 ```
 
-**Migration Strategy**: Update all query and world access code to handle Result types. This prevents runtime panics and makes error conditions explicit. Consider using the `?` operator for clean error propagation.
+**Migration Strategy**: Update all query and world access code to handle Result types. This prevents runtime panics and
+makes error conditions explicit. Consider using the `?` operator for clean error propagation.
 
 ---
 
@@ -488,7 +553,8 @@ fn fire_events(mut event_writer: EventWriter<PlayerDied>) {
 }
 ```
 
-**Migration Strategy**: Replace all `send` method calls with `write` method calls. This aligns with Rust's standard library naming conventions for write operations.
+**Migration Strategy**: Replace all `send` method calls with `write` method calls. This aligns with Rust's standard
+library naming conventions for write operations.
 
 ---
 
@@ -528,7 +594,8 @@ fn exit_system(mut exit: EventWriter<AppExit>) {
 }
 ```
 
-**Migration Strategy**: Update main function signatures to return `AppExit` and use the new structured exit codes for better application lifecycle management.
+**Migration Strategy**: Update main function signatures to return `AppExit` and use the new structured exit codes for
+better application lifecycle management.
 
 ---
 
@@ -574,7 +641,8 @@ impl AssetLoader for MyLoader {
 }
 ```
 
-**Migration Strategy**: Replace direct LoadContext methods with the new builder pattern. This provides more explicit control over loading behavior and asset type handling.
+**Migration Strategy**: Replace direct LoadContext methods with the new builder pattern. This provides more explicit
+control over loading behavior and asset type handling.
 
 ---
 
@@ -618,7 +686,8 @@ fn _assert_object_safe<T: ?Sized>() {
 }
 ```
 
-**Migration Strategy**: Update all imports to use the new crate locations. Remove dependencies on removed utilities and implement alternatives where necessary.
+**Migration Strategy**: Update all imports to use the new crate locations. Remove dependencies on removed utilities and
+implement alternatives where necessary.
 
 ---
 
@@ -633,4 +702,6 @@ fn _assert_object_safe<T: ?Sized>() {
 7. **Fix Import Statements**: Update all import paths for reorganized modules
 8. **Handle App Lifecycle**: Update main function to return AppExit
 
-This migration represents a fundamental shift in how Bevy applications are structured. The new patterns provide better type safety, performance, and developer experience, but require comprehensive code updates to adopt the new architectural approaches.
+This migration represents a fundamental shift in how Bevy applications are structured. The new patterns provide better
+type safety, performance, and developer experience, but require comprehensive code updates to adopt the new
+architectural approaches.
