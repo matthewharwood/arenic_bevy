@@ -7,6 +7,7 @@ use crate::config::{
     display::TILE_SIZE,
     ui::{CAMERA_PADDING_Y, SIDEBAR_WIDTH},
 };
+use crate::game_state::GameState;
 use bevy::prelude::*;
 
 /// Plugin that handles all UI-related functionality
@@ -15,7 +16,7 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            Startup,
+            OnEnter(GameState::Intro),
             (spawn_top_nav_bar, spawn_side_nav_bars, spawn_bottom_nav_bar),
         );
     }
