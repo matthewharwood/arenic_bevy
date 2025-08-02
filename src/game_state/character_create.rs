@@ -188,7 +188,7 @@ fn setup_cursor_icon(mut commands: Commands, windows: Query<Entity, With<Window>
 
 fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>) {
     let title_font = asset_server.load("fonts/Migra-Extrabold.ttf");
-
+    let title_font_sans_regular = asset_server.load("fonts/BeVietnamPro-Regular.ttf");
     commands.spawn((
         Node {
             width: Val::Percent(100.0),
@@ -445,6 +445,10 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                     CharacterAbilityPane,
                     children![
                         (
+                            Node {
+                                padding: UiRect::bottom(Val::Px(12.0)),
+                                ..Default::default()
+                            },
                             Text::new(format!("{} Skills", CharacterType::Hunter.class_name())),
                             TextFont {
                                 font: title_font.clone(),
@@ -460,7 +464,7 @@ fn setup_character_create(mut commands: Commands, asset_server: Res<AssetServer>
                                 format!("{}: {}", ability_name, ability_description)
                             }),
                             TextFont {
-                                font: title_font.clone(),
+                                font: title_font_sans_regular.clone(),
                                 font_size: 16.0,
                                 ..default()
                             },

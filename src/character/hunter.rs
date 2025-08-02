@@ -21,7 +21,7 @@ pub const HUNTER_DATA: CharacterData = CharacterData {
     ),
     portrait: "characters/hunter.png",
     ability_1: (
-        "Poison Shot",
-        "A shot that pushes hero back one prev square does DOT Damage for next 20s with 12s cooldown.",
+        "Auto Shot",
+        "Gun will auto fire against closest enemy within a 3x3 area",
     ),
 };
