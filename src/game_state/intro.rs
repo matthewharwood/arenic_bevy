@@ -7,8 +7,10 @@ use crate::battleground::Battleground;
 use crate::boss::guild_master::GuildMaster;
 use crate::boss::{Boss, BossAnimationConfig};
 use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH};
+use crate::config::display::TILE_SIZE;
 use crate::pseudo_states::Checked;
 use crate::trait_utils::ComponentDisplay;
+use crate::ui::Colors;
 use bevy::prelude::*;
 
 /// Plugin for the Intro/main game state
@@ -21,6 +23,10 @@ impl Plugin for IntroPlugin {
             (setup_intro, setup_arena_tiles, spawn_guild_master).chain(),
         )
         .add_systems(
+            OnEnter(GameState::Intro),
+            spawn_circle_shape.after(spawn_guild_master),
+        )
+        .add_systems(
             Update,
             animate_guild_master.run_if(in_state(GameState::Intro)),
         )
@@ -31,6 +37,10 @@ impl Plugin for IntroPlugin {
 /// Marker component for intro state entities
 #[derive(Component)]
 struct IntroScreen;
+
+/// Marker component for the circle shape
+#[derive(Component)]
+struct CircleShape;
 
 const GAME_NAME: &str = "Arenic";
 
@@ -260,6 +270,34 @@ fn animate_guild_master(
             };
         }
     }
+}
+
+fn spawn_circle_shape(
+    mut commands: Commands,
+    guild_house_query: Single<Entity, With<GuildHouse>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let guild_house_entity = guild_house_query.into_inner() else {
+        warn!("No GuildHouse entity found to spawn circle in!");
+        return;
+    };
+
+    let tile_x = 40.0;
+    let tile_y = -15.0;
+
+    // Convert tile coordinates to world position within the arena
+    let world_x = tile_x * TILE_SIZE;
+    let world_y = tile_y * TILE_SIZE;
+
+    commands.entity(guild_house_entity).with_children(|parent| {
+        parent.spawn((
+            Mesh2d(meshes.add(Circle::new(TILE_SIZE / 2.0))),
+            MeshMaterial2d(materials.add(Colors::BLACK)),
+            Transform::from_xyz(world_x, world_y, 1.0),
+            CircleShape,
+        ));
+    });
 }
 
 #[cfg(test)]
