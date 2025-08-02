@@ -1,15 +1,7 @@
 use bevy::prelude::*;
 
 // Module declarations for each boss type
-pub mod alchemist;
-pub mod cardinal;
-pub mod forager;
-pub mod merchant;
 pub mod guild_master;
-pub mod bard;
-pub mod warrior;
-pub mod thief;
-pub mod hunter;
 
 #[derive(Component)]
 pub struct BossAnimationConfig {
@@ -19,7 +11,6 @@ pub struct BossAnimationConfig {
 }
 
 pub trait Boss {
-    const NAME: &'static str;
     const TEXTURE_PATH: &'static str;
     const FRAME_COUNT: usize = 14;
     const FRAME_WIDTH: u32 = 115;

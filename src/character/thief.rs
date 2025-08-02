@@ -18,16 +18,4 @@ pub const THIEF_DATA: CharacterData = CharacterData {
         "Smoke Screen",
         "Any hero in the smoke screen can walk through enemies without taking damage",
     ),
-    ability_2: (
-        "Backstab",
-        "any positional move is an attack. Back attacks do more damage",
-    ),
-    ability_3: (
-        "Pickpocket",
-        "Lets you steal gold, buffs, or minor items from an enemy without interrupting its sequence. The enemy doesn't break stride; you just gain extra resources if you succeed.",
-    ),
-    ability_4: (
-        "Shadow Step",
-        "A forward dash that grants brief invulnerability. You pass through hazards, enemy spells, or boss patterns without altering the enemy's routine. Can result in a bump attack can be a backstab",
-    ),
 };

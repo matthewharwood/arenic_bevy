@@ -8,10 +8,8 @@ use crate::boss::guild_master::GuildMaster;
 use crate::boss::{Boss, BossAnimationConfig};
 use crate::config::arena::{ARENA_HEIGHT, ARENA_WIDTH};
 use crate::config::display::TILE_SIZE;
-use crate::pseudo_states::Checked;
 use crate::trait_utils::ComponentDisplay;
 use crate::ui::styles_config::Colors;
-use crate::ui_navigation::UiPlugin;
 use bevy::prelude::*;
 
 /// Plugin for the Intro/main game state
@@ -75,7 +73,6 @@ fn setup_intro(mut commands: Commands) {
                 Name::new(GuildHouse::NAME),
                 GuildHouse,
                 GuildHouse::transform(),
-                Checked,
                 Visibility::default(),
                 InheritedVisibility::default(),
             ));
@@ -257,7 +254,7 @@ fn spawn_guild_master(
 }
 fn animate_guild_master(
     time: Res<Time>,
-    mut guild_master: Single<(&mut Sprite, &mut BossAnimationConfig), With<GuildMaster>>,
+    guild_master: Single<(&mut Sprite, &mut BossAnimationConfig), With<GuildMaster>>,
 ) {
     let (mut sprite, mut config) = guild_master.into_inner();
     if let Some(texture_atlas) = sprite.texture_atlas.as_mut() {
@@ -279,10 +276,7 @@ fn spawn_circle_shape(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    let guild_house_entity = guild_house_query.into_inner() else {
-        warn!("No GuildHouse entity found to spawn circle in!");
-        return;
-    };
+    let guild_house_entity = guild_house_query.into_inner();
 
     let tile_x = 40.0;
     let tile_y = -15.0;

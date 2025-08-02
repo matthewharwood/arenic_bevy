@@ -5,19 +5,18 @@ use bevy::prelude::*;
 pub struct GuildMaster;
 
 impl Boss for GuildMaster {
-    const NAME: &'static str = "The Guild Master";
     const TEXTURE_PATH: &'static str = "bosses/guild_master.png";
     const FRAME_WIDTH: u32 = 115; // 4x export
     const FRAME_HEIGHT: u32 = 115; // 4x export
     const ANIMATION_FPS: f32 = 10.0;
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn test_guild_master_constants() {
-        assert_eq!(GuildMaster::NAME, "The Guild Master");
         assert_eq!(GuildMaster::TEXTURE_PATH, "bosses/guild_master.png");
         assert_eq!(GuildMaster::ANIMATION_FPS, 10.0);
     }

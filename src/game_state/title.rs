@@ -1,5 +1,4 @@
 use super::GameState;
-use crate::pseudo_states::Focused;
 use bevy::prelude::*;
 use bevy::winit::cursor::CursorIcon;
 use bevy::window::SystemCursorIcon;
@@ -12,7 +11,7 @@ impl Plugin for TitlePlugin {
         app.add_systems(OnEnter(GameState::Title), setup_title)
             .add_systems(
                 Update,
-                (title_input, handle_button_focus, handle_button_cursor).run_if(in_state(GameState::Title)),
+                (title_input, handle_button_cursor).run_if(in_state(GameState::Title)),
             )
             .add_systems(OnExit(GameState::Title), cleanup_title);
     }
@@ -109,7 +108,6 @@ fn setup_title(mut commands: Commands, asset_server: Res<AssetServer>) {
                         },
                         BackgroundColor(Color::srgb_u8(0xF0, 0xE9, 0xE9)),
                         BorderColor(Color::BLACK),
-                        Focused, // Auto-focused
                         NewGameButton,
                         TitleScreen,
                         children![(
@@ -146,17 +144,13 @@ fn title_input(
     }
 }
 
-fn handle_button_focus(_button_query: Query<&Focused, With<NewGameButton>>) {
-    // The elevated shadow effect is now handled by the layered UI structure
-    // The Focused component indicates the button is auto-focused and ready for Enter key
-}
 
 fn handle_button_cursor(
     mut commands: Commands,
     windows: Query<Entity, With<Window>>,
     button_query: Query<&Interaction, (Changed<Interaction>, With<NewGameButton>)>,
 ) {
-    if let Ok(window_entity) = windows.get_single() {
+    if let Ok(window_entity) = windows.single() {
         for interaction in &button_query {
             match *interaction {
                 Interaction::Hovered => {

@@ -24,13 +24,4 @@ pub const HUNTER_DATA: CharacterData = CharacterData {
         "Poison Shot",
         "A shot that pushes hero back one prev square does DOT Damage for next 20s with 12s cooldown.",
     ),
-    ability_2: ("Auto Shot", "Gun will auto fire against closest enemy"),
-    ability_3: (
-        "Trap",
-        "Lays a trap down on current grid space. If enemy touch it small AOE explosion 2x2.",
-    ),
-    ability_4: (
-        "Sniper",
-        "Fires any distance always at the boss 4 second cd, instant cast",
-    ),
 };

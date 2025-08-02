@@ -53,9 +53,4 @@ pub mod ui {
 
 /// Asset paths used throughout the game
 pub mod assets {
-    /// Selected player sprite asset path
-    pub const PLAYER_SELECTED: &str = "player_selected.png";
-
-    /// Unselected player sprite asset path
-    pub const PLAYER_UNSELECTED: &str = "player_unselected.png";
 }

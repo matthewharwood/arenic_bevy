@@ -21,16 +21,4 @@ pub const MERCHANT_DATA: CharacterData = CharacterData {
         "Dice",
         "Stackable 1% Chance to increase Critical strike on yourself for next attack. instant cast stacks",
     ),
-    ability_2: (
-        "Coin Toss",
-        "Spend money to give a skill shot. Big damage if hits, get money back. Up to 5s cast time. 10second cd",
-    ),
-    ability_3: (
-        "Fortune",
-        "Aura: The merchant and any adjacent hero's will have a luck % increase to gain gold on offensive attack (luck stacks)",
-    ),
-    ability_4: (
-        "TBD",
-        "4x4 grid that 2x Crit damage. 10 secs and 30s cd. (Stacks with other merchant)",
-    ),
 };

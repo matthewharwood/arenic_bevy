@@ -18,16 +18,4 @@ pub const WARRIOR_DATA: CharacterData = CharacterData {
         "Block",
         "Brings out shield to reflect any projectiles that come at the Tank",
     ),
-    ability_2: (
-        "Bash",
-        "Raises a spike shield for next attack to thrust at an enemy.",
-    ),
-    ability_3: (
-        "Taunt",
-        "Forces nearby enemies in a 2x2 to direct projectiles towards the Tank",
-    ),
-    ability_4: (
-        "Bulwark",
-        "Instantly raises a frontal barrier That absorbs all projectiles and cone attacks",
-    ),
 };

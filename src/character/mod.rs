@@ -28,9 +28,6 @@ pub struct CharacterData {
     pub icon: (&'static str, &'static str),
     pub portrait: &'static str,
     pub ability_1: (&'static str, &'static str),
-    pub ability_2: (&'static str, &'static str),
-    pub ability_3: (&'static str, &'static str),
-    pub ability_4: (&'static str, &'static str),
 }
 
 /// Unified character system using enum-based architecture
@@ -98,32 +95,4 @@ impl CharacterType {
         self.data().ability_1
     }
 
-    /// Get ability 2 (name, description)
-    pub const fn ability_2(self) -> (&'static str, &'static str) {
-        self.data().ability_2
-    }
-
-    /// Get ability 3 (name, description)
-    pub const fn ability_3(self) -> (&'static str, &'static str) {
-        self.data().ability_3
-    }
-
-    /// Get ability 4 (name, description)
-    pub const fn ability_4(self) -> (&'static str, &'static str) {
-        self.data().ability_4
-    }
-
-    /// Returns all character types in the order they should appear in the UI
-    pub const fn all() -> [CharacterType; 8] {
-        [
-            CharacterType::Warrior,
-            CharacterType::Hunter,
-            CharacterType::Thief,
-            CharacterType::Alchemist,
-            CharacterType::Bard,
-            CharacterType::Cardinal,
-            CharacterType::Forager,
-            CharacterType::Merchant,
-        ]
-    }
 }

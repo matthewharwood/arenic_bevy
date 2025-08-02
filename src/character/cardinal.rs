@@ -24,16 +24,4 @@ pub const CARDINAL_DATA: CharacterData = CharacterData {
         "Barrier",
         "Applies a defense and barrier on the nearest round robin hero within a 8x8 grid space 5s cooldown",
     ),
-    ability_2: (
-        "Beam",
-        "Fires a straight beam 1x8 grid that hurts foes. Cannot move while casting",
-    ),
-    ability_3: (
-        "Heal",
-        "Applies a heal nearest and weakest hero within a 8x8 grid space 5s cooldown",
-    ),
-    ability_4: (
-        "Resurrect",
-        "Resurrects any nearby hero within 4x4 grid 1min cooldown",
-    ),
 };

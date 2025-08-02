@@ -1,7 +1,6 @@
 use crate::config::arena::{GRID_HEIGHT, GRID_WIDTH};
 use crate::config::display::TILE_SIZE;
 use crate::config::{arena, display};
-use crate::tile::TilePosition;
 use bevy::asset::AssetServer;
 use bevy::math::Vec2;
 use bevy::prelude::{default, Commands, Component, Entity, Sprite, Transform};
@@ -37,7 +36,7 @@ impl Arena {
         commands: &mut Commands,
         arena_entity: Entity,
         asset_server: &AssetServer,
-        arena_index: usize,
+        _arena_index: usize,
     ) {
         let image_path = format!("{}.png", "default_grid_tile");
 
@@ -51,7 +50,6 @@ impl Arena {
                             ..default()
                         },
                         Transform::from_xyz(col as f32 * TILE_SIZE, -(row as f32 * TILE_SIZE), 0.0),
-                        TilePosition { row, col },
                     ));
                 }
             }
@@ -80,10 +78,6 @@ pub trait ArenaTransform {
         )
     }
 
-    /// Get the index for this arena type
-    fn index() -> usize {
-        Self::INDEX
-    }
 }
 
 #[derive(Component, Debug, Clone)]

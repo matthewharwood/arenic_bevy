@@ -21,10 +21,4 @@ pub const BARD_DATA: CharacterData = CharacterData {
         "Cleanse",
         "Removes any debuffs from any heros within a 4x4 grid",
     ),
-    ability_2: ("Dance", "Quick Time Event sequence of keyclicks"),
-    ability_3: ("Helix", "haste or heal"),
-    ability_4: (
-        "Mimic",
-        "Bard will instant cast mimic the previous damage spell casted by adjacent hero",
-    ),
 };
