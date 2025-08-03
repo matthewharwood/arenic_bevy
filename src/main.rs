@@ -39,6 +39,8 @@ pub const GRID_WIDTH: u32 = 66;
 pub const GRID_HEIGHT: u32 = 31;
 pub const ARENA_WIDTH: f32 = GRID_WIDTH as f32 * TILE_SIZE;
 pub const ARENA_HEIGHT: f32 = GRID_HEIGHT as f32 * TILE_SIZE;
+pub const ARENA_WIDTH_HALF: f32 = ARENA_WIDTH / 2.0;
+pub const ARENA_HEIGHT_HALF: f32 = ARENA_HEIGHT / 2.0;
 
 // 3x3 arena grid constants
 pub const ARENAS_PER_ROW: u32 = 3;
@@ -58,15 +60,15 @@ pub const TILE_COLOR: Color = Color::srgb(0.6, 0.6, 0.6);
 
 // Debug arena colors (hex colors converted to sRGB)
 pub const DEBUG_COLORS: [Color; 9] = [
-    Color::srgb(1.0, 0.329, 0.0),      // #ff5400
-    Color::srgb(1.0, 0.557, 0.0),      // #ff8e00
-    Color::srgb(1.0, 0.824, 0.0),      // #ffd200
-    Color::srgb(0.506, 0.902, 0.314),  // #81e650
-    Color::srgb(0.0, 0.824, 0.404),    // #00d267
-    Color::srgb(0.0, 0.753, 1.0),      // #00c0ff
-    Color::srgb(0.545, 0.282, 0.996),  // #8b48fe
-    Color::srgb(0.792, 0.255, 0.988),  // #ca41fc
-    Color::srgb(1.0, 0.275, 0.984),    // #ff46fb
+    Color::srgb(1.0, 0.329, 0.0),     // #ff5400
+    Color::srgb(1.0, 0.557, 0.0),     // #ff8e00
+    Color::srgb(1.0, 0.824, 0.0),     // #ffd200
+    Color::srgb(0.506, 0.902, 0.314), // #81e650
+    Color::srgb(0.0, 0.824, 0.404),   // #00d267
+    Color::srgb(0.0, 0.753, 1.0),     // #00c0ff
+    Color::srgb(0.545, 0.282, 0.996), // #8b48fe
+    Color::srgb(0.792, 0.255, 0.988), // #ca41fc
+    Color::srgb(1.0, 0.275, 0.984),   // #ff46fb
 ];
 
 fn setup_scene(
@@ -76,11 +78,7 @@ fn setup_scene(
 ) {
     // Create shared mesh
     // Cuboid dimensions: width (X), height (Y), depth (Z)
-    let tile_mesh = meshes.add(Cuboid::new(
-        TILE_SIZE - TILE_GAP,
-        TILE_SIZE - TILE_GAP,
-        TILE_HEIGHT,
-    ));
+    let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
 
     // Add Debug component to enable debug visualization
     commands.spawn(Debug);
@@ -89,7 +87,7 @@ fn setup_scene(
     setup_arena_grid(&mut commands, &tile_mesh, &mut materials);
 
     // Setup camera positioned to see entire grid
-    setup_camera(&mut commands);
+    setup_camera(&mut commands, 1);
 
     // Add simple lighting
     setup_lighting(&mut commands);
@@ -99,7 +97,7 @@ fn setup_scene(
 fn spawn_battleground(commands: &mut Commands) -> Entity {
     commands
         .spawn((
-            Transform::from_xyz(-ARENA_WIDTH / 2.0, ARENA_HEIGHT / 2.0, 0.0),
+            Transform::from_xyz(-ARENA_WIDTH_HALF, ARENA_HEIGHT_HALF, 0.0),
             InheritedVisibility::default(),
             BattleGround,
         ))
@@ -132,6 +130,18 @@ fn spawn_arena(
     });
 }
 
+/// Helper function to get arena position from index
+fn get_arena_position(arena_index: u32) -> Vec3 {
+    let col = arena_index % ARENAS_PER_ROW;
+    let row = arena_index / ARENAS_PER_ROW;
+    
+    // Start from window top-left corner and offset by arena size
+    let x = -HALF_WINDOW_WIDTH + (col as f32 * ARENA_WIDTH) + HALF_TILE;
+    let y = HALF_WINDOW_HEIGHT - (row as f32 * ARENA_HEIGHT) - HALF_TILE;
+    
+    Vec3::new(x, y, 0.0)
+}
+
 /// Sets up a 3x3 grid of arenas (9 arenas total) adapted from 2D implementation
 fn setup_arena_grid(
     commands: &mut Commands,
@@ -142,10 +152,11 @@ fn setup_arena_grid(
     commands.spawn(CurrentArena(1));
 
     // Create materials for each arena (using debug colors since Debug component is spawned)
-    let arena_materials: Vec<Handle<StandardMaterial>> = (0..TOTAL_ARENAS)
-        .map(|i| {
+    let arena_materials: Vec<Handle<StandardMaterial>> = DEBUG_COLORS
+        .iter()
+        .map(|&color| {
             materials.add(StandardMaterial {
-                base_color: DEBUG_COLORS[i as usize],
+                base_color: color,
                 ..default()
             })
         })
@@ -153,74 +164,45 @@ fn setup_arena_grid(
 
     // Set up 3x3 grid of arenas (9 arenas total)
     for arena_index in 0..TOTAL_ARENAS {
-        let arena_col = arena_index % ARENAS_PER_ROW;
-        let arena_row = arena_index / ARENAS_PER_ROW;
-
-        // Calculate 3D positioning (adapted from your 2D version)
-        let x_offset = arena_col as f32 * ARENA_WIDTH;
-        let y_offset = arena_row as f32 * ARENA_HEIGHT;
-
-        // Position arenas in 3D space (XY plane for top-down view)
-        let arena_x = -HALF_WINDOW_WIDTH + HALF_TILE + x_offset;
-        let arena_y = HALF_WINDOW_HEIGHT - HALF_TILE - y_offset;
+        let position = get_arena_position(arena_index);
 
         // Create battleground entity for this arena
         let battleground_entity = commands
             .spawn((
-                Transform::from_xyz(arena_x, arena_y, 0.0),
+                Transform::from_translation(position),
                 InheritedVisibility::default(),
                 BattleGround,
             ))
             .id();
 
         // Spawn the arena grid tiles as children
-        spawn_arena(commands, battleground_entity, tile_mesh, &arena_materials[arena_index as usize]);
+        spawn_arena(
+            commands,
+            battleground_entity,
+            tile_mesh,
+            &arena_materials[arena_index as usize],
+        );
     }
 }
 
-/// Setup camera to view entire grid
-fn setup_camera(commands: &mut Commands) {
-    // CAMERA POSITIONING
-    // Place camera high above the grid for birds eye view
-    let camera_height = 1000.0;
+/// Calculate camera position to center on a specific arena
+pub fn calculate_camera_position(arena_index: u8) -> Vec3 {
+    let position = get_arena_position(arena_index as u32);
+    // Add half arena dimensions to get center
+    position + Vec3::new(ARENA_WIDTH_HALF - HALF_TILE, -ARENA_HEIGHT_HALF + HALF_TILE, 0.0)
+}
 
-    // MAKING TILES APPEAR AS 19x19 PIXELS:
-    // With orthographic projection, the 'scale' determines the world-to-pixel mapping
-    // The formula is: scale = (world_units_visible / window_pixels)
-    //
-    // Our grid dimensions:
-    // - Width: 66 tiles × 19 units = 1254 world units
-    // - Height: 31 tiles × 19 units = 589 world units
-    // - Window: 1280×720 pixels
-    //
-    // To fit the grid with minimal margins:
-    let grid_width = GRID_WIDTH as f32 * TILE_SIZE; // 1254 world units
-    let grid_height = GRID_HEIGHT as f32 * TILE_SIZE; // 589 world units
-
-    // Add 5% margin to ensure everything fits
-    let margin = 1.05;
-
-    // Calculate scale to fit both dimensions
-    // We need the larger scale to ensure both width and height fit
-    let scale_for_width = (grid_width * margin) / 1280.0; // World units per pixel horizontally
-    let scale_for_height = (grid_height * margin) / 720.0; // World units per pixel vertically
-    let scale = scale_for_width.max(scale_for_height); // Use larger to ensure fit
-
-    // With this scale, 1 world unit ≈ 1 pixel (approximately)
-    // So our 19 world unit tiles will appear as ~19 pixels on screen
-
-    // Position camera to make Y-axis point up on screen
-    // This makes the coordinate system more intuitive for 2D-style games
+/// Setup camera to center on a specific arena (0-8) or view entire grid if None
+fn setup_camera(commands: &mut Commands, arena_index: u8) {
+    let center = calculate_camera_position(arena_index);
+    let camera_pos = center + Vec3::new(0.0, 0.0, 1000.0); // Add height
+    
     commands.spawn((
         Camera3d::default(),
-        Transform::from_xyz(0.0, 0.0, camera_height) // Position along +Z axis
-            .looking_at(Vec3::ZERO, Vec3::Y), // Look at origin, Y is "up"
+        Transform::from_translation(camera_pos).looking_at(center, Vec3::Y),
         Projection::from(OrthographicProjection {
-            scale,
-            scaling_mode: ScalingMode::Fixed {
-                width: 1280.0,
-                height: 720.0,
-            },
+            scale: 1.0,
+            scaling_mode: ScalingMode::WindowSize,
             ..OrthographicProjection::default_3d()
         }),
     ));
