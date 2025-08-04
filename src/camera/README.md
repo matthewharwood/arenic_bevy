@@ -132,6 +132,91 @@ Spawns a camera entity centered on the specified arena.
 camera::setup_camera(&mut commands, 4);
 ```
 
+## Blender to Bevy Asset Pipeline
+
+### Coordinate System Transformation
+
+Blender and Bevy have different default orientations for objects:
+
+#### Blender Default Orientation
+```
+    Y (Up - Top face points here)
+    ^
+    |  ┌─────┐
+    | /     /|
+    |/     / |
+    +─────+  | --> X
+   /|     |  |
+  / |     | /
+ Z  |     |/
+    +─────+
+```
+
+#### Required Orientation for Bevy Camera
+```
+    Y (Up - Used as camera "up" vector)
+    ^
+    |     Z (Top face must point here)
+    |    ^
+    |   /  ┌─────┐
+    |  /  /     /|
+    | /  /     / |
+    |/  +─────+  | --> X
+    +  |     |  |
+      |     | /
+      |     |/
+      +─────+
+```
+
+### Why +90° X Rotation is Required
+
+Since the camera looks down from +Z towards -Z, the top face of tiles must point towards +Z to be visible. In Blender:
+1. Default cube has top face pointing to +Y
+2. Rotating +90° on X axis makes top face point to +Z
+3. This aligns with Bevy's camera view direction
+
+### Blender Export Steps for Proper Camera Alignment
+
+1. **Model your tile** with dimensions 19×19×2 units (matching `TILE_SIZE` and `TILE_HEIGHT`)
+
+2. **Apply the critical rotation**:
+   ```
+   - Select your tile in Object Mode
+   - Press N to open properties panel
+   - Rotate +90° on X axis
+   - Apply rotation (Ctrl+A → Rotation)
+   ```
+
+3. **Verify orientation**:
+   - Enable Face Orientation overlay
+   - The top face (with any special features like insets) should show blue
+   - Blue faces should point towards +Z
+
+4. **Export settings**:
+   - File → Export → glTF 2.0 (.glb)
+   - Enable: Apply Modifiers, Selected Objects, Apply Transform
+   - Ensure +Y Up orientation is selected
+   - Save as `assets/tile.glb`
+
+5. **Test in Bevy**:
+   ```rust
+   commands.spawn(SceneRoot(asset_server.load("tile.glb#Scene0")));
+   ```
+
+### Visual Guide: Tile Orientation
+
+```
+WRONG (Top face not visible):          CORRECT (After +90° X rotation):
+                                       
+    Camera 👁️                              Camera 👁️
+       |                                      |
+       v                                      v
+    ───────  (Side view visible)           ┌─────┐ (Top view visible)
+                                          │░░░░░│ (Inset/details visible)
+                                          │░░░░░│
+                                          └─────┘
+```
+
 ## Important Notes
 
 1. **Orthographic Projection**: All tiles appear the same size regardless of distance
@@ -139,3 +224,4 @@ camera::setup_camera(&mut commands, 4);
 3. **Z-ordering**: Entities with higher Z values appear in front
 4. **Arena Centers**: The camera focuses on the geometric center of each arena
 5. **No Rotation**: The camera always looks straight down (no tilt or rotation)
+6. **Blender Export**: Always rotate tiles +90° on X axis before exporting to ensure proper camera visibility
