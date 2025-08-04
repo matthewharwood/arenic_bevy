@@ -1,8 +1,8 @@
 mod battleground;
+mod camera;
 
 use crate::battleground::BattleGround;
 use bevy::prelude::*;
-use bevy::render::camera::ScalingMode;
 use bevy::window::WindowResolution;
 
 const GAME_NAME: &str = "Arenic";
@@ -73,21 +73,20 @@ pub const DEBUG_COLORS: [Color; 9] = [
 
 fn setup_scene(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
-    // Create shared mesh
-    // Cuboid dimensions: width (X), height (Y), depth (Z)
-    let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
+    // Load the tile model
+    let tile_scene = asset_server.load("tile.glb#Scene0");
 
     // Add Debug component to enable debug visualization
     commands.spawn(Debug);
 
     // Create 3x3 grid of arenas (9 arenas total)
-    setup_arena_grid(&mut commands, &tile_mesh, &mut materials);
+    setup_arena_grid(&mut commands, tile_scene, &mut materials);
 
     // Setup camera positioned to see entire grid
-    setup_camera(&mut commands, 1);
+    camera::setup_camera(&mut commands, 1);
 
     // Add simple lighting
     setup_lighting(&mut commands);
@@ -108,8 +107,7 @@ fn spawn_battleground(commands: &mut Commands) -> Entity {
 fn spawn_arena(
     commands: &mut Commands,
     parent_entity: Entity,
-    tile_mesh: &Handle<Mesh>,
-    tile_material: &Handle<StandardMaterial>,
+    tile_scene: Handle<Scene>,
 ) {
     commands.entity(parent_entity).with_children(|parent| {
         for x in 0..GRID_WIDTH {
@@ -119,8 +117,7 @@ fn spawn_arena(
 
                 // Spawn each tile as a child
                 parent.spawn((
-                    Mesh3d(tile_mesh.clone()),
-                    MeshMaterial3d(tile_material.clone()),
+                    SceneRoot(tile_scene.clone()),
                     Transform::from_xyz(world_x, world_y, 0.0),
                     GridPosition { x, y },
                     ArenaTile,
@@ -130,29 +127,18 @@ fn spawn_arena(
     });
 }
 
-/// Helper function to get arena position from index
-fn get_arena_position(arena_index: u32) -> Vec3 {
-    let col = arena_index % ARENAS_PER_ROW;
-    let row = arena_index / ARENAS_PER_ROW;
-    
-    // Start from window top-left corner and offset by arena size
-    let x = -HALF_WINDOW_WIDTH + (col as f32 * ARENA_WIDTH) + HALF_TILE;
-    let y = HALF_WINDOW_HEIGHT - (row as f32 * ARENA_HEIGHT) - HALF_TILE;
-    
-    Vec3::new(x, y, 0.0)
-}
 
 /// Sets up a 3x3 grid of arenas (9 arenas total) adapted from 2D implementation
 fn setup_arena_grid(
     commands: &mut Commands,
-    tile_mesh: &Handle<Mesh>,
+    tile_scene: Handle<Scene>,
     materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
     // Spawn current arena marker
     commands.spawn(CurrentArena(1));
 
     // Create materials for each arena (using debug colors since Debug component is spawned)
-    let arena_materials: Vec<Handle<StandardMaterial>> = DEBUG_COLORS
+    let _arena_materials: Vec<Handle<StandardMaterial>> = DEBUG_COLORS
         .iter()
         .map(|&color| {
             materials.add(StandardMaterial {
@@ -164,7 +150,7 @@ fn setup_arena_grid(
 
     // Set up 3x3 grid of arenas (9 arenas total)
     for arena_index in 0..TOTAL_ARENAS {
-        let position = get_arena_position(arena_index);
+        let position = camera::get_arena_position(arena_index);
 
         // Create battleground entity for this arena
         let battleground_entity = commands
@@ -179,34 +165,11 @@ fn setup_arena_grid(
         spawn_arena(
             commands,
             battleground_entity,
-            tile_mesh,
-            &arena_materials[arena_index as usize],
+            tile_scene.clone(),
         );
     }
 }
 
-/// Calculate camera position to center on a specific arena
-pub fn calculate_camera_position(arena_index: u8) -> Vec3 {
-    let position = get_arena_position(arena_index as u32);
-    // Add half arena dimensions to get center
-    position + Vec3::new(ARENA_WIDTH_HALF - HALF_TILE, -ARENA_HEIGHT_HALF + HALF_TILE, 0.0)
-}
-
-/// Setup camera to center on a specific arena (0-8) or view entire grid if None
-fn setup_camera(commands: &mut Commands, arena_index: u8) {
-    let center = calculate_camera_position(arena_index);
-    let camera_pos = center + Vec3::new(0.0, 0.0, 1000.0); // Add height
-    
-    commands.spawn((
-        Camera3d::default(),
-        Transform::from_translation(camera_pos).looking_at(center, Vec3::Y),
-        Projection::from(OrthographicProjection {
-            scale: 1.0,
-            scaling_mode: ScalingMode::WindowSize,
-            ..OrthographicProjection::default_3d()
-        }),
-    ));
-}
 
 /// Simple lighting setup
 fn setup_lighting(commands: &mut Commands) {
