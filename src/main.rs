@@ -1,6 +1,6 @@
 mod arena;
+mod arena_camera;
 mod battleground;
-mod camera;
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
@@ -37,15 +37,13 @@ fn setup_scene(
     // Create 3x3 grid of arenas (9 arenas total)
     arena::setup_arena_grid(&mut commands, tile_scene, &mut materials);
 
-    // Setup camera positioned to see entire grid  
+    // Setup camera positioned to see entire grid
     let default_arena = arena::ArenaId::new(1).expect("Arena 1 should be valid");
-    camera::setup_camera(&mut commands, default_arena);
+    arena_camera::setup_camera(&mut commands, default_arena);
 
     // Add simple lighting
     setup_lighting(&mut commands);
 }
-
-
 
 /// Simple lighting setup
 fn setup_lighting(commands: &mut Commands) {

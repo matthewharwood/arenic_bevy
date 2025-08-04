@@ -129,7 +129,7 @@ Spawns a camera entity centered on the specified arena.
 
 ```rust
 // Center camera on arena 4 (middle arena)
-camera::setup_camera(&mut commands, 4);
+arena_camera::setup_camera(&mut commands, 4);
 ```
 
 ## Blender to Bevy Asset Pipeline

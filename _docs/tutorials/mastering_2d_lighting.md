@@ -141,7 +141,7 @@ This is your traffic control center. Every light decision flows through this sys
 use bevy::prelude::*;
 use std::collections::VecDeque;
 use crate::recording::ArenaIndex; // Import from the existing recording module
-use crate::camera::CurrentArena; // Import from the existing camera module
+use crate::arena_camera::CurrentArena; // Import from the existing arena_camera module
 
 /// The central nervous system for all lighting decisions
 #[derive(Resource)]
