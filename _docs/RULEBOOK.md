@@ -4,7 +4,8 @@
 
 - *Solo 40-Man Raid Feel*  
   You simulate large-scale MMORPG-style raids—but as a *solo* player—via the *Record & Replay* system. Each arena can
-  feature up to *40 characters*, and there are *8 arenas* total (320 characters max).
+  feature up to *40 characters*, and there are *9 arenas* total. There will be an inventory of a total of 400 characters (360 or 40 per arena and an overflow of 40 for end game).
+- Each Arena has 1 unique boss which belongs to that particular arena e.g. Hunter belongs to the arena the Labyrinth 
 
 - *Asynchronous 2-Minute Cycles*  
   Each arena has its own *2-minute timer* for recordings and replays. You can manage or pause them independently.
@@ -21,7 +22,7 @@
 1. *Arena Setup*
 
     - *8 distinct arenas* with different bosses, themes, and mechanics.
-    - Each arena is a *320×180* grid (size may be adjusted during development).
+    - Each arena is a *66×31* grid (size may be adjusted during development).
     - Timer per arena: *2 minutes*, fully independent of other arenas.
     - Multiple arenas can run simultaneously in real time; players can also zoom out of an arena to navigate between
       them.
