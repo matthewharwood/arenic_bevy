@@ -52,7 +52,14 @@ fn setup_scene(
     arena_camera::setup_camera(&mut commands, default_arena);
 
     // Spawn blue sphere in arena 1 at column 32, row 15
-    spawn_sphere(&mut commands, &mut meshes, &mut materials, default_arena, 32, 15);
+    spawn_sphere(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        default_arena,
+        32,
+        15,
+    );
 
     // Add simple lighting
     setup_lighting(&mut commands);
@@ -79,12 +86,12 @@ fn spawn_sphere(
 
     // Calculate the arena's world position
     let arena_position = arena::get_arena_position(arena_id);
-    
+
     // Calculate local position within the arena based on grid coordinates
     // Each tile is 19 units, positioned from top-left corner of arena
-    let local_x = column as f32 * arena::TILE_SIZE + arena::HALF_TILE;
-    let local_y = -(row as f32 * arena::TILE_SIZE) - arena::HALF_TILE;
-    
+    let local_x = column as f32 * arena::TILE_SIZE;
+    let local_y = -(row as f32 * arena::TILE_SIZE);
+
     // Combine arena position with local position, add slight elevation
     let world_position = arena_position + Vec3::new(local_x, local_y, sphere_radius);
 
