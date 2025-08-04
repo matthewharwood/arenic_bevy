@@ -35,6 +35,7 @@ pub struct Debug;
 fn setup_scene(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
 ) {
     // Load the tile model
@@ -50,8 +51,51 @@ fn setup_scene(
     let default_arena = arena::ArenaId::new(1).expect("Arena 1 should be valid");
     arena_camera::setup_camera(&mut commands, default_arena);
 
+    // Spawn blue sphere in arena 1 at column 32, row 15
+    spawn_sphere(&mut commands, &mut meshes, &mut materials, default_arena, 32, 15);
+
     // Add simple lighting
     setup_lighting(&mut commands);
+}
+
+/// Spawn a blue sphere at the specified grid position within an arena
+fn spawn_sphere(
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<StandardMaterial>>,
+    arena_id: arena::ArenaId,
+    column: u32,
+    row: u32,
+) {
+    // Create blue material close to #276EF1
+    let blue_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.153, 0.431, 0.945), // #276EF1
+        ..default()
+    });
+
+    // Create sphere mesh that fits within a 19x19 tile
+    let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
+    let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
+
+    // Calculate the arena's world position
+    let arena_position = arena::get_arena_position(arena_id);
+    
+    // Calculate local position within the arena based on grid coordinates
+    // Each tile is 19 units, positioned from top-left corner of arena
+    let local_x = column as f32 * arena::TILE_SIZE + arena::HALF_TILE;
+    let local_y = -(row as f32 * arena::TILE_SIZE) - arena::HALF_TILE;
+    
+    // Combine arena position with local position, add slight elevation
+    let world_position = arena_position + Vec3::new(local_x, local_y, sphere_radius);
+
+    // Spawn the sphere entity with appropriate components
+    commands.spawn((
+        Mesh3d(sphere_mesh),
+        MeshMaterial3d(blue_material),
+        Transform::from_translation(world_position),
+        arena::InArena::new(arena_id),
+        arena::GridPosition::new(column, row),
+    ));
 }
 
 /// Simple lighting setup
