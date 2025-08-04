@@ -1,11 +1,14 @@
-# ***ARENIC: Comprehensive Rulebook (v6.0)***
+# ***ARENIC: Comprehensive Rulebook (v7.0)***
 
-## ***1\. Core Concept & Vision***
+## ***1. Core Concept & Vision***
 
-- *Solo 40-Man Raid Feel*  
-  You simulate large-scale MMORPG-style raids—but as a *solo* player—via the *Record & Replay* system. Each arena can
-  feature up to *40 characters*, and there are *9 arenas* total. There will be an inventory of a total of 400 characters (360 or 40 per arena and an overflow of 40 for end game).
-- Each Arena has 1 unique boss which belongs to that particular arena e.g. Hunter belongs to the arena the Labyrinth 
+- *Solo 40-Man Raid Feel* You simulate large-scale MMORPG-style raids—but as a *solo* player—via the *Record & Replay* system. Each arena can
+  feature up to *40 characters*, and there are *9 arenas* total.
+- Each Character can have up to 4 abilities Where all abilities can be read here: [_list.md](abilities/_list.md).
+- Abilities can have an upgrade path via a "Gacha System" that can be applied to 1 ability of a single hero. 
+- Hero's can freely move around an arena but when they start a recording their movements and abilities are recorded. When a recording is completed the recorded her will play back these events in the same order and time.  
+
+ 
 
 - *Asynchronous 2-Minute Cycles*  
   Each arena has its own *2-minute timer* for recordings and replays. You can manage or pause them independently.
@@ -17,15 +20,16 @@
 
 ---
 
-## ***2\. Arenas & Grid Fundamentals***
+## ***2. Arenas & Grid Fundamentals***
 
 1. *Arena Setup*
 
-    - *8 distinct arenas* with different bosses, themes, and mechanics.
+    - *9 distinct arenas* with different bosses, themes, and mechanics.
     - Each arena is a *66×31* grid (size may be adjusted during development).
     - Timer per arena: *2 minutes*, fully independent of other arenas.
     - Multiple arenas can run simultaneously in real time; players can also zoom out of an arena to navigate between
       them.
+    - Each Arena has 1 unique boss which belongs to that particular arena e.g. Hunter belongs to the arena the Labyrinth.
 
 
 2. *Movement & Collision*
@@ -41,32 +45,24 @@
         - Subtle highlight on the currently selected tile and/or selected character.
 
 
-3. *Global Pause/Resume*
-
-    - Press *Enter/Return* to pause the entire game and open a menu (e.g., for roster management).
-    - Individual arenas can also be paused, leaving others running.
-
 
 4. *Arena Navigation & Viewing* (Design Document §§5, 17\)
 
-    - *Q / E*: Paginate through arenas.
-    - *W*: Zoom out of an arena to view the overworld or zoom back in to confirm arena selection.
-    - Each arena persists in real time for both active (recording) and idle replays, including boss fights and
-      environment interactions.
-    - *Design*:
-        - Show metadata such as arena name and how many active rotations (ghosts) are running.
-        - Indicator icons if a boss is defeated, or if the arena is in an “idle gathering” state, etc.
+    - *`[` / `]`*: Paginate through arenas.
+    - `P`: Toggles the `arena_camera` from `scale: 1` to `scale: 3` and back. At `scale 3` the Player can see all 9 arenas in a 3x3 layout. At `scale: 1` the `selected` arena is centered in view.
+    - While there is a global timer in bevy, each arena's 2min timers are independant of another. Meaning that a timer in the Hunter's `Labyrinth` could be at 90s of the 120s time while the Bard's `Gala` timer could be at 30s of the 120s. All these arena timers on game load start in sync; however, as the Player starts recordings of a character in a particular arena, the arena's timer will be restarted from `0` where other arenas will be continuing to play through.
+    - Once an Arena timer has hit it's 2min timer it will loop. E.g. timer reset to 0 for that arena, and all characters with recording will start playing back again.
 
 ---
 
-## ***3\. Characters & Classes***
+## ***3. Characters & Classes***
 
 1. *Roster & Classes*
 
     - You can manage up to *40 characters* per arena—so *320* total if all 8 arenas are fully staffed.
     - There are *8 classes* (Hunter, Alchemist, Forager, Thief, Tank, Cardinal, Merchant, Bard).
     - Classes have unique abilities; each hero can equip *up to 4* abilities at a time.
-
+    - There will be an inventory of a total of 400 characters (360 or 40 per arena and an overflow of 40 for end game management).
 
 2. *Primary & Additional Abilities*
 
@@ -113,49 +109,14 @@
 
 ---
 
-## ***4\. Record & Replay System***
-
-1. *Recording Sessions*
-
-    - Press *R* to begin recording a 2-minute timeline for the selected character in the active arena.
-    - A *3-second* countdown may appear before the clock starts.
-    - Press *F* to finalize the recording, turning it into a “ghost.”
+## ***4. Record & Replay System***
+[README.md](recording_playback/README.md)
 
 
-2. *Cancels & Partial Use*
-
-    - If you cancel before finalizing, new data is discarded, and the arena’s timer resets to *0*.
-    - If you finalize early (say at 1:00), the hero idles from 1:00 to 2:00 in that timeline.
+## 7. ***Gacha System***
+[README.md](gacha_system/README.md)
 
 
-3. *2-Minute Duration & Idle*
-
-    - The maximum recording length is *2 minutes*.
-    - If the player stops input after 1 minute but still finalizes, the timeline includes 1 minute of action \+ 1 minute
-      of idle.
-
-
-4. *Layered Timelines*
-
-    - Each completed recording is a “ghost” that replays every 2-minute cycle.
-    - You can layer up to *40* hero recordings in one arena, all in parallel.
-    - Over time, you build massive raids by synchronizing multiple ghosts.
-
-
-5. *Death & Revival in the Timeline*
-
-    - If a hero dies at a certain timestamp in their recorded run, that death recurs in replays (unless you record a new
-      run to alter that outcome).
-    - Revival spells must target a specific grid cell/time. If the hero’s corpse is there during that cast, they get
-      revived.
-
-
-6. *No Rewind*
-
-    - Once you finalize a recorded timeline, it’s immutable.
-    - For a different outcome, record a new session.
-
----
 
 ## ***5\. Determinism & Future RNG***
 
@@ -208,7 +169,7 @@
     - They have a rotation of attacks (often 30s–2min in pattern length) that’s fully deterministic.
 
 
-2. *Mechanics & Telegraphs* (Design Document §§11, 19\)
+2. *Mechanics & Telegraphs* (Design Document)
 
     - Bosses and the arena can have shifting terrain, traps, or hazards telegraphed on the grid.
     - Large telegraphs or “winds-ups” for big attacks so players can record dodges or counters.
@@ -229,33 +190,7 @@
 
 ## ***8\. Gacha-Like Recruitment & Loot***
 
-1. *Loot & Currency* (Design Document §§12, 18\)
 
-    - Defeated enemies can drop loot; use *Space* to pick it up.
-    - Rarity is color-coded. Gear upgrades, ability enhancements, or crafting materials can be found.
-    - Currency can be spent at in-raid shops or an *in-raid auction house* (if implemented).
-
-
-2. *Inventory & Equipment Management* (Design Document §13)
-
-    - Equip heroes with gear that boosts stats or modifies abilities.
-    - No strict limit on the total gear or consumables you can carry.
-    - *Loadouts* for quick gear swapping are recommended.
-    - The UI can highlight gear upgrades vs. downgrades for quick decisions.
-
-
-3. *Gacha & Recruitment*
-
-    - Each arena can grant a “gacha roll” after a successful 2-minute cycle. The class offered typically matches that
-      arena’s theme (e.g., a Thief from the Thief’s arena).
-    - No immediate “pity timer,” though the design might evolve to include incremental improvements over time.
-    - Recruits appear at the Guild House; you can accept or deny them.
-
-
-4. *Gacha Buff Stacking*
-
-    - Some “global buff consumables” come from gacha. They stack or overwrite each other based on buff tags/levels.
-    - Buff timers run in parallel, displayed in a single global HUD, and affect *all* arenas simultaneously.
 
 ---
 
