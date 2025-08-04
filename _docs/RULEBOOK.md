@@ -2,13 +2,20 @@
 
 ## ***1. Core Concept & Vision***
 
-- *Solo 40-Man Raid Feel* You simulate large-scale MMORPG-style raids—but as a *solo* player—via the *Record & Replay* system. Each arena can
+- *Solo 40-Man Raid Feel* You simulate large-scale MMORPG-style raids—but as a *solo* player—via the *Record & Replay*
+  system. Each arena can
   feature up to *40 characters*, and there are *9 arenas* total.
 - Each Character can have up to 4 abilities Where all abilities can be read here: [_list.md](abilities/_list.md).
-- Abilities can have an upgrade path via a "Gacha System" that can be applied to 1 ability of a single hero. 
-- Hero's can freely move around an arena but when they start a recording their movements and abilities are recorded. When a recording is completed the recorded her will play back these events in the same order and time.  
+- Abilities can have an upgrade path via a "Gacha System" that can be applied to 1 ability of a single hero.
+- Hero's can freely move around an arena but when they start a recording their movements and abilities are recorded.
+  When a recording is completed the recorded her will play back these events in the same order and time.
+- Each Arena has of one relationship ClassType
+- Each Character has a of one relationship a ClassType
+- Each Boss has a of one relationship to ClassType
+- Each Arena can host up to *40 Character* playing back their recordings. for a total of 360 Characters. Of the 360
+  characters there can be any combination of ClassTypes.
+- Each Arena ClassType has one matching Boss ClassType e.g. the Hunter Arena has 1 Hunter Boss.
 
- 
 
 - *Asynchronous 2-Minute Cycles*  
   Each arena has its own *2-minute timer* for recordings and replays. You can manage or pause them independently.
@@ -22,319 +29,85 @@
 
 ## ***2. Arenas & Grid Fundamentals***
 
-1. *Arena Setup*
-
-    - *9 distinct arenas* with different bosses, themes, and mechanics.
-    - Each arena is a *66×31* grid (size may be adjusted during development).
-    - Timer per arena: *2 minutes*, fully independent of other arenas.
-    - Multiple arenas can run simultaneously in real time; players can also zoom out of an arena to navigate between
-      them.
-    - Each Arena has 1 unique boss which belongs to that particular arena e.g. Hunter belongs to the arena the Labyrinth.
-
-
-2. *Movement & Collision*
-
-    - *Grid-Based Movement*:
-        - Use *WASD* or *Arrow Keys* to move the selected character up/down/left/right on the arena’s grid.
-        - Each move advances one grid tile at a time.
-        - Movement includes a *small cooldown* or *slight animation* so it feels deliberate rather than twitch-based.
-    - *Collision*:
-        - Multiple characters can *occupy the same grid cell* simultaneously. Overlapped “ghosts” might show a visual
-          “multiply blend.”
-    - *Visual & UX*:
-        - Subtle highlight on the currently selected tile and/or selected character.
-
-
-
-4. *Arena Navigation & Viewing* (Design Document §§5, 17\)
-
-    - *`[` / `]`*: Paginate through arenas.
-    - `P`: Toggles the `arena_camera` from `scale: 1` to `scale: 3` and back. At `scale 3` the Player can see all 9 arenas in a 3x3 layout. At `scale: 1` the `selected` arena is centered in view.
-    - While there is a global timer in bevy, each arena's 2min timers are independant of another. Meaning that a timer in the Hunter's `Labyrinth` could be at 90s of the 120s time while the Bard's `Gala` timer could be at 30s of the 120s. All these arena timers on game load start in sync; however, as the Player starts recordings of a character in a particular arena, the arena's timer will be restarted from `0` where other arenas will be continuing to play through.
-    - Once an Arena timer has hit it's 2min timer it will loop. E.g. timer reset to 0 for that arena, and all characters with recording will start playing back again.
+[README.md](arenas_grid_fundamentals/README.md)
 
 ---
 
 ## ***3. Characters & Classes***
 
-1. *Roster & Classes*
-
-    - You can manage up to *40 characters* per arena—so *320* total if all 8 arenas are fully staffed.
-    - There are *8 classes* (Hunter, Alchemist, Forager, Thief, Tank, Cardinal, Merchant, Bard).
-    - Classes have unique abilities; each hero can equip *up to 4* abilities at a time.
-    - There will be an inventory of a total of 400 characters (360 or 40 per arena and an overflow of 40 for end game management).
-
-2. *Primary & Additional Abilities*
-
-    - Basic or “core” abilities are tied to each class, as documented in the separate *Arenic Class Abilities* file.
-    - Some abilities involve multi-tap, tap-and-hold, or positional usage.
-    - While cooldowns and resource costs exist, they do *not* appear on the timeline.
-    - Cast times *do* appear on the timeline, as do movement inputs and the exact grid squares for AoE or targeted
-      spells.
-
-
-3. *Character Selection & Switching* (Design Document §2)
-
-    - *Tab*: Cycle through available characters in the current arena.
-    - *Shift+Tab*: Reverse the selection cycle.
-    - (Optional) *Mouse Click* in the UI (e.g., on character portraits) to select heroes.
-    - Design suggests showing the active character’s portrait and health bar for clarity, especially if you have a large
-      roster.
-
-
-4. *Death & De-Leveling*
-
-    - HP \= 0 → immediate death; that hero is removed from the raid and *loses 1 level*.
-    - Hero must be removed from (or become inactive in) the current rotation.
-    - To rejoin, the hero must either be revived during that same timeline (if recorded) or wait until the next cycle.
-    - Death also triggers a level-down (one level lost).
-
-
-5. *Idle Progression*
-
-    - Even if not controlled, characters continue gathering XP or resources in the background.
-    - Offscreen heroes can also die from hazards or boss AoEs. If they do, they lose 1 level.
-    - Over time, the idle system simulates continuous raids, leveling, and resource collection.
-
-
-6. *Guild House & Roster Management* (Design Document §§8, 9\)
-
-    - Access from the main menu (Enter/Return) or from a physical “Guild House” location.
-    - Manage up to 320 heroes: recruit, dismiss, sort, equip gear, and allocate abilities.
-        - Gacha-like recruiting is possible.
-        - Death causes de-leveling.
-    - You may kick heroes if you reach max capacity.
-    - (Design Doc) “Optional ‘Guild House’ as a physical space” where you can walk around, but you can also open roster
-      screens from anywhere outside an active recording.
+[README.md](characters_classes/README.md)
 
 ---
 
 ## ***4. Record & Replay System***
+
 [README.md](recording_playback/README.md)
 
+## ***8. Gacha System***
 
-## 7. ***Gacha System***
 [README.md](gacha_system/README.md)
-
-
 
 ## ***5\. Determinism & Future RNG***
 
-1. *Purely Deterministic (Current)*
-
-    - Boss attacks, damage, healing, and environment events are time- and grid-based with zero randomness.
-    - Perfect reproducibility ensures that ghost replays line up every cycle.
-
-
-2. *Planned RNG (Post-Launch)*
-
-    - Eventually, random crits, random boss patterns, or random recruit rarity might be introduced after the
-      deterministic core is stable.
-
-
-3. *Simultaneous Actions*
-
-    - Multiple events in the exact same frame are processed in parallel.
-    - Resource or ability conflicts are resolved systematically (e.g., first-come-first-serve if needed).
+[README.md](determinism_future_rng/README.md)
 
 ---
 
 ## ***6\. Death, Revival & Travel***
 
-1. *Death*
-
-    - HP=0 → immediate removal from that arena’s rotation \+ lose 1 level.
-    - Timelines store the exact death moment for replays.
-
-
-2. *Revival*
-
-    - Revival spells target a grid cell and time. If a dead hero is at that cell/time, they come back to life.
-    - Otherwise, the attempt fails (a “revive miss”).
-
-
-3. *Travel & Offscreen Combat*
-
-    - Heroes traveling between arenas (or from the Guild House) can die offscreen if attacked.
-    - Death offscreen also triggers a de-level and reverts them to the Guild House.
-    - No mini-instance or separate recording for travel; it’s background-simulated.
+[README.md](death_revival_travel/README.md)
 
 ---
 
 ## ***7\. Boss Battles & Mechanics***
 
-1. *2-Minute Boss Timeline*
-
-    - Bosses also operate on a *2-minute* cycle.
-    - They have a rotation of attacks (often 30s–2min in pattern length) that’s fully deterministic.
-
-
-2. *Mechanics & Telegraphs* (Design Document)
-
-    - Bosses and the arena can have shifting terrain, traps, or hazards telegraphed on the grid.
-    - Large telegraphs or “winds-ups” for big attacks so players can record dodges or counters.
-    - Environmental hazards (lava tiles, elemental storms, etc.) also appear with pre-warnings or hazard timers.
-
-
-3. *No Boss Enrage*
-
-    - There is no forced “enrage timer” at 2:00. The boss simply resets each cycle.
-
-
-4. *Pattern Recognition*
-
-    - Anticipating the boss’s repeated patterns is key to success.
-    - Audio/visual cues often precede major attacks.
+[README.md](boss_battles_mechanics/README.md)
 
 ---
 
 ## ***8\. Gacha-Like Recruitment & Loot***
 
-
-
 ---
 
 ## ***9\. Offline Idle Progression***
 
-1. *Snapshot Approach*
-
-    - When you exit the game, each arena’s state is saved. On restart, the game calculates how many *full 2-minute
-      cycles* occurred during your absence (using floor).
-    - That number of cycles’ worth of XP/loot is awarded if your heroes were actively raiding.
-
-
-2. *Deaths in Offline*
-
-    - Heroes can also die in these offline cycles. Deaths appear in a global chat log upon return.
-    - If many offline events occur, the chat log uses a rolling capacity (FIFO) so it never overflows.
-
-
-3. *Minimal Chat Spam*
-
-    - Because it’s just a “delta” calculation, you won’t see a blow-by-blow account of each fight.
-    - Instead, you see summarized results in the global chat or notifications.
+[README.md](offline_idle_progression/README.md)
 
 ---
 
 ## ***10\. User Interface & Controls***
 
-Below is a consolidated control scheme merging both the original ruleset and the Design Document specifics:
-
-| *Key/Control*    | *Action*                                                                              |
-|:-----------------|:--------------------------------------------------------------------------------------|
-| *WASD / Arrows*  | Move the selected hero on the grid, one tile at a time                                |
-| *1,2,3,4*        | Activate the selected hero’s abilities (offensive, defensive, utility, healing, etc.) |
-| *R*              | Start/Stop *recording* the active hero’s 2-minute timeline                            |
-| *F*              | *Finalize* a recording, turning it into a ghost                                       |
-| *Q / E*          | Paginate between the 8 arenas                                                         |
-| *W*              | Zoom out/in of the current arena (toggle to overworld view or confirm selection)      |
-| *Tab*            | Cycle through available heroes in the current arena                                   |
-| *Shift+Tab*      | Reverse-cycle through heroes                                                          |
-| *Space*          | Interact with the environment (open loot chests, pick up items, talk to NPCs, etc.)   |
-| *Enter / Return* | Pause/unpause \+ open main menu or Guild UI (if not currently recording)              |
-| Mouse (Optional) | Select heroes via UI or click on icons; possibly confirm gear/roster actions in menus |
-
-Additional UI/UX Elements:
-
-- *Visual Timelines*: A bar or timeline UI showing the 2-minute recording length.
-- *Health Bars*: Above each hero, along with a “low-health” indicator.
-- *Arena Overlays*: Hazard warnings, boss telegraphs, or buff tile indicators.
-- *Global Status Overlay*: Summarizes each arena’s progress, boss health, or “raid readiness.”
-- *Guild House Menus*: Manage equipment, recruit new heroes, check Gacha rolls, assign tasks, etc.
+[README.md](user_interface_controls/README.md)
 
 ---
 
 ## ***11\. Progression, Rewards & Buffs***
 
-1. *Leveling & De-Leveling* (Design Document §§9, 10\)
-
-    - Heroes gain levels through repeated success, both active and idle.
-    - Each death causes a hero to lose one level.
-    - Visual or audio cues indicate level-ups/downs.
-    - The hero’s historical level changes might be displayed in a “level history.”
-
-
-2. *Permanent Upgrades*
-
-    - Boss kills in Normal/Heroic/Mythic can grant better gear or account-wide perks.
-    - These do not invalidate older replays because there is no boss scaling.
-
-
-3. *Global Buff Timers*
-
-    - Buff stacking is allowed. If the *same* buff is applied at a higher tier, it overwrites the previous one.
-    - *Different* buffs can stack in parallel.
-    - Timers are displayed in a *single global HUD*.
+[README.md](progression_rewards_buffs/README.md)
 
 ---
 
 ## ***12\. Saving & Persistence***
 
-1. *Autosaves*
-
-    - Trigger on key events (recording start/end, boss kills, new loot).
-    - The game also auto-saves continuously in the background.
-
-
-2. *No Partial Recording Data*
-
-    - If the game closes mid-recording, that recording is discarded.
-    - The hero reverts to idle/ghost status if relevant.
-
-
-3. *Immutable Timelines*
-
-    - Once a timeline is finalized, you cannot edit it.
-    - Determinism ensures older ghost replays remain valid, unaffected by new ones.
+[README.md](saving_persistence/README.md)
 
 ---
 
 ## ***13\. Developer Tools & Future Features***
 
-1. *Dev Debug Workflow*
-
-    - A *Timeline Viewer* plus *console commands* to jump frames or load states is planned.
-    - Snapshots can be stored to quickly replay bug scenarios or test large-scale fights.
-
-
-2. *In-Game Debug (Player-Facing)*
-
-    - A simplified “replay” or “highlight reel” might be offered to players as a *P1* (post-core) feature.
-
-
-3. *Potential RNG & Co-Op*
-
-    - Small random elements (e.g., crits, random boss phases) may be introduced after launch.
-    - Co-Op or synchronous multiplayer remains outside initial scope.
-
-
-4. *Removed/Optional Concepts*
-
-    - *Boss enrage timers* are removed from the final design.
-    - Advanced multi-tap edge cases, boss scaling, or other expansions remain optional.
+[README.md](developer_tools_future_features/README.md)
 
 ---
 
 ## ***14\. The Echo Guild Commentary*** **(Design Document §16)**
 
-- *Description*:
-    - Simulated chatter from your heroes or NPCs, reacting to events and achievements in real time.
-    - They celebrate wins or lament setbacks, providing extra flavor.
-- *Keyboard Controls*:
-    - None. This is all automatic.
-- *Design*:
-    - Could appear as chat bubbles or in a global chat log, with context-based remarks.
+[README.md](echo_guild_commentary/README.md)
 
 ---
 
 ## ***15\. The Existential Narrative Integration*** **(Design Document §20)**
 
-- *Description*:
-    - You play as the “Architect,” gradually uncovering existential or humorous storyline elements.
-    - Vignettes or codex entries unlock at certain milestones, such as boss defeats or difficulty jumps.
-- *Implementation*:
-    - Dialogue triggers can appear mid-raid (as text bubbles) or in the chat log.
-    - No direct input to advance the story aside from general gameplay progress.
+[README.md](existential_narrative_integration/README.md)
 
 ---
 

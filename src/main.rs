@@ -2,6 +2,11 @@ mod arena;
 mod arena_camera;
 mod battleground;
 
+// Uncomment these modules to debug pink material issues
+mod material_debugger;
+// mod material_test_scene;
+// mod material_inspector;
+
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
@@ -16,6 +21,10 @@ fn main() {
             }),
             ..default()
         }))
+        // Uncomment these plugins to debug pink material issues
+        .add_plugins(material_debugger::MaterialDebuggerPlugin)
+        // .add_plugins(material_test_scene::MaterialTestScenePlugin)
+        // .add_plugins(material_inspector::MaterialInspectorPlugin)
         .add_systems(Startup, setup_scene)
         .run();
 }
