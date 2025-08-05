@@ -62,7 +62,7 @@ pub fn setup_arena_grid(
         let position = get_arena_position(arena_id);
         let class_type = ClassType::index_of(arena_index);
         let arena_name = ClassType::index_of(arena_index).name();
-
+        let is_guild_house = arena_index == 1;
         let mut arena_entity = commands.spawn((
             Transform::from_translation(position),
             InheritedVisibility::default(),
@@ -74,7 +74,7 @@ pub fn setup_arena_grid(
         ));
 
         // Set the first arena (index 0) as active by default
-        if arena_index == 0 {
+        if is_guild_house {
             arena_entity.insert(Active);
         }
 
