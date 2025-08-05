@@ -89,22 +89,23 @@ fn spawn_sphere(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    query: Single<Entity, (With<Arena>, With<Active>)>,
+    query: Single<(Entity, &arena::ArenaId), (With<Arena>, With<Active>)>,
 ) {
-    let arena = *query;
-    println!("Spawn sphere in arena {:?}", arena);
+    let (arena_entity, arena_id) = query.into_inner();
+    println!("Spawn sphere in arena {:?}", arena_id);
     let blue_material = materials.add(StandardMaterial {
         base_color: Color::srgb(0.153, 0.431, 0.945), // #276EF1
         ..default()
     });
     let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-    // let local = get_local_tile_space(30, 15);
-    let local_2 = Vec3::new(100.0, 100.0, 0.0);
-    commands.spawn((
+    // Place sphere at column 32, row 15 (approximately center of 66x31 grid)
+    // Note: get_local_tile_space uses (row, col) params but maps row->X, col->Y
+    let local_position = get_local_tile_space(32, 15);
+    commands.entity(arena_entity).with_child((
         Mesh3d(sphere_mesh),
         MeshMaterial3d(blue_material),
-        Transform::from_translation(local_2),
+        Transform::from_translation(local_position),
     ));
 }
 

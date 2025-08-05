@@ -35,3 +35,5 @@ Chords: Amaj7 | B7 | G#m7 | C#m7 | Amaj7 | B7 | G#m7 | C#m7
 
 ---
 Best representation of art direction and music: https://www.youtube.com/watch?v=1ZhWfZITWRw
+
+
