@@ -1,10 +1,11 @@
 use bevy::prelude::*;
+use bevy::pbr::{NotShadowCaster, NotShadowReceiver};
 use crate::battleground::BattleGround;
 
 use super::{
     ActiveArena, Arena, ArenaId, ArenaTile, GridPosition,
-    ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS,
-    GRID_HEIGHT, GRID_WIDTH, HALF_TILE, HALF_WINDOW_HEIGHT, 
+    ARENA_HEIGHT, ARENA_WIDTH,
+    GRID_HEIGHT, GRID_WIDTH, HALF_TILE, HALF_WINDOW_HEIGHT,
     HALF_WINDOW_WIDTH, TILE_SIZE, TOTAL_ARENAS,
 };
 
@@ -24,7 +25,10 @@ pub fn get_arena_position(arena_id: ArenaId) -> Vec3 {
 pub fn spawn_arena_tiles(
     commands: &mut Commands,
     arena_entity: Entity,
-    tile_scene: Handle<Scene>,
+    tile_mesh: Handle<Mesh>,
+    inset_mesh: Handle<Mesh>,
+    gray_material: Handle<StandardMaterial>,
+    pink_material: Handle<StandardMaterial>,
 ) {
     commands.entity(arena_entity).with_children(|parent| {
         for x in 0..GRID_WIDTH {
@@ -32,13 +36,24 @@ pub fn spawn_arena_tiles(
                 let world_x = x as f32 * TILE_SIZE;
                 let world_y = -(y as f32 * TILE_SIZE);
 
-                // Spawn each tile as a child
-                parent.spawn((
-                    SceneRoot(tile_scene.clone()),
-                    Transform::from_xyz(world_x, world_y, 0.0),
-                    GridPosition::new(x, y),
-                    ArenaTile,
-                ));
+                parent
+                    .spawn((
+                        Transform::from_xyz(world_x, world_y, 0.0),
+                        GridPosition::new(x, y),
+                        ArenaTile,
+                    ))
+                    .with_children(|tile| {
+                        tile.spawn((
+                            Mesh3d(tile_mesh.clone()),
+                            MeshMaterial3d(gray_material.clone()),
+                        ));
+                        tile.spawn((
+                            Mesh3d(inset_mesh.clone()),
+                            MeshMaterial3d(pink_material.clone()),
+                            NotShadowCaster,
+                            NotShadowReceiver,
+                        ));
+                    });
             }
         }
     });
@@ -47,20 +62,11 @@ pub fn spawn_arena_tiles(
 /// Setup the complete 3x3 grid of arenas
 pub fn setup_arena_grid(
     commands: &mut Commands,
-    tile_scene: Handle<Scene>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    tile_mesh: Handle<Mesh>,
+    inset_mesh: Handle<Mesh>,
+    gray_material: Handle<StandardMaterial>,
+    pink_material: Handle<StandardMaterial>,
 ) {
-    // Create materials for each arena (debug colors)
-    let _arena_materials: Vec<Handle<StandardMaterial>> = DEBUG_COLORS
-        .iter()
-        .map(|&color| {
-            materials.add(StandardMaterial {
-                base_color: color,
-                ..default()
-            })
-        })
-        .collect();
-
     // Set up 3x3 grid of arenas (9 total)
     for arena_index in 0..TOTAL_ARENAS {
         let arena_id = ArenaId::new(arena_index as u8).expect("Arena index should be valid");
@@ -83,6 +89,13 @@ pub fn setup_arena_grid(
         let arena_entity_id = arena_entity.id();
 
         // Spawn the tiles for this arena
-        spawn_arena_tiles(commands, arena_entity_id, tile_scene.clone());
+        spawn_arena_tiles(
+            commands,
+            arena_entity_id,
+            tile_mesh.clone(),
+            inset_mesh.clone(),
+            gray_material.clone(),
+            pink_material.clone(),
+        );
     }
 }

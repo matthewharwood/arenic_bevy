@@ -3,10 +3,11 @@ mod arena_camera;
 mod battleground;
 
 // Uncomment these modules to debug pink material issues
-mod material_debugger;
+// mod material_debugger;
 // mod material_test_scene;
 // mod material_inspector;
 
+use bevy::color::Srgba;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
@@ -21,8 +22,7 @@ fn main() {
             }),
             ..default()
         }))
-        // Uncomment these plugins to debug pink material issues
-        .add_plugins(material_debugger::MaterialDebuggerPlugin)
+        // .add_plugins(material_debugger::MaterialDebuggerPlugin)
         // .add_plugins(material_test_scene::MaterialTestScenePlugin)
         // .add_plugins(material_inspector::MaterialInspectorPlugin)
         .add_systems(Startup, setup_scene)
@@ -44,16 +44,36 @@ fn setup_scene(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    asset_server: Res<AssetServer>,
 ) {
-    // Load the tile model
-    let tile_scene = asset_server.load("tile.glb#Scene0");
-
     // Add Debug component to enable debug visualization
     commands.spawn(Debug);
 
+    // Create tile meshes and materials
+    let (base_mesh, inset_mesh) = arena::build_tile_meshes();
+    let base_handle = meshes.add(base_mesh);
+    let inset_handle = meshes.add(inset_mesh);
+
+    let gray_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.8, 0.8, 0.8),
+        ..default()
+    });
+
+    let hot_pink = Srgba::hex("ff00ff").unwrap();
+    let pink_material = materials.add(StandardMaterial {
+        base_color: Color::from(hot_pink),
+        emissive: hot_pink.into(),
+        unlit: true,
+        ..default()
+    });
+
     // Create 3x3 grid of arenas (9 arenas total)
-    arena::setup_arena_grid(&mut commands, tile_scene, &mut materials);
+    arena::setup_arena_grid(
+        &mut commands,
+        base_handle,
+        inset_handle,
+        gray_material,
+        pink_material,
+    );
 
     // Setup camera positioned to see entire grid
     let default_arena = arena::ArenaId::new(1).expect("Arena 1 should be valid");
