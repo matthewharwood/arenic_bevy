@@ -14,7 +14,7 @@ pub const ARENA_HEIGHT: f32 = GRID_HEIGHT as f32 * TILE_SIZE;
 pub const ARENA_WIDTH_HALF: f32 = ARENA_WIDTH / 2.0;
 pub const ARENA_HEIGHT_HALF: f32 = ARENA_HEIGHT / 2.0;
 
-pub const TOTAL_ARENAS: u32 = 9;
+pub const TOTAL_ARENAS: u8 = 9;
 
 /// Window dimensions
 pub const WINDOW_WIDTH: f32 = 1280.0;

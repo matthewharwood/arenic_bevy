@@ -1,12 +1,8 @@
 use bevy::prelude::*;
 use crate::battleground::BattleGround;
-
-use super::{
-    ActiveArena, Arena, ArenaId, ArenaTile, GridPosition,
-    ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS,
-    GRID_HEIGHT, GRID_WIDTH, HALF_TILE, HALF_WINDOW_HEIGHT, 
-    HALF_WINDOW_WIDTH, TILE_SIZE, TOTAL_ARENAS,
-};
+use crate::class_type::ClassType;
+use crate::selectors::Active;
+use super::{get_local_tile_space, Arena, ArenaId, ArenaTile, GridPosition, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, HALF_TILE, HALF_WINDOW_HEIGHT, HALF_WINDOW_WIDTH, TOTAL_ARENAS};
 
 /// Calculate the world position of an arena by its ArenaId  
 pub fn get_arena_position(arena_id: ArenaId) -> Vec3 {
@@ -27,16 +23,15 @@ pub fn spawn_arena_tiles(
     tile_scene: Handle<Scene>,
 ) {
     commands.entity(arena_entity).with_children(|parent| {
-        for x in 0..GRID_WIDTH {
-            for y in 0..GRID_HEIGHT {
-                let world_x = x as f32 * TILE_SIZE;
-                let world_y = -(y as f32 * TILE_SIZE);
+        for row in 0..GRID_WIDTH {
+            for col in 0..GRID_HEIGHT {
+                let local = get_local_tile_space(row, col);
 
                 // Spawn each tile as a child
                 parent.spawn((
                     SceneRoot(tile_scene.clone()),
-                    Transform::from_xyz(world_x, world_y, 0.0),
-                    GridPosition::new(x, y),
+                    Transform::from_xyz(local.x, local.y, 0.0),
+                    GridPosition{row, col},
                     ArenaTile,
                 ));
             }
@@ -63,21 +58,24 @@ pub fn setup_arena_grid(
 
     // Set up 3x3 grid of arenas (9 total)
     for arena_index in 0..TOTAL_ARENAS {
-        let arena_id = ArenaId::new(arena_index as u8).expect("Arena index should be valid");
+        let arena_id = ArenaId::new(arena_index).expect("Arena index should be valid");
         let position = get_arena_position(arena_id);
+        let class_type = ClassType::index_of(arena_index);
+        let arena_name = ClassType::index_of(arena_index).name();
 
-        // Create arena entity
         let mut arena_entity = commands.spawn((
             Transform::from_translation(position),
             InheritedVisibility::default(),
             BattleGround,
             Arena,
             arena_id,
+            class_type,
+            Name::new(arena_name)
         ));
 
         // Set the first arena (index 0) as active by default
         if arena_index == 0 {
-            arena_entity.insert(ActiveArena);
+            arena_entity.insert(Active);
         }
 
         let arena_entity_id = arena_entity.id();

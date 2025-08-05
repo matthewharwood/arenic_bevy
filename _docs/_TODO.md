@@ -1,0 +1,1 @@
+Add - Single Responsibility Principle and creates unnecessary memory allocation  to Jon
