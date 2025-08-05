@@ -1,4 +1,3 @@
-use bevy::prelude::*;
 
 /// Grid dimensions for each arena
 pub const GRID_WIDTH: u32 = 66;
@@ -22,15 +21,3 @@ pub const WINDOW_HEIGHT: f32 = 720.0;
 pub const HALF_WINDOW_WIDTH: f32 = WINDOW_WIDTH / 2.0;
 pub const HALF_WINDOW_HEIGHT: f32 = WINDOW_HEIGHT / 2.0;
 
-/// Debug colors for arena visualization (one for each arena)
-pub const DEBUG_COLORS: [Color; 9] = [
-    Color::srgb(1.0, 0.329, 0.0),     // #ff5400
-    Color::srgb(1.0, 0.557, 0.0),     // #ff8e00
-    Color::srgb(1.0, 0.824, 0.0),     // #ffd200
-    Color::srgb(0.506, 0.902, 0.314), // #81e650
-    Color::srgb(0.0, 0.824, 0.404),   // #00d267
-    Color::srgb(0.0, 0.753, 1.0),     // #00c0ff
-    Color::srgb(0.545, 0.282, 0.996), // #8b48fe
-    Color::srgb(0.792, 0.255, 0.988), // #ca41fc
-    Color::srgb(1.0, 0.275, 0.984),   // #ff46fb
-];
