@@ -95,12 +95,12 @@ fn spawn_sphere(
     println!("Spawn sphere in arena {:?}", arena_id);
     let blue_material = materials.add(StandardMaterial {
         base_color: Color::srgb(0.153, 0.431, 0.945), // #276EF1
+        metallic: 0.0, // Non-metallic
+        perceptual_roughness: 1.0, // Maximum roughness
         ..default()
     });
     let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-    // Place sphere at column 32, row 15 (approximately center of 66x31 grid)
-    // Note: get_local_tile_space uses (row, col) params but maps row->X, col->Y
     let local_position = get_local_tile_space(32, 15);
     commands.entity(arena_entity).with_child((
         Mesh3d(sphere_mesh),
