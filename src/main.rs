@@ -26,11 +26,19 @@ fn main() {
         // .add_plugins(material_test_scene::MaterialTestScenePlugin)
         // .add_plugins(material_inspector::MaterialInspectorPlugin)
         .add_systems(Startup, setup_scene)
+        .add_systems(Startup, parent_pending_arena_children.after(setup_scene))
         .run();
 }
 
 #[derive(Component, Debug)]
 pub struct Debug;
+
+/// Marker component for spheres that need to be parented to an arena
+#[derive(Component)]
+struct PendingArenaChild {
+    arena_id: arena::ArenaId,
+    local_position: Vec3,
+}
 
 fn setup_scene(
     mut commands: Commands,
@@ -61,8 +69,32 @@ fn setup_scene(
         15,
     );
 
-    // Add simple lighting
-    setup_lighting(&mut commands);
+    // Add simple lighting positioned at the camera's target
+    setup_lighting(&mut commands, default_arena);
+}
+
+/// System to parent pending arena children to their respective arenas
+fn parent_pending_arena_children(
+    mut commands: Commands,
+    arena_query: Query<(Entity, &arena::ArenaId), With<arena::Arena>>,
+    pending_query: Query<(Entity, &PendingArenaChild)>,
+) {
+    for (child_entity, pending) in pending_query.iter() {
+        // Find the arena entity with matching ArenaId
+        if let Some(arena_entity) = arena_query
+            .iter()
+            .find(|(_, id)| **id == pending.arena_id)
+            .map(|(entity, _)| entity)
+        {
+            // Parent the child to the arena and update its transform to be relative
+            commands.entity(arena_entity).add_child(child_entity);
+            commands.entity(child_entity)
+                .remove::<PendingArenaChild>()
+                .insert(Transform::from_translation(pending.local_position));
+            
+            info!("Parented sphere to arena {:?} at local position {:?}", pending.arena_id, pending.local_position);
+        }
+    }
 }
 
 /// Spawn a blue sphere at the specified grid position within an arena
@@ -84,29 +116,32 @@ fn spawn_sphere(
     let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
 
-    // Calculate the arena's world position
-    let arena_position = arena::get_arena_position(arena_id);
-
     // Calculate local position within the arena based on grid coordinates
     // Each tile is 19 units, positioned from top-left corner of arena
     let local_x = column as f32 * arena::TILE_SIZE;
     let local_y = -(row as f32 * arena::TILE_SIZE);
+    let local_position = Vec3::new(local_x, local_y, sphere_radius);
 
-    // Combine arena position with local position, add slight elevation
-    let world_position = arena_position + Vec3::new(local_x, local_y, sphere_radius);
+    // Calculate the arena's world position for temporary placement
+    let arena_position = arena::get_arena_position(arena_id);
+    let world_position = arena_position + local_position;
 
-    // Spawn the sphere entity with appropriate components
+    // Spawn the sphere entity with a marker for deferred parenting
     commands.spawn((
         Mesh3d(sphere_mesh),
         MeshMaterial3d(blue_material),
         Transform::from_translation(world_position),
         arena::InArena::new(arena_id),
         arena::GridPosition::new(column, row),
+        PendingArenaChild {
+            arena_id,
+            local_position,
+        },
     ));
 }
 
-/// Simple lighting setup
-fn setup_lighting(commands: &mut Commands) {
+/// Simple lighting setup positioned at camera target
+fn setup_lighting(commands: &mut Commands, arena_id: arena::ArenaId) {
     // Directional light
     commands.spawn((
         DirectionalLight {
@@ -119,6 +154,24 @@ fn setup_lighting(commands: &mut Commands) {
             std::f32::consts::FRAC_PI_4,
             0.0,
         )),
+    ));
+
+    // Calculate the camera's target position (center of the arena)
+    let camera_target = arena_camera::calculate_camera_position(arena_id);
+    
+    // Point light positioned at the camera's target position
+    // This ensures the light illuminates where the camera is looking
+    commands.spawn((
+        PointLight {
+            intensity: 500000.0, // Strong intensity for good tile illumination
+            range: 800.0, // Range to cover a good portion of the arena
+            radius: 0.0,
+            color: Color::WHITE,
+            shadows_enabled: true,
+            ..default()
+        },
+        // Position at the camera's target with some elevation
+        Transform::from_translation(camera_target + Vec3::new(0.0, 0.0, 300.0)),
     ));
 
     // Ambient light
