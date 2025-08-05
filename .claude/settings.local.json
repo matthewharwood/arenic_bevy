@@ -8,7 +8,11 @@
       "Bash(rmdir:*)",
       "Bash(find:*)",
       "Bash(mkdir:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:docs.rs)",
+      "WebFetch(domain:taintedcoders.com)",
+      "Bash(rm:*)"
     ],
     "deny": []
   }

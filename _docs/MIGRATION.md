@@ -691,6 +691,326 @@ implement alternatives where necessary.
 
 ---
 
+## Entity Relationship System (NEW MAJOR FEATURE)
+
+### 🆕 NEW: Comprehensive Entity Relationships
+
+**Bevy 0.16 introduces a powerful new relationship system** that provides first-class support for linking entities together using specialized components. This system is inspired by the flecs ECS and enables modeling complex entity hierarchies, graphs, and relationships in a safe, fast, and ergonomic way.
+
+### Core Relationship Components
+
+The relationship system is built on two primary traits that work together to create bidirectional relationships:
+
+```rust
+use bevy::ecs::relationship::*;
+
+// Define a custom relationship
+#[derive(Component)]
+#[relationship(relationship_target = ShipAttachments)]
+struct AttachedToShip(pub Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = AttachedToShip, linked_spawn)]
+struct ShipAttachments(Vec<Entity>);
+```
+
+### Built-in Parent-Child Relationships
+
+Bevy 0.16 replaces the old `Parent` and `Children` components with a new bidirectional relationship system:
+
+```rust
+// 0.15 - OLD PARENT-CHILD SYSTEM (DEPRECATED)
+use bevy_hierarchy::{Parent, Children};
+
+commands.spawn((
+    Parent(parent_entity),
+    Transform::default(),
+));
+
+// 0.16 - NEW RELATIONSHIP-BASED SYSTEM
+use bevy::ecs::relationship::{ChildOf, Children};
+
+// Method 1: Direct spawning with relationship
+commands.spawn((
+    Ship,
+    Name::new("Ship A"),
+    ChildOf(fleet_entity),
+));
+
+// Method 2: Using with_children for convenience
+commands
+    .spawn((Fleet, Name::new("Fleet")))
+    .with_children(|parent| {
+        parent.spawn((Ship, Name::new("Ship 1")));
+        parent.spawn((Ship, Name::new("Ship 2")));
+    });
+```
+
+### Creating Custom Relationships
+
+The relationship system allows you to define your own entity relationships beyond parent-child:
+
+```rust
+use bevy::ecs::relationship::*;
+
+// Example: Equipment attachment system
+#[derive(Component)]
+#[relationship(relationship_target = EquippedItems)]
+struct EquippedBy(pub Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = EquippedBy, linked_spawn)]
+struct EquippedItems(Vec<Entity>);
+
+// Example: Team membership system
+#[derive(Component)]
+#[relationship(relationship_target = TeamMembers)]
+struct MemberOf(pub Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = MemberOf)]
+struct TeamMembers(Vec<Entity>);
+
+fn spawn_team_with_players(mut commands: Commands) {
+    // Spawn team entity
+    let team = commands.spawn((Team, Name::new("Red Team"))).id();
+    
+    // Spawn players as team members
+    commands.spawn((
+        Player,
+        Name::new("Player 1"),
+        MemberOf(team),
+    ));
+    
+    commands.spawn((
+        Player,
+        Name::new("Player 2"),
+        MemberOf(team),
+    ));
+}
+```
+
+### Relationship Attributes and Options
+
+The relationship system provides several configuration options:
+
+```rust
+// linked_spawn: Automatically despawn related entities when target is despawned
+#[derive(Component)]
+#[relationship_target(relationship = AttachedToShip, linked_spawn)]
+struct ShipAttachments(Vec<Entity>);
+
+// ordered relationships: Maintain insertion order
+#[derive(Component)]
+#[relationship_target(relationship = ChildOf, ordered)]
+struct Children(Vec<Entity>);
+
+// Custom cleanup behavior
+#[derive(Component)]
+#[relationship_target(relationship = OwnedBy, cleanup_policy = "orphan")]
+struct OwnedItems(Vec<Entity>);
+```
+
+### Querying Relationships
+
+The relationship system provides powerful querying capabilities:
+
+```rust
+use bevy::ecs::relationship::*;
+
+// Query entities with specific relationships
+fn query_relationships(
+    ships: Query<&Name, With<AttachedToShip>>,
+    fleets: Query<&Children>,
+    entities: Query<Entity, With<ChildOf>>,
+) {
+    // Find all ships attached to other entities
+    for ship_name in &ships {
+        info!("Ship {} is attached to something", ship_name);
+    }
+    
+    // Find all parent entities and their children
+    for children in &fleets {
+        info!("Entity has {} children", children.0.len());
+    }
+    
+    // Find all child entities
+    for child_entity in &entities {
+        info!("Entity {:?} is a child of something", child_entity);
+    }
+}
+```
+
+### Relationship Iteration and Traversal
+
+Navigate complex relationship graphs with built-in iterators:
+
+```rust
+use bevy::ecs::relationship::*;
+
+fn traverse_hierarchy(
+    world: &World,
+    root_entity: Entity,
+) {
+    // Iterate through all ancestors
+    for ancestor in AncestorIter::new(world, root_entity) {
+        info!("Ancestor: {:?}", ancestor);
+    }
+    
+    // Iterate through all descendants
+    for descendant in DescendantIter::new(world, root_entity) {
+        info!("Descendant: {:?}", descendant);
+    }
+}
+
+// Query-based traversal
+fn query_hierarchy(
+    children_query: Query<&Children>,
+    parent_query: Query<&ChildOf>,
+) {
+    // Find direct children
+    for children in &children_query {
+        for &child in &children.0 {
+            info!("Child entity: {:?}", child);
+        }
+    }
+    
+    // Find parent relationships
+    for child_of in &parent_query {
+        info!("Parent entity: {:?}", child_of.0);
+    }
+}
+```
+
+### Transform Propagation with Relationships
+
+The relationship system automatically handles transform propagation for parent-child relationships:
+
+```rust
+fn setup_hierarchical_transforms(mut commands: Commands) {
+    // Parent entity
+    let parent = commands.spawn((
+        Transform::from_xyz(10.0, 0.0, 0.0),
+        GlobalTransform::default(),
+    )).id();
+    
+    // Child entity - transform is relative to parent
+    commands.spawn((
+        Transform::from_xyz(5.0, 0.0, 0.0), // Will be at (15, 0, 0) in world space
+        GlobalTransform::default(),
+        ChildOf(parent),
+    ));
+}
+```
+
+### Advanced Relationship Patterns
+
+#### Many-to-Many Relationships
+
+```rust
+// Student-Course enrollment system
+#[derive(Component)]
+#[relationship(relationship_target = EnrolledStudents)]
+struct EnrolledIn(pub Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = EnrolledIn)]
+struct EnrolledStudents(Vec<Entity>);
+
+#[derive(Component)]
+#[relationship(relationship_target = StudentCourses)]
+struct HasStudent(pub Entity);
+
+#[derive(Component)]
+#[relationship_target(relationship = HasStudent)]
+struct StudentCourses(Vec<Entity>);
+```
+
+#### Conditional Relationships
+
+```rust
+// Relationship with additional data
+#[derive(Component)]
+struct TeamMembership {
+    team: Entity,
+    role: PlayerRole,
+    join_date: DateTime<Utc>,
+}
+
+#[derive(Component)]
+#[relationship(relationship_target = TeamRoster)]
+struct TeamMember {
+    player: Entity,
+    role: PlayerRole,
+}
+
+#[derive(Component)]
+#[relationship_target(relationship = TeamMember)]
+struct TeamRoster(Vec<Entity>);
+```
+
+### Performance Considerations
+
+The relationship system is designed for performance:
+
+```rust
+// Efficient batch relationship operations
+fn batch_relationship_updates(mut commands: Commands) {
+    let team = commands.spawn(Team).id();
+    
+    // Batch spawn multiple related entities
+    let players: Vec<Entity> = (0..100)
+        .map(|i| {
+            commands.spawn((
+                Player,
+                Name::new(format!("Player {}", i)),
+                MemberOf(team),
+            )).id()
+        })
+        .collect();
+    
+    info!("Spawned {} team members", players.len());
+}
+
+// Use relationship queries efficiently
+fn efficient_relationship_queries(
+    // Query only what you need
+    team_sizes: Query<&TeamMembers, (With<Team>, Changed<TeamMembers>)>,
+    // Use filters to reduce iteration
+    active_players: Query<Entity, (With<MemberOf>, With<Active>)>,
+) {
+    // Process only changed teams
+    for members in &team_sizes {
+        info!("Team size changed: {} members", members.0.len());
+    }
+    
+    // Process only active team members
+    for player in &active_players {
+        info!("Active player: {:?}", player);
+    }
+}
+```
+
+### Migration Strategy for Relationships
+
+1. **Replace Parent/Children Components**: Update all uses of the old hierarchy system
+2. **Define Custom Relationships**: Identify entity associations in your game and create appropriate relationship components
+3. **Update Hierarchy Queries**: Use the new relationship query patterns
+4. **Leverage Transform Propagation**: Take advantage of automatic transform updates in hierarchies
+5. **Consider Performance**: Use relationship filters and batch operations for large entity sets
+
+### Relationship System Benefits
+
+- **Type Safety**: Relationships are statically typed and prevent many runtime errors
+- **Bidirectional**: Automatically maintains both directions of relationships
+- **Performance**: Optimized for fast queries and updates
+- **Flexibility**: Supports complex graph structures beyond simple hierarchies
+- **Integration**: Works seamlessly with existing ECS patterns and systems
+
+**Migration Impact**: The relationship system is entirely new functionality that enhances rather than replaces existing ECS patterns. Existing code will continue to work, but you can gradually adopt relationships for better entity organization and performance.
+
+---
+
 ## Immediate Action Items for Migration
 
 1. **Replace All Bundles**: Systematically replace every bundle spawn with individual components

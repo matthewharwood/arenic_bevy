@@ -107,7 +107,7 @@
 
 ## ***15\. The Existential Narrative Integration*** **(Design Document §20)**
 
-[README.md](existential_narrative_integration/README.md)
+[README.md](narrative/README.md)
 
 ---
 
