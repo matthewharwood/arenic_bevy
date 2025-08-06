@@ -41,14 +41,29 @@ struct PendingArenaChild {
     local_position: Vec3,
 }
 
-/// Component for projectiles with target and movement data
+// ============================================================================
+// PROJECTILE COMPONENTS - Single-purpose components for ECS best practices
+// ============================================================================
+
+/// Marker component for projectile entities
 #[derive(Component)]
-struct Projectile {
-    start_position: Vec3,
-    destination: Vec3,
-    elapsed_time: f32,
-    total_time: f32,  // Total time for the journey
-}
+struct Projectile;
+
+/// Component tracking time-to-live (elapsed, total) in seconds
+type TtlElapsed = f32;
+type TtlTotal = f32;
+#[derive(Component)]
+struct TimeToLive(TtlElapsed, TtlTotal);
+
+/// Component storing the target position for the projectile
+#[derive(Component)]
+struct Target(Vec3);
+
+/// Component storing the initial spawn position for lerp calculations
+#[derive(Component)]
+struct Origin(Vec3);
+
+
 
 fn setup_scene(
     mut commands: Commands,
@@ -145,7 +160,7 @@ fn spawn_starting_bosses(
 
         // Place boss at a different position in each arena
         let local_position = get_local_tile_space(32, 10);
-        if(arena_id.0 == 1){
+        if arena_id.0 == 1 {
             commands.entity(arena_entity).with_child((
                 Boss,
                 Active,
@@ -195,78 +210,88 @@ fn active_character_movement(
     }
 }
 
-/// System to move projectiles using lerp
+/// System to move projectiles using lerp with single-purpose components
 fn move_projectiles(
     mut commands: Commands,
     time: Res<Time>,
-    mut projectiles: Query<(Entity, &mut Transform, &mut Projectile)>,
+    mut query: Query<(
+        Entity,
+        &mut Transform,
+        &mut TimeToLive,
+        &Origin,
+        &Target,
+    ), With<Projectile>>,
 ) {
-    for (entity, mut transform, mut projectile) in projectiles.iter_mut() {
+    for (entity, mut transform, mut ttl, origin, target) in query.iter_mut() {
         // Update elapsed time
-        projectile.elapsed_time += time.delta_secs();
+        ttl.0 += time.delta_secs();
         
         // Calculate lerp progress (0.0 to 1.0)
-        let progress = (projectile.elapsed_time / projectile.total_time).clamp(0.0, 1.0);
+        let progress = (ttl.0 / ttl.1).clamp(0.0, 1.0);
         
-        // Lerp between start and destination
-        transform.translation = projectile.start_position.lerp(projectile.destination, progress);
+        // Lerp between origin and target
+        transform.translation = origin.0.lerp(target.0, progress);
         
-        // Despawn when reached destination
+        // Despawn when lifetime expires
         if progress >= 1.0 {
             commands.entity(entity).despawn();
-            println!("Projectile reached destination and despawned");
         }
     }
 }
 
+/// System that handles autoshot ability - spawns projectiles as independent entities
 fn autoshot_ability(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
     mut timer: Local<Timer>,
-    arena: Single<Entity, (With<Arena>, With<Active>)>,
-    character: Single<&Transform, (With<Character>, With<AutoShot>, With<Active>)>,
-    boss: Single<&Transform, (With<Boss>, With<Active>)>,
+    character_query: Query<&GlobalTransform, (With<Character>, With<AutoShot>, With<Active>)>,
+    boss_query: Query<&GlobalTransform, (With<Boss>, With<Active>)>,
 ) {
+    // Initialize timer on first run
     if timer.duration().as_secs_f32() == 0.0 {
         *timer = Timer::from_seconds(1.0, TimerMode::Repeating);
     }
-
-    let char_pos  = character.into_inner();
-    let a  = arena.into_inner();
-    let b  = boss.into_inner();
-    let black_material = materials.add(StandardMaterial {
+    
+    timer.tick(time.delta());
+    
+    // Only proceed if timer finished
+    if !timer.just_finished() {
+        return;
+    }
+    
+    // Get character and boss positions
+    let Ok(character_transform) = character_query.single() else { return; };
+    let Ok(boss_transform) = boss_query.single() else { return; };
+    
+    let character_pos = character_transform.translation();
+    let boss_pos = boss_transform.translation();
+    
+    // Calculate projectile properties
+    let distance = character_pos.distance(boss_pos);
+    let travel_time = distance / TILE_SIZE; // 1 tile per second
+    
+    // Create projectile materials and mesh
+    let projectile_material = materials.add(StandardMaterial {
         base_color: Color::srgb(0.1, 0.1, 0.1),
         metallic: 0.0,
         perceptual_roughness: 1.0,
         ..default()
     });
-    timer.tick(time.delta());
-
-    // Only fire if timer is finished
-    if timer.just_finished() {
-        let projectile_radius = 2.5;
-        let projectile_mesh = meshes.add(Sphere::new(projectile_radius));;
-
-        
-        // Calculate distance and time (1 TILE_SIZE per second)
-        let distance = char_pos.translation.distance(b.translation);
-        let travel_time = distance / TILE_SIZE; // seconds
-        
-        commands.entity(a).with_child((
-
-            Mesh3d(projectile_mesh),
-            MeshMaterial3d(black_material),
-            Projectile {
-                start_position: char_pos.translation,
-                destination: b.translation,
-                elapsed_time: 0.0,
-                total_time: travel_time,
-            },
-        ));
-        println!("Fired projectile from {:?} to {:?}, travel time: {:.2}s", char_pos.translation, b.translation, travel_time);
-    }
+    
+    let projectile_radius = 2.5;
+    let projectile_mesh = meshes.add(Sphere::new(projectile_radius));
+    
+    commands.spawn((
+        Projectile,
+        Transform::from_translation(character_pos),
+        Origin(character_pos),
+        Target(boss_pos),
+        TimeToLive(0.0, travel_time),
+        Mesh3d(projectile_mesh),
+        MeshMaterial3d(projectile_material),
+    ));
 }
 
 
