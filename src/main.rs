@@ -253,7 +253,7 @@ fn autoshot_ability(
     if timer.duration().as_secs_f32() == 0.0 {
         *timer = Timer::from_seconds(1.0, TimerMode::Repeating);
     }
-    
+
     timer.tick(time.delta());
     
     // Only proceed if timer finished
