@@ -37,9 +37,7 @@ pub struct Arena;
 #[derive(Component, Debug)]
 pub struct ActiveArena;
 
-/// Marker component for character entities.
-#[derive(Component, Debug)]
-pub struct Character;
+
 
 /// Marker component for arena tile entities.
 #[derive(Component, Debug)]

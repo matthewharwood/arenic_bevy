@@ -5,10 +5,12 @@ mod battleground;
 // Uncomment these modules to debug pink material issues
 mod class_type;
 mod selectors;
+mod character;
 
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
-use crate::arena::{get_local_tile_space, Arena};
+use crate::arena::{get_local_tile_space, Arena, TILE_SIZE};
+use crate::character::Character;
 use crate::selectors::{Active};
 
 const GAME_NAME: &str = "Arenic";
@@ -24,8 +26,8 @@ fn main() {
         }))
         // Uncomment these plugins to debug pink material issues
         .add_systems(Startup, setup_scene)
-        .add_systems(Startup, parent_pending_arena_children.after(setup_scene))
-        .add_systems(Update, spawn_sphere)
+        .add_systems(Startup, (parent_pending_arena_children, spawn_starting_hero, spawn_starting_bosses).after(setup_scene))
+        .add_systems(Update, active_character_movement)
         .run();
 }
 
@@ -85,14 +87,13 @@ fn parent_pending_arena_children(
         }
     }
 }
-fn spawn_sphere(
+fn spawn_starting_hero(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    query: Single<(Entity, &arena::ArenaId), (With<Arena>, With<Active>)>,
+    query: Single<Entity, (With<Arena>, With<Active>)>,
 ) {
-    let (arena_entity, arena_id) = query.into_inner();
-    println!("Spawn sphere in arena {:?}", arena_id);
+    let (arena_entity) = query.into_inner();
     let blue_material = materials.add(StandardMaterial {
         base_color: Color::srgb(0.153, 0.431, 0.945), // #276EF1
         metallic: 0.0, // Non-metallic
@@ -101,12 +102,75 @@ fn spawn_sphere(
     });
     let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-    let local_position = get_local_tile_space(32, 15);
+    let local_position = get_local_tile_space(35, 15);
     commands.entity(arena_entity).with_child((
+        Character,
+        Active,
         Mesh3d(sphere_mesh),
         MeshMaterial3d(blue_material),
         Transform::from_translation(local_position),
     ));
+}
+
+fn spawn_starting_bosses(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    query: Query<(Entity, &arena::ArenaId), With<Arena>>,
+) {
+    for (arena_entity, arena_id) in query.iter() {
+        // Spawn a boss in each arena
+        println!("Spawning boss in arena {:?}", arena_id);
+        
+        // Example: spawn a red sphere boss in each arena
+        let red_material = materials.add(StandardMaterial {
+            base_color: Color::srgb(0.945, 0.153, 0.153), // Red color
+            metallic: 0.0,
+            perceptual_roughness: 1.0,
+            ..default()
+        });
+        
+        let boss_radius = 32.0; // Slightly larger than hero
+        let boss_mesh = meshes.add(Sphere::new(boss_radius));
+        
+        // Place boss at a different position in each arena
+        let local_position = get_local_tile_space(32, 10);
+        
+        commands.entity(arena_entity).with_child((
+            Mesh3d(boss_mesh),
+            MeshMaterial3d(red_material),
+            Transform::from_translation(local_position),
+        ));
+    }
+}
+
+fn active_character_movement(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    query: Single<&mut Transform, (With<Active>, With<Character>)>,
+) {
+    let mut transform = query.into_inner();
+    
+    let mut movement = Vec3::ZERO;
+    
+    // WASD movement - one tile at a time
+    if keyboard_input.just_pressed(KeyCode::KeyW) {
+        movement.y += TILE_SIZE; // Move up (positive Y)
+    }
+    if keyboard_input.just_pressed(KeyCode::KeyS) {
+        movement.y -= TILE_SIZE; // Move down (negative Y)
+    }
+    if keyboard_input.just_pressed(KeyCode::KeyA) {
+        movement.x -= TILE_SIZE; // Move left (negative X)
+    }
+    if keyboard_input.just_pressed(KeyCode::KeyD) {
+        movement.x += TILE_SIZE; // Move right (positive X)
+    }
+    
+    // Apply movement
+    if movement != Vec3::ZERO {
+        transform.translation += movement;
+        println!("Character moved to: {:?}", transform.translation);
+    }
 }
 
 /// Simple lighting setup positioned at camera target

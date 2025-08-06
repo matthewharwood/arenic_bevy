@@ -1,0 +1,5 @@
+use bevy::prelude::Component;
+
+/// Marker component for character entities.
+#[derive(Component, Debug)]
+pub struct Character;
