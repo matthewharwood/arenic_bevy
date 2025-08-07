@@ -275,10 +275,15 @@ fn select_active_character_optimal(
 
 /// Simple lighting setup positioned at camera target
 fn setup_lighting(commands: &mut Commands, arena_id: arena::ArenaId) {
-    // Directional light
+    // Hot red color for all lights
+    let hot_red = Color::srgb(1.0, 0.2, 0.1);
+
+    // Directional light with hot red color and increased intensity
     commands.spawn((
         DirectionalLight {
-            illuminance: 10000.0,
+            illuminance: 0.0, // Increased from 10000.0 for more visibility
+            color: hot_red,
+            shadows_enabled: true,
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(
@@ -288,29 +293,4 @@ fn setup_lighting(commands: &mut Commands, arena_id: arena::ArenaId) {
             0.0,
         )),
     ));
-
-    // Calculate the camera's target position (center of the arena)
-    let camera_target = arena_camera::calculate_camera_position(arena_id);
-
-    // Point light positioned at the camera's target position
-    // This ensures the light illuminates where the camera is looking
-    commands.spawn((
-        PointLight {
-            intensity: 500000.0, // Strong intensity for good tile illumination
-            range: 800.0,        // Range to cover a good portion of the arena
-            radius: 0.0,
-            color: Color::WHITE,
-            shadows_enabled: true,
-            ..default()
-        },
-        // Position at the camera's target with some elevation
-        Transform::from_translation(camera_target + Vec3::new(0.0, 0.0, 300.0)),
-    ));
-
-    // Ambient light
-    commands.insert_resource(AmbientLight {
-        color: Color::srgb(0.8, 0.8, 0.8),
-        brightness: 0.5,
-        affects_lightmapped_meshes: false,
-    });
 }
