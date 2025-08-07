@@ -146,7 +146,7 @@ fn spawn_starting_hero(
     let local_position = get_local_tile_space(35, 15);
     commands.entity(arena_entity).with_child((
         Character,
-        AutoShot,
+        AutoShot::new(3.0),
         Active,
         Mesh3d(sphere_mesh),
         MeshMaterial3d(blue_material),
@@ -172,7 +172,7 @@ fn spawn_starting_hero_v2(
     let local_position = get_local_tile_space(32, 15);
     commands.entity(arena_entity).with_child((
         Character,
-        AutoShot,
+        AutoShot::new(3.0),
         Mesh3d(sphere_mesh),
         MeshMaterial3d(blue_material),
         Transform::from_translation(local_position),
@@ -272,10 +272,10 @@ fn move_projectiles(
         }
     }
 }
-pub fn tile_dist(pos1: (i32, i32), pos2: (i32, i32)) -> i32 {
+pub fn tile_dist(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
     let dx = (pos1.0 - pos2.0).abs();
     let dy = (pos1.1 - pos2.1).abs();
-    dx.max(dy) // Maximum of the coordinate differences
+    dx.max(dy).round()
 }
 
 /// System that handles autoshot ability - spawns projectiles as independent entities
@@ -285,7 +285,7 @@ fn autoshot_ability(
     mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
     mut timer: Local<Timer>,
-    character_query: Query<(&GlobalTransform, &AutoShot), (With<Character>, With<Active>)>,
+    character_query: Query<(&GlobalTransform, &AutoShot), (With<Character>, With<AutoShot>)>,
     boss_query: Query<&GlobalTransform, (With<Boss>, With<Active>)>,
 ) {
     // Initialize timer on first run
@@ -313,8 +313,7 @@ fn autoshot_ability(
             let x2 = boss_pos.x;
             let y2 = boss_pos.y;
 
-            if tile_dist((x1 as i32, y1 as i32), (x2 as i32, y2 as i32)) <= TILE_SIZE as i32 * 5 {
-                // Calculate projectile properties
+            if tile_dist((x1, y1), (x2, y2)) <= autoshot.distance {
                 let distance = character_pos.distance(boss_pos);
                 let travel_time = distance / TILE_SIZE; // 1 tile per second
 
