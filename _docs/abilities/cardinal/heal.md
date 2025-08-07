@@ -1,46 +1,69 @@
-# Heal
+# Holy Nova
 
-A complete implementation guide for the Cardinal's targeted restoration utility ability.
+A complete implementation guide for the Cardinal's divine area-of-effect ability that simultaneously heals allies and damages enemies.
 
 ## Overview
 
-The **Heal** ability represents the Cardinal's primary healing support through divine restoration magic. Using intelligent targeting within an 8x8 grid area, the ability automatically selects the ally with the lowest health percentage, ensuring healing resources reach those most in need. This smart targeting system eliminates targeting confusion during combat while providing substantial health restoration to keep the team operational.
+**Holy Nova** represents the Cardinal's signature divine intervention through explosive sacred energy. This area-of-effect ability creates a brilliant nova of holy power centered on the Cardinal, healing all allied units within range while simultaneously damaging enemy targets in the same area. The dual nature of this ability creates compelling tactical decisions around positioning, timing, and risk management that define high-level Cardinal play.
 
 ## Game Design Philosophy
 
-This ability demonstrates intelligent automation design that enhances rather than replaces player skill:
+Holy Nova exemplifies **high-risk, high-reward positioning design** that transforms the Cardinal from a passive supporter into an active tactical participant:
 
-**Need-Based Targeting**: Automatic selection of the most injured ally removes micro-management burden while ensuring optimal resource distribution.
+**Tactical Positioning**: Forces Cardinals to make calculated decisions about proximity to combat, balancing safety with healing efficiency.
 
-**Substantial Restoration**: The significant healing amount makes each cast meaningful and impactful rather than requiring repeated minor applications.
+**Dual-Purpose Impact**: Simultaneous healing and damage creates opportunities for game-changing moments where positioning determines massive swing potential.
 
-**Consistent Availability**: The 5-second cooldown provides reliable access to healing without overwhelming combat with constant restoration.
+**Team Coordination Catalyst**: Requires team coordination around Cardinal positioning, creating natural interdependence and communication opportunities.
+
+**Mastery Through Risk**: Rewards players who master positioning mechanics with powerful impact, while providing clear counterplay opportunities for opponents.
+
+## Mechanical Innovation Analysis
+
+### First-Principles Design
+Rather than traditional "point and click" healing, Holy Nova reimagines support as **spatial control**. The ability asks: "What if healing required the same positional mastery as dealing damage?" This creates a new skill expression where support players must read battlefield flow and position proactively rather than reactively.
+
+### Skill Atom Architecture
+- **Action/Trigger**: Cardinal activates nova (tap/click input)
+- **Simulation**: System calculates all units within 2-tile radius, applies healing/damage based on allegiance
+- **Feedback**: Visual nova explosion with distinct healing/damage effects on targets
+- **Insight**: Players learn that positioning near combat zones amplifies impact but increases risk
+
+### Strategic Innovation
+Holy Nova introduces **proximity-based support efficiency**, where getting closer to danger increases healing potential. This inverts traditional support positioning wisdom and creates unique tactical scenarios.
 
 ## Implementation Architecture
 
 ### Component-Based Design
 
 ```rust
-Heal {
-    range: GridArea::new(8, 8),     // 8x8 grid coverage area
-    heal_amount: 150.0,             // 150 HP restoration
-    cast_time: 0.5,                 // 0.5 second channel time
-    cooldown: 5.0,                  // 5 second ability cooldown
-    targeting: SmartTarget::LowestHealthPercent,
-    mana_cost: 25.0,                // 25 MP per cast
+HolyNova {
+    range: TileRadius::new(2),           // 2-tile radius (5x5 grid)
+    heal_amount: 120.0,                  // 120 HP restoration per ally
+    damage_amount: 80.0,                 // 80 damage per enemy
+    cast_time: 0.8,                      // 0.8 second channel time
+    cooldown: 9.0,                       // 9 second ability cooldown
+    targeting: AreaOfEffect::CenteredOnSelf,
+    mana_cost: 40.0,                     // 40 MP per cast
+    line_of_sight_required: false,       // Penetrates through obstacles
 }
 
-HealTargeting {
-    eligible_allies: Vec<Entity>,
-    health_percentages: HashMap<Entity, f32>,
-    selected_target: Option<Entity>,
-    targeting_override: Option<Entity>, // Manual override if needed
+HolyNovaTargeting {
+    affected_allies: Vec<Entity>,
+    affected_enemies: Vec<Entity>,
+    impact_tiles: Vec<GridPos>,
+    total_healing: f32,
+    total_damage: f32,
+    efficiency_bonus: f32,               // Bonus based on target count
 }
 
-HealEffect {
-    target: Entity,
-    heal_amount: f32,
+HolyNovaEffect {
+    caster: Entity,
+    targets: Vec<Entity>,
+    heal_targets: Vec<Entity>,
+    damage_targets: Vec<Entity>,
     channel_progress: f32,
+    nova_intensity: f32,
     visual_effect: Entity,
     audio_source: Entity,
 }
@@ -48,268 +71,499 @@ HealEffect {
 
 ### Event-Driven Systems
 
-The ability operates through five integrated systems:
-1. **Smart Targeting** - Identifies ally with lowest health percentage within range
-2. **Cast Management** - Handles 0.5-second channel with interruption potential
-3. **Healing Application** - Applies health restoration upon successful cast completion
-4. **Resource Management** - Tracks mana consumption and cooldown timing
-5. **Visual Coordination** - Manages divine healing effects and status feedback
+The ability operates through six integrated systems:
+1. **Area Calculation** - Determines all units within 2-tile radius of Cardinal
+2. **Allegiance Processing** - Separates targets into allies (heal) and enemies (damage)
+3. **Cast Management** - Handles 0.8-second channel with movement/damage interruption
+4. **Simultaneous Application** - Applies healing and damage simultaneously upon completion
+5. **Resource Management** - Tracks mana consumption and cooldown timing
+6. **Visual Coordination** - Manages explosive nova effects with distinct ally/enemy feedback
 
 ## Step-by-Step Gameplay
 
-### Phase 1: Automatic Target Selection (Pre-Activation)
-- **Range Scanning**: System identifies all allies within 8x8 grid area
-- **Health Assessment**: Calculate health percentage for each eligible ally
-- **Priority Selection**: Choose ally with lowest health percentage
-- **Visual Preview**: Selected target highlighted with gentle healing indicator
+### Phase 1: Area Preview (Pre-Activation)
+- **Range Visualization**: 2-tile radius highlighted around Cardinal position
+- **Target Assessment**: All allies and enemies within area marked with preview indicators
+- **Efficiency Calculation**: UI shows potential healing total and damage total
+- **Positioning Feedback**: Visual cues indicate optimal positioning opportunities
 
-### Phase 2: Cast Initiation (Tap Activation)
-- **Input Method**: Single tap begins 0.5-second healing channel
-- **Mana Check**: Verify sufficient mana (25 MP) before initiating cast
-- **Channel Start**: Cardinal begins divine invocation with raised hands
-- **Visual Buildup**: Golden healing energy accumulates around Cardinal
+### Phase 2: Cast Initiation (Activation)
+- **Input Method**: Single tap begins 0.8-second channeling ritual
+- **Mana Check**: Verify sufficient mana (40 MP) before initiating cast
+- **Channel Start**: Cardinal raises both hands skyward, divine energy building
+- **Vulnerability Window**: Cardinal becomes stationary and vulnerable to interruption
 
-### Phase 3: Channel Completion (0.5 Second Duration)
-- **Uninterrupted Channel**: Cardinal must avoid damage or movement during cast
-- **Visual Connection**: Golden light stream connects Cardinal to target
-- **Audio Building**: Divine harmony builds in intensity toward completion
-- **Interruption Risk**: Taking damage or forced movement cancels heal
+### Phase 3: Channel Buildup (0.8 Second Duration)
+- **Uninterrupted Channel**: Movement or damage taken cancels the ability
+- **Visual Buildup**: Brilliant white-gold energy sphere expands around Cardinal
+- **Audio Crescendo**: Divine chorus builds to crescendo with harmonic resonance
+- **Strategic Tension**: Enemies can attempt to interrupt or flee the area
 
-### Phase 4: Healing Resolution (Instant Application)
-- **Health Restoration**: Target gains 150 HP instantly upon channel completion
-- **Visual Impact**: Brilliant golden light envelops target with healing particles
-- **Audio Climax**: Divine chime indicates successful healing completion
-- **Status Update**: Target's health bar updates with healing amount displayed
+### Phase 4: Nova Explosion (Instant Resolution)
+- **Simultaneous Impact**: All targets receive healing or damage instantly
+- **Visual Detonation**: Brilliant explosion of divine light affecting all targets
+- **Audio Climax**: Thunderous divine resonance with distinct ally/enemy audio cues
+- **Battle State Change**: Potentially massive health swings across multiple units
 
-## Smart Targeting Algorithm
+## Area-of-Effect Mechanics
 
-### Selection Logic
+### Targeting Algorithm
 ```rust
-fn select_heal_target(allies: &[Entity], cardinal_pos: GridPos) -> Option<Entity> {
-    let eligible_allies: Vec<Entity> = allies.iter()
-        .filter(|ally| is_within_range(**ally, cardinal_pos, 8))
-        .filter(|ally| is_alive(**ally))
-        .filter(|ally| !is_at_full_health(**ally))
-        .cloned()
+fn calculate_holy_nova_targets(cardinal_pos: GridPos) -> (Vec<Entity>, Vec<Entity>) {
+    let affected_tiles = get_tiles_in_radius(cardinal_pos, 2);
+    let all_units: Vec<Entity> = affected_tiles.iter()
+        .flat_map(|tile| get_units_on_tile(*tile))
+        .filter(|unit| is_alive(**unit))
         .collect();
     
-    if eligible_allies.is_empty() {
-        return None;
-    }
+    let (allies, enemies): (Vec<Entity>, Vec<Entity>) = all_units.iter()
+        .partition(|unit| is_ally(**unit, cardinal_pos.team));
     
-    // Find ally with lowest health percentage
-    eligible_allies.into_iter()
-        .min_by(|a, b| {
-            let a_percent = health_percentage(*a);
-            let b_percent = health_percentage(*b);
-            a_percent.partial_cmp(&b_percent).unwrap_or(std::cmp::Ordering::Equal)
-        })
+    // Exclude the Cardinal from healing (cannot self-target)
+    let heal_targets = allies.into_iter()
+        .filter(|ally| **ally != cardinal_entity)
+        .collect();
+    
+    (heal_targets, enemies)
 }
 
-fn health_percentage(entity: Entity) -> f32 {
-    let current = get_current_health(entity);
-    let maximum = get_maximum_health(entity);
-    current / maximum
+fn calculate_efficiency_bonus(heal_count: usize, damage_count: usize) -> f32 {
+    let total_targets = heal_count + damage_count;
+    match total_targets {
+        0..=1 => 1.0,      // No bonus for minimal impact
+        2..=3 => 1.1,      // 10% bonus for good positioning
+        4..=5 => 1.25,     // 25% bonus for excellent positioning
+        6.. => 1.4,        // 40% bonus for perfect positioning
+    }
 }
 ```
 
-### Priority Factors
-- **Critical Health**: Allies below 25% health gain selection priority
-- **Damage Trends**: Recently damaged allies weighted slightly higher
-- **Role Consideration**: Tanks and healers gain minor priority weighting
-- **Distance Optimization**: Among equal health percentages, closer allies preferred
+### Area Coverage
+- **Core Radius**: 2-tile radius creates 5x5 grid (25 total tiles)
+- **Center Position**: Cardinal occupies center tile, cannot self-heal
+- **Obstacle Penetration**: Holy energy penetrates walls, cover, and line-of-sight blockers
+- **Elevation Independence**: Works across different height levels within range
+- **Precise Boundaries**: Uses true geometric distance, not Manhattan distance
+
+## Player Psychology & Engagement
+
+### Risk/Reward Psychology
+Holy Nova leverages **loss aversion** by requiring Cardinals to risk personal safety for maximum healing impact. The fear of losing position safety feels twice as significant as the potential healing gains, creating memorable high-stakes moments.
+
+### Positioning Mastery
+The ability creates **competence satisfaction** through spatial skill development. Players must learn battlefield reading, timing, and positioning - skills that transfer to tactical understanding beyond just this ability.
+
+### Social Coordination
+Holy Nova demands **team interdependence** - allies must coordinate around Cardinal positioning, creating natural communication and strategy formation. This builds **relatedness** through shared tactical decisions.
+
+### Flow State Engineering
+The 0.8-second channel creates perfect **challenge-skill balance**: long enough to create tension and allow counterplay, short enough to maintain action flow. The timing rewards precise battlefield reading while punishing hesitation.
+
+## Advanced Tactical Applications
+
+### Positioning Strategies
+- **Frontline Integration**: Advanced Cardinals position near melee combat for maximum ally coverage
+- **Chokepoint Control**: Use nova threat to control enemy movement through narrow passages
+- **Team Fight Initiation**: Coordinate nova timing with team engagements for massive health swings
+- **Defensive Clustering**: Group damaged allies near Cardinal for efficient group healing
+
+### Counterplay Opportunities
+- **Interrupt Targeting**: Enemies can focus fire during 0.8-second channel window
+- **Area Denial**: Enemy positioning can force Cardinals into suboptimal nova placement
+- **Mobility Counters**: Fast enemies can escape area during channel time
+- **Resource Pressure**: High mana cost creates windows of vulnerability
+
+### Mastery Indicators
+- **Target Efficiency**: Expert players consistently hit 4+ targets per nova
+- **Risk Calculation**: Masters position aggressively but time retreats perfectly
+- **Battlefield Reading**: Advanced players predict enemy movement for optimal placement
+- **Resource Management**: Experts time novas for maximum battle impact per mana spent
 
 ## Upgrade Paths
 
-### Tier 1: Empowered Restoration
-- **Heal Amount**: 150 HP → 200 HP per cast
-- **Cast Speed**: 0.5 seconds → 0.3 seconds channel time
-- **Mana Efficiency**: 25 MP → 20 MP cost reduction
-- **Strategic Value**: More powerful healing with faster delivery and better resource economy
+### Tier 1: Radiant Expansion
+- **Range Increase**: 2-tile radius → 2.5-tile radius (7x7 grid coverage)
+- **Cast Speed**: 0.8 seconds → 0.6 seconds channel time
+- **Efficiency Scaling**: Target bonuses increased by 5% across all thresholds
+- **Strategic Value**: Larger area control with faster execution for safer positioning
 
-### Tier 2: Radiant Recovery
-- **Overheal Shield**: Excess healing creates temporary shield (maximum 50 HP)
-- **Range Extension**: 8x8 grid → 10x10 grid coverage area
-- **Heal Over Time**: Additional 20 HP/second for 5 seconds after initial heal
-- **Enhanced Utility**: Provides protection beyond maximum health and sustained recovery
+### Tier 2: Divine Resonance
+- **Healing Over Time**: Allies gain 15 HP/second for 6 seconds after nova
+- **Damage Over Time**: Enemies take 8 damage/second for 6 seconds after nova
+- **Resonance Chain**: Targets hit by nova extend effects to adjacent allies/enemies
+- **Enhanced Impact**: Transforms burst ability into sustained battlefield control
 
-### Tier 3: Divine Grace
-- **Group Blessing**: Heals selected target plus all allies within 2 tiles of target
-- **Resurrection Touch**: Can target and revive recently fallen allies (within 10 seconds)
-- **Perfect Timing**: Successful heal on ally below 25% health reduces cooldown by 2 seconds
-- **Master Support**: Transforms single-target heal into powerful group restoration tool
+### Tier 3: Celestial Convergence
+- **Sacred Ground**: Nova area becomes blessed terrain for 15 seconds
+- **Ally Buffs**: Blessed ground provides +10% damage and +15% healing received
+- **Enemy Debuffs**: Blessed ground applies -10% damage dealt to enemies
+- **Area Persistence**: Creates long-term tactical value and battlefield shaping
 
-## Positioning and Team Coordination
+## Balance Considerations
 
-### Optimal Cardinal Placement
-- **Central Coverage**: Position to maximize 8x8 grid coverage of team formation
-- **Tank Support**: Maintain range to primary tank for consistent healing access
-- **Line of Sight**: Ensure clear view of all allies for targeting and channel completion
-- **Safety Positioning**: Balance healing range with personal safety from enemy threats
+### Power Level Scaling
+- **Base Power**: 120 healing / 80 damage provides meaningful but not overwhelming impact
+- **Mana Efficiency**: 40 MP cost requires careful resource management (3-4 casts per full bar)
+- **Cooldown Pacing**: 9-second cooldown prevents spam while allowing 2-3 uses per battle
+- **Risk Premium**: Vulnerability during channel balances high potential impact
 
-### Team Formation Benefits
-- **Cluster Healing**: Tight formations ensure all allies within healing range
-- **Tank Priority**: Damaged tanks typically receive healing priority due to health pool size
-- **Support Chain**: Other support characters receive healing to maintain team sustainability
-- **Damage Dealer Care**: Glass cannon allies benefit from smart targeting when injured
+### Comparative Analysis
+- **vs Single Heal**: Nova trades guaranteed safety for potential multi-target impact
+- **vs Damage Abilities**: Lower damage than pure offensive spells, balanced by healing component
+- **vs Support Abilities**: Higher risk than passive support, rewarded with higher potential impact
+- **vs Team Resources**: High mana cost forces strategic timing rather than constant use
+
+### Scaling Mechanisms
+- **Level Scaling**: +8 healing and +5 damage per Cardinal level
+- **Equipment Scaling**: Divine focus items provide +15% efficiency bonus
+- **Mastery Scaling**: Target count bonuses reward positioning skill development
+- **Team Scaling**: Effectiveness scales with team coordination and communication
+
+## Implementation Guidelines
+
+### Technical Specifications
+```rust
+// Core damage/healing calculation
+fn apply_holy_nova_effects(targets: &HolyNovaTargeting, efficiency: f32) {
+    for ally in &targets.affected_allies {
+        let heal_amount = 120.0 * efficiency;
+        apply_healing(*ally, heal_amount);
+        trigger_heal_effect(*ally, HealType::Divine);
+    }
+    
+    for enemy in &targets.affected_enemies {
+        let damage_amount = 80.0 * efficiency;
+        apply_damage(*enemy, damage_amount, DamageType::Holy);
+        trigger_damage_effect(*enemy, DamageType::Holy);
+    }
+}
+
+// Efficiency calculation based on positioning mastery
+fn calculate_positioning_mastery(heal_count: usize, damage_count: usize, risk_level: f32) -> f32 {
+    let base_bonus = calculate_efficiency_bonus(heal_count, damage_count);
+    let risk_bonus = risk_level * 0.2; // Up to 20% bonus for high-risk positioning
+    (base_bonus + risk_bonus).min(1.6) // Cap at 60% total bonus
+}
+```
+
+### Visual Effect Guidelines
+- **Nova Core**: Brilliant white-gold explosion expanding from Cardinal position
+- **Ally Effects**: Warm golden light with upward-floating healing particles
+- **Enemy Effects**: Searing white light with downward-striking damage effects
+- **Area Indicators**: Clear visual boundaries for 2-tile radius during channel
+- **Performance**: Optimized particle systems for up to 8 simultaneous target effects
+
+### Audio Design Philosophy
+- **Channel Buildup**: Rising orchestral swell with divine choir harmonics
+- **Nova Explosion**: Thunderous divine resonance with crystalline bell overlay
+- **Ally Healing**: Gentle chimes and warm harmonic resolution
+- **Enemy Damage**: Sharp, piercing tones with minor chord dissonance
+- **Spatial Audio**: Omnidirectional source with distance-appropriate falloff
+
+### Animation Timing
+- **Pre-cast (0.2s)**: Cardinal raises hands, energy begins gathering
+- **Channel (0.8s)**: Energy sphere grows, reaching maximum intensity
+- **Explosion (0.1s)**: Instantaneous burst affecting all targets
+- **Resolution (0.3s)**: Individual target effects play out
+- **Cooldown (9.0s)**: Cardinal cannot cast nova again
+
+## Community & Ecosystem Impact
+
+### Prosocial Design Elements
+- **Interdependence Creation**: Teams must coordinate positioning around Cardinal
+- **Shared Success**: Effective novas create visible positive outcomes for multiple allies
+- **Communication Catalyst**: Ability requires callouts and coordination
+- **Mastery Sharing**: Expert positioning techniques become community knowledge
+
+### Anti-Toxic Design
+- **No Griefing Potential**: Cannot negatively affect allies (healing is always beneficial)
+- **Clear Counterplay**: Enemies have obvious interruption and avoidance options
+- **Skill Expression**: Success depends on player skill, not RNG or pay-to-win mechanics
+- **Positive Sum**: Creates more healing than damage, promoting engagement over avoidance
+
+### Long-term Engagement
+- **Mastery Curve**: High skill ceiling through positioning optimization
+- **Meta Evolution**: Strategies evolve as community learns optimal formations
+- **Social Recognition**: Exceptional nova usage becomes recognized achievement
+- **Replay Value**: Each battle presents unique positioning challenges
 
 ## Visual & Audio Design
 
 ### Lighting Design Philosophy
-The Cardinal's Heal ability employs **divine radiance lighting** that evokes warmth, comfort, and spiritual restoration. The color palette centers on **warm golds and soft whites** to convey benevolent divine power and healing energy.
+Holy Nova employs **explosive divine radiance** that contrasts sharply with the previous heal's gentle glow. The effect emphasizes **power and impact** through brilliant white-gold illumination that momentarily dominates the battlefield.
 
 **Technical Implementation:**
-- **Key Light**: Warm, omnidirectional lighting from Cardinal position (360-degree diffusion)
-- **Fill Light**: Soft ambient lighting with increased intensity during healing
-- **Divine Light**: Volumetric lighting column connecting Cardinal to target
-- **Color Temperature**: 2700K-3500K range for warm, comforting feeling
-- **PBR Materials**: High emission values (2.0-4.0) with soft falloff curves for divine energy
+- **Nova Core**: Ultra-bright point light (Intensity: 25) expanding to 8-unit radius over 0.1 seconds
+- **Area Illumination**: Omnidirectional burst affecting all surfaces within 2-tile range
+- **Dynamic Shadows**: Sharp shadow casting during explosion for dramatic contrast
+- **Color Palette**: Pure white core (RGB: 1.0, 1.0, 1.0) transitioning to warm gold edges (RGB: 1.0, 0.8, 0.4)
+- **PBR Materials**: Maximum emission values (8.0+) with rapid falloff for explosive feel
 
-### Target Selection
+### Channel Phase Lighting
 
-**Lighting Design:**
-- **Target Highlighting**: Warm golden rim light (4-unit intensity) around selected ally
-- **Range Visualization**: Subtle golden particle field showing 8x8 grid coverage
-- **Cardinal Aura**: Soft omnidirectional glow (RGB: 1.0, 0.8, 0.4, Intensity: 1.5)
-- **Performance**: Baked area lighting for grid, dynamic rim light for target
-
-**Visual Effects:**
-- **Health Assessment**: Color-coded health bar overlays (red→yellow→green gradient)
-- **Selection Indicator**: Gentle golden particle ring around target (30 particles, 2-second cycle)
-- **UI Enhancement**: Soft-glow typography with divine symbol watermarks
-- **Shader Optimization**: Screen-space selection outline, no geometry duplication
-
-**Audio Design:**
-- **Target Lock**: Gentle bell chime (C5 note, 0.3s duration, 0.4 volume)
-- **Harmonic Layer**: Subtle choir pad (C major chord, sustained background)
-- **Spatial Audio**: Omnidirectional source at Cardinal position, 12-unit range
-- **Performance**: Compressed streaming for choir, cached samples for bells
-
-### Channel Phase
-
-**Lighting Design:**
-- **Divine Column**: Volumetric light beam (Intensity: 8, Height: 10 units, Width: 1 unit)
-- **Energy Buildup**: Graduated light intensity (0.0→8.0) over 0.5-second channel
-- **Color Progression**: Soft gold (RGB: 1.0, 0.8, 0.4) to brilliant white (RGB: 1.0, 1.0, 0.9)
-- **Sacred Geometry**: Subtle caustic patterns projected from Cardinal's hands
-- **Performance**: Single volumetric light with animated intensity curve
+**Gathering Energy:**
+- **Cardinal Aura**: Growing omnidirectional light (0.5→6.0 intensity over 0.8 seconds)
+- **Energy Accumulation**: Expanding light sphere with increasing brightness
+- **Color Progression**: Soft gold building to brilliant white core
+- **Environmental Response**: Nearby surfaces increasingly illuminated
+- **Performance**: Single expanding point light with animated intensity curve
 
 **Visual Effects:**
-- **Hand Positioning**: Cardinal's arms raised with palms facing target
-- **Energy Manifestation**: 50-75 golden particles spiraling upward from hands
-- **Robe Animation**: Cloth simulation with divine wind forces applied
-- **Symbol Appearance**: Rotating holy symbols (5 total) orbiting Cardinal at 2-unit radius
+- **Energy Manifestation**: 200+ brilliant particles spiraling inward toward Cardinal
+- **Sacred Symbols**: Rotating divine geometry orbiting at 3-unit radius
+- **Ground Effects**: Runic circles appearing beneath Cardinal's feet
+- **Anticipation Building**: Progressive brightening of Cardinal's entire model
 
-**Audio Design:**
-- **Divine Harmony**: Building orchestral chord progression (C-F-G-C)
-- **Vocal Layer**: Ethereal choir with growing intensity
-- **Frequency Range**: Fundamental at 261Hz (C4) with harmonic overtones
-- **Performance**: Layered audio with crossfaded intensity stages
+### Nova Explosion Phase
 
-### Healing Application
+**Detonation Lighting:**
+- **Core Burst**: Instantaneous maximum intensity explosion (Intensity: 25, Duration: 0.1s)
+- **Radial Expansion**: Light wave expanding outward at 40 units/second
+- **Area Saturation**: All surfaces within range receive full illumination
+- **Shadow Casting**: Sharp, dramatic shadows cast outward from nova center
+- **Performance**: Multiple expanding lights with synchronized timing
 
-**Lighting Design:**
-- **Healing Flash**: Brilliant white burst (Intensity: 15, Duration: 0.2s)
-- **Target Illumination**: Target becomes light source (RGB: 1.0, 0.9, 0.7, Intensity: 6.0)
-- **Radiance Spread**: Light expands from target in 3-unit radius
-- **Divine Blessing**: Soft golden afterglow (2-second fade to ambient)
-- **Performance**: Burst lighting uses light cookies for consistent pattern
-
-**Visual Effects:**
-- **Particle Shower**: 100-150 golden sparkles descending on target
-- **Health Restoration**: Green healing numbers with golden particle trail
-- **Target Glow**: Full-body luminescence with soft edge falloff
-- **Blessing Aura**: Expanding golden ring effect (0.5→3.0 units over 1 second)
-
-**Audio Design:**
-- **Divine Bell**: Crystal-clear chime (C6 note, 0.5s duration)
-- **Harmonic Resolution**: Major chord progression resolving to tonic
-- **Frequency Spectrum**: Bright harmonics (1-8kHz) for divine clarity
-- **Performance**: High-quality samples with natural reverb tail
-
-### Post-Healing Effects
-
-**Lighting Design:**
-- **Blessing Afterglow**: Soft golden aura around healed ally (RGB: 1.0, 0.8, 0.4, Intensity: 0.8)
-- **Fade Curve**: Exponential decay over 3-second duration
-- **Ambient Boost**: Temporary increase in local ambient lighting
-- **Performance**: Animated material emission, no additional light sources
+**Target-Specific Effects:**
+- **Healed Allies**: Warm golden illumination with gentle upward light rays
+- **Damaged Enemies**: Harsh white light with downward-striking effects
+- **Dual Rendering**: Simultaneous healing/damage lighting on all targets
+- **Performance Optimization**: Shared light calculations for similar effects
 
 **Visual Effects:**
-- **Lingering Sparkles**: 20-30 particles with slow upward drift
-- **Health Bar Animation**: Smooth green fill with golden highlight
-- **Status Indicator**: Subtle divine blessing icon above target
-- **Accessibility**: Health restoration clearly visible in colorblind-safe palette
+- **Nova Explosion**: 500+ particles expanding in perfect sphere
+- **Target Impacts**: Distinct particle systems for healing vs damage
+- **Environmental Interaction**: Light interacts with dust, fog, and atmospheric effects
+- **Screen Effects**: Brief screen-space brightening for explosive impact
 
-**Audio Design:**
-- **Echo Harmony**: Reverberant choir fade with 2-second decay
-- **Comfort Tone**: Sustained warm pad (C major chord, 3-second fade)
-- **Frequency Warmth**: Emphasized low-mid frequencies (200-800Hz)
-- **Performance**: Convolution reverb for realistic sacred space acoustics
+### Audio Design Architecture
+
+**Channel Phase Audio:**
+- **Divine Buildup**: Orchestral swell with pipe organ foundation (C major scale ascending)
+- **Choir Layer**: Ethereal voices building in volume and harmony complexity
+- **Energy Resonance**: Subtle electrical/magical humming with increasing frequency
+- **Spatial Design**: Omnidirectional source at Cardinal with 15-unit range
+- **Performance**: Layered streaming audio with dynamic mixing
+
+**Explosion Audio:**
+- **Thunder Crash**: Massive orchestral hit with timpani and cymbals (fortissimo)
+- **Divine Resonance**: Crystalline bell overlay with harmonic overtones
+- **Frequency Range**: Full spectrum from 40Hz bass to 8kHz treble
+- **Echo Environment**: 2-second reverb decay simulating divine space acoustics
+- **Performance**: High-quality samples with convolution reverb
+
+**Target-Specific Audio:**
+- **Healing Sounds**: Gentle chimes in major key (C-E-G progression)
+- **Damage Sounds**: Sharp, discordant tones in minor key (C-Eb-G progression)
+- **Layered Playback**: Up to 8 simultaneous target audio sources
+- **Distance Attenuation**: Individual target sounds with appropriate falloff
 
 ### Performance Optimization for Mass Combat
 
 **Lighting Optimization:**
-- **Healing Light LOD**: 
-  - **High (0-15 units)**: Full volumetric lighting and shadows
-  - **Medium (15-40 units)**: Point lights only, no volumetrics
-  - **Low (40+ units)**: Emissive materials only, no dynamic lighting
-- **Light Culling**: Cardinal healing lights disabled when not visible
-- **Batch Processing**: Similar healing effects rendered in single pass
+- **Nova Light LOD**: 
+  - **High (0-20 units)**: Full dynamic lighting with shadows
+  - **Medium (20-50 units)**: Point lights only, no area illumination
+  - **Low (50+ units)**: Emissive materials only, no dynamic lighting
+- **Effect Batching**: Multiple simultaneous novas use shared lighting calculations
+- **Culling System**: Off-screen nova effects use simplified rendering
 
 **Visual Effects Optimization:**
-- **Particle Reduction**: Scaled particle counts based on camera distance
-- **Shader LOD**: Simplified shaders for background healing effects
-- **Effect Pooling**: Pre-allocated pools for 20 concurrent healing effects
-- **Texture Streaming**: Divine symbols use compressed texture streaming
+- **Particle Scaling**: Particle count scales with distance and performance settings
+- **Shader LOD**: Background nova effects use simplified shaders
+- **Effect Pooling**: Pre-allocated pools for 10 concurrent nova effects
+- **Memory Management**: Texture atlases for all nova visual components
 
 **Audio Optimization:**
-- **Voice Management**: Maximum 4 concurrent healing audio sources
-- **Distance Attenuation**: Healing audio fades beyond 25-unit range
-- **Dynamic Range**: Compressed audio for consistent volume levels
-- **Memory Optimization**: Shared audio buffers for similar healing sounds
-
-### Deterministic Recording Compatibility
-
-**Visual Synchronization:**
-- **Component-Driven Animation**: All effects triggered by healing component state
-- **Deterministic Particles**: Seeded random number generation for particle placement
-- **Frame-Locked Timing**: Visual progression based on simulation steps
-- **Replay Accuracy**: Identical visual sequence across all replay instances
-
-**Audio Synchronization:**
-- **Event-Based Triggers**: Audio cues linked to specific healing events
-- **Position Precision**: Audio sources track exact entity positions
-- **Timing Consistency**: Audio scheduling based on fixed timestep updates
-- **Replay Fidelity**: Synchronized audio playback in all replay modes
+- **Voice Management**: Maximum 2 concurrent nova audio sources
+- **Distance Culling**: Nova audio disabled beyond 30-unit range
+- **Dynamic Compression**: Audio levels automatically adjusted for multiple novas
+- **Memory Optimization**: Shared buffers for explosion and resonance sounds
 
 ### Accessibility Considerations
 
 **Visual Accessibility:**
-- **Colorblind Support**: Golden effects accompanied by brightness variations
-- **High Contrast**: Alternative blue-white palette for better visibility
-- **Motion Reduction**: Option to disable particle effects while maintaining core visuals
-- **Text Scaling**: Healing numbers support up to 300% size scaling
+- **High Contrast Mode**: Alternative blue-white nova for improved visibility
+- **Reduced Motion**: Option to minimize particle effects while maintaining core visuals
+- **Colorblind Support**: Distinct brightness patterns for healing vs damage effects
+- **Photosensitive Safety**: Configurable intensity limits for sensitive players
 
 **Audio Accessibility:**
-- **Hearing Impaired**: Visual indicators for all audio cues
-- **Frequency Alternatives**: Lower frequency healing tones available
-- **Subtitle Support**: Text descriptions for divine audio cues
-- **Volume Independence**: Visual clarity maintained at all audio levels
+- **Visual Audio Cues**: Screen border flashing for explosion timing
+- **Frequency Alternatives**: Lower frequency options for hearing-impaired players
+- **Haptic Feedback**: Controller vibration patterns for nova phases
+- **Subtitle Support**: Text descriptions of all divine audio components
 
-### Cardinal Class Visual Identity
+### Cardinal Class Visual Evolution
 
-The Heal ability establishes the Cardinal's **divine radiance** visual language:
-- **Primary Colors**: Warm gold (RGB: 1.0, 0.8, 0.4) and soft white (RGB: 1.0, 1.0, 0.9)
-- **Secondary Accents**: Sacred purple (RGB: 0.6, 0.4, 0.8) for enhanced abilities
-- **Material Palette**: High emission surfaces with soft, organic falloff patterns
-- **Lighting Character**: Omnidirectional, warm lighting emphasizing comfort and protection
-- **Animation Style**: Fluid, graceful movements with divine wind effects
+Holy Nova establishes the Cardinal's **explosive divine power** identity:
+- **Primary Colors**: Brilliant white core (RGB: 1.0, 1.0, 1.0) with warm gold accents
+- **Power Expression**: High-intensity, area-dominating effects emphasizing impact
+- **Material Evolution**: Maximum emission surfaces with sharp contrast ratios
+- **Lighting Character**: Explosive, attention-commanding illumination
+- **Animation Style**: Powerful, decisive movements with earth-shaking divine forces
 
-### Sacred Geometry Integration
+This visual language differentiates from the gentle, targeted healing approach, positioning Holy Nova as the Cardinal's signature battlefield-changing ability.
 
-**Divine Patterns:**
-- **Healing Circles**: Sacred geometric patterns appear during channeling
-- **Symbol Rotation**: Holy symbols rotate at mathematically significant ratios (φ golden ratio)
-- **Light Refraction**: Caustic patterns based on medieval stained glass designs
-- **Fractal Elements**: Self-similar patterns in particle distribution for divine complexity
+## Behavioral Economics Integration
+
+### Scarcity and Timing
+- **Long Cooldown**: 9-second timer creates scarcity, making each cast precious
+- **Mana Investment**: 40 MP represents significant resource commitment
+- **Optimal Timing Windows**: Players must identify perfect moments for maximum impact
+
+### Loss Aversion Application
+- **Positioning Risk**: Fear of losing safe positioning feels stronger than potential healing gains
+- **Interruption Vulnerability**: 0.8-second channel creates anxiety around losing the cast
+- **Opportunity Cost**: Missing optimal nova timing feels worse than successful moderate usage
+
+### Social Proof Integration
+- **Visible Impact**: Dramatic effects create social recognition for skilled usage
+- **Team Coordination**: Success depends on team positioning, creating shared investment
+- **Mastery Display**: Expert nova usage becomes community status symbol
+
+### Ethical Motivation Enhancement
+- **Intrinsic Mastery**: Success depends on skill development, not external rewards
+- **Team Benefit**: Ability primarily helps others, fostering prosocial behavior
+- **Clear Fairness**: Transparent mechanics with obvious counterplay options
+
+## Conclusion
+
+Holy Nova transforms the Cardinal from passive healer to active battlefield tactician, creating a signature ability that rewards positioning mastery while demanding team coordination. The dual healing/damage nature creates unique tactical scenarios impossible with traditional single-purpose abilities.
+
+The design leverages proven psychological principles to create intrinsic motivation for skill development while fostering positive team interactions. Through careful balance of risk and reward, Holy Nova becomes a high-mastery ability that defines expert Cardinal play without creating oppressive gameplay patterns.
+
+This ability exemplifies **prosocial game design** by creating interdependence, rewarding cooperation, and providing clear counterplay options. The result is an ability that enhances community formation while maintaining competitive integrity and individual skill expression.
+
+## ECS Implementation in This Repo (Single-Use Components + Composition)
+
+This repository implements gameplay using small, single-purpose components that are composed to form behavior. Rather than large, stateful ability structs, we create short-lived entities with marker components and data-only components, then drive them with focused systems. This mirrors how projectiles are implemented in src\main.rs.
+
+Key patterns from src\main.rs to follow:
+- Marker components for categorization:
+  - Projectile (marker used to drive movement/despawn logic)
+  - Character, Boss, Active (used for queries and selection)
+- Data-only components for specific responsibilities:
+  - TimeToLive(elapsed, total) — per-entity lifetime tracking
+  - Origin(Vec3) and Target(Vec3) — movement endpoints for lerp
+  - Transform — world position; systems write to translation
+- Systems do one job:
+  - move_projectiles: advances TTL, lerps Transform from Origin to Target, despawns at end
+  - autoshot_ability: periodically spawns fully-formed projectile entities (composition at spawn)
+
+Example of entity composition (from main.rs):
+- A projectile is spawned with the full set of components it needs to exist and be simulated:
+  - (Projectile, Transform, Origin, Target, TimeToLive, Mesh3d, MeshMaterial3d)
+- The movement system only reads what it needs (Transform, TimeToLive, Origin, Target) and knows nothing about who spawned it.
+
+Why this matters for abilities like Holy Nova:
+- Abilities become either:
+  1) Ephemeral entities with a short TimeToLive that perform area checks and effects while they exist; or
+  2) Stateless “events” that cause immediate spawns/effects, with any visuals handled by short-lived entities.
+- Systems remain small, composable, and cache-friendly; change detection and filters like With<T>/Without<T> keep queries efficient.
+
+---
+
+## How to Implement Holy Nova Using This Pattern
+
+Goal: Centered AoE that heals allies and damages enemies within a 2-tile radius. We’ll use short-lived entities and single-use components so that systems stay decoupled.
+
+1. Define minimal single-purpose components
+- HolyNovaPulse — marker for the transient nova entity
+- Radius(f32) — world-units radius; if you prefer tile units, keep a TileRadius(u8) and convert once
+- HealAmount(f32), DamageAmount(f32)
+- TimeToLive(f32 elapsed, f32 total) — e.g., 0.0, 0.1 for a brief pulse lifetime
+- Origin(Vec3) — center where the pulse applies (Cardinal’s position at cast time)
+- Optional visuals (Mesh3d, MeshMaterial3d) or light burst, following the projectile’s composition pattern
+
+2. Spawn the nova as a composed entity at resolution time
+- When the cast/channel completes, spawn a single nova entity:
+  - (HolyNovaPulse, Origin(caster_pos), Radius(world_radius), HealAmount(120.0), DamageAmount(80.0), TimeToLive(0.0, 0.1), …visuals)
+- This mirrors projectile spawning: one entity with everything it needs.
+
+3. Drive it with two simple systems
+- holy_nova_apply_system:
+  - Query nova pulse entities and all relevant targets (e.g., allies With<Character>, enemies With<Boss> or a more general Allegiance component when available)
+  - For each target, compute distance from Origin and apply effects if within Radius
+  - Healing and damage application can be events or direct component/resource mutations, depending on your health model
+- holy_nova_lifecycle_system:
+  - Increment TimeToLive with Time.delta
+  - Despawn the nova when elapsed >= total
+  - Optionally animate visual intensity during its brief life
+
+4. Use timers for cast and cooldown (see autoshot_ability)
+- Use a Local<Timer> or component Timer on the caster for channeling and cooldown tracking, similar to autoshot_ability’s periodic spawning pattern.
+- For channeling: attach a Channel(Timer) component to the caster when they start casting; a system advances it and on completion spawns the HolyNovaPulse entity.
+- For cooldown: attach or update a Cooldown(Timer) component; systems prevent re-cast until it finishes.
+
+5. Coordinate visuals the same way as projectiles
+- Compose visuals directly on the pulse entity (Mesh3d + MeshMaterial3d) or spawn child entities for particles/lights.
+- Keep visuals separate from gameplay logic by querying only what’s needed; e.g., the apply system never needs to read MeshMaterial3d.
+
+6. Example pseudo-code snippets (mirroring main.rs style)
+- Spawning the nova on cast completion:
+
+```rust
+commands.spawn((
+    HolyNovaPulse,
+    Origin(caster_pos),
+    Radius(2.0 * TILE_SIZE),
+    HealAmount(120.0),
+    DamageAmount(80.0),
+    TimeToLive(0.0, 0.1),
+    // Optional visuals
+    Mesh3d(nova_mesh),
+    MeshMaterial3d(mats.gold.clone()),
+));
+```
+
+- Applying effects (single-responsibility system):
+
+```rust
+fn holy_nova_apply_system(
+    mut pulses: Query<(&Origin, &Radius), With<HolyNovaPulse>>,
+    mut allies: Query<(Entity, &GlobalTransform), With<Ally>>, // or With<Character> if that’s your ally marker
+    mut enemies: Query<(Entity, &GlobalTransform), With<Enemy>>, // or With<Boss> in current prototype
+) {
+    for (origin, radius) in pulses.iter_mut() {
+        let center = origin.0;
+        let r2 = radius.0 * radius.0;
+        for (ally_e, gt) in allies.iter_mut() {
+            if gt.translation().distance_squared(center) <= r2 {
+                // apply_heal(ally_e, 120.0);
+            }
+        }
+        for (enemy_e, gt) in enemies.iter_mut() {
+            if gt.translation().distance_squared(center) <= r2 {
+                // apply_damage(enemy_e, 80.0);
+            }
+        }
+    }
+}
+```
+
+- Lifecycle/despawn (pattern identical to move_projectiles):
+
+```rust
+fn holy_nova_lifecycle_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut q: Query<(Entity, &mut TimeToLive), With<HolyNovaPulse>>,
+) {
+    for (e, mut ttl) in q.iter_mut() {
+        ttl.0 += time.delta_secs();
+        if ttl.0 >= ttl.1 { commands.entity(e).despawn(); }
+    }
+}
+```
+
+7. Performance and ECS hygiene
+- Use With<>/Without<> filters and Added/Changed detection where appropriate
+- Keep systems under ~50 lines and focused on one responsibility
+- Prefer squared-distance checks to avoid sqrt where possible
+- Compose entities with all required components at spawn to avoid archetype churn
+
+8. Extending to upgrades (Radiant Expansion, Resonance, Convergence)
+- Add single-use components describing modifiers (e.g., DurationBonus, RadiusBonus, ApplyHot{ amount, secs }, ApplyDot{ amount, secs }) and let systems interpret them during the pulse.
+- Keep upgrades declarative: data components, not branches inside systems.
+
+Summary: Holy Nova in this codebase should be implemented as a short-lived, composed entity (like projectiles) with single-purpose components and two tiny systems: one to apply effects and one to manage lifetime. Timers on the caster manage channeling and cooldown, mirroring autoshot_ability’s spawning cadence. This aligns the ability with the repository’s existing ECS style and keeps gameplay, visuals, and lifecycles cleanly separated.

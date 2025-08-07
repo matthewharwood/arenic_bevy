@@ -170,7 +170,6 @@ fn spawn_starting_hero_v2(
     let local_position = get_local_tile_space(32, 15);
     commands.entity(arena_entity).with_child((
         Character,
-        AutoShot::new(3.0),
         Mesh3d(sphere_mesh),
         MeshMaterial3d(mats.gray.clone()),
         Transform::from_translation(local_position),
