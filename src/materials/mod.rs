@@ -7,6 +7,7 @@ pub struct Materials {
     pub gray: Handle<StandardMaterial>,
     pub red: Handle<StandardMaterial>,
     pub black: Handle<StandardMaterial>,
+    pub yellow: Handle<StandardMaterial>,
 }
 
 impl Materials {
@@ -35,6 +36,10 @@ impl Materials {
                 base_color: Color::srgb(0.1, 0.1, 0.1),
                 metallic: 0.0,
                 perceptual_roughness: 1.0,
+                ..default()
+            }),
+            yellow: materials.add(StandardMaterial {
+                base_color: Color::srgba(0.9647059, 0.7372549, 0.18431373, 0.3),
                 ..default()
             }),
         }

@@ -12,7 +12,8 @@
       "Bash(mkdir:*)",
       "WebFetch(domain:docs.rs)",
       "WebFetch(domain:taintedcoders.com)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

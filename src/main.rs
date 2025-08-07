@@ -3,13 +3,18 @@ mod arena_camera;
 mod battleground;
 
 // Uncomment these modules to debug pink material issues
+mod ability;
 mod character;
 mod class_type;
 mod materials;
 mod selectors;
 
+use crate::ability::{
+    auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx, AutoShot,
+    HolyNova,
+};
 use crate::arena::{get_local_tile_space, Arena, TILE_SIZE};
-use crate::character::{AutoShot, Boss, Character};
+use crate::character::{Boss, Character};
 use crate::materials::Materials;
 use crate::selectors::Active;
 use bevy::prelude::*;
@@ -43,8 +48,10 @@ fn main() {
             (
                 active_character_movement,
                 select_active_character_optimal,
-                autoshot_ability,
+                auto_shot_ability,
                 move_projectiles,
+                holy_nova_ability,
+                update_holy_nova_vfx,
             ),
         )
         .run();
@@ -150,7 +157,7 @@ fn spawn_starting_hero(
     let local_position = get_local_tile_space(35, 15);
     commands.entity(arena_entity).with_child((
         Character,
-        AutoShot::new(3.0),
+        AutoShot::new(16.0),
         Active,
         Mesh3d(sphere_mesh),
         MeshMaterial3d(blue_material),
@@ -170,6 +177,7 @@ fn spawn_starting_hero_v2(
     let local_position = get_local_tile_space(32, 15);
     commands.entity(arena_entity).with_child((
         Character,
+        HolyNova,
         Mesh3d(sphere_mesh),
         MeshMaterial3d(mats.gray.clone()),
         Transform::from_translation(local_position),
@@ -238,91 +246,6 @@ fn active_character_movement(
     if movement != Vec3::ZERO {
         transform.translation += movement;
         println!("Character moved to: {:?}", transform.translation);
-    }
-}
-
-/// System to move projectiles using lerp with single-purpose components
-fn move_projectiles(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut TimeToLive, &Origin, &Target), With<Projectile>>,
-) {
-    for (entity, mut transform, mut ttl, origin, target) in query.iter_mut() {
-        // Update elapsed time
-        ttl.0 += time.delta_secs();
-
-        // Calculate lerp progress (0.0 to 1.0)
-        let progress = (ttl.0 / ttl.1).clamp(0.0, 1.0);
-
-        // Lerp between origin and target
-        transform.translation = origin.0.lerp(target.0, progress);
-
-        // Despawn when lifetime expires
-        if progress >= 1.0 {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-pub fn tile_dist(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
-    let dx = (pos1.0 - pos2.0).abs();
-    let dy = (pos1.1 - pos2.1).abs();
-    dx.max(dy).round()
-}
-
-/// System that handles autoshot ability - spawns projectiles as independent entities
-fn autoshot_ability(
-    mut commands: Commands,
-    mats: Res<Materials>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    time: Res<Time>,
-    mut timer: Local<Timer>,
-    character_query: Query<(&GlobalTransform, &AutoShot), (With<Character>, With<AutoShot>)>,
-    boss_query: Query<&GlobalTransform, (With<Boss>, With<Active>)>,
-) {
-    // Initialize timer on first run
-    if timer.duration().as_secs_f32() == 0.0 {
-        *timer = Timer::from_seconds(1.0, TimerMode::Repeating);
-    }
-
-    timer.tick(time.delta());
-
-    // Only proceed if timer finished
-    if !timer.just_finished() {
-        return;
-    }
-
-    // Iterate over all characters with AutoShot
-    for (character_transform, autoshot) in character_query.iter() {
-        let character_pos = character_transform.translation();
-
-        // Check distance to all bosses
-        for boss_transform in boss_query.iter() {
-            let boss_pos = boss_transform.translation();
-
-            let x1 = character_pos.x;
-            let y1 = character_pos.y;
-            let x2 = boss_pos.x;
-            let y2 = boss_pos.y;
-
-            if tile_dist((x1, y1), (x2, y2)) <= autoshot.distance {
-                let distance = character_pos.distance(boss_pos);
-                let travel_time = distance / TILE_SIZE; // 1 tile per second
-
-                let projectile_radius = 2.5;
-                let projectile_mesh = meshes.add(Sphere::new(projectile_radius));
-
-                // Spawn projectile
-                commands.spawn((
-                    Projectile,
-                    Transform::from_translation(character_pos),
-                    Origin(character_pos),
-                    Target(boss_pos),
-                    TimeToLive(0.0, travel_time),
-                    Mesh3d(projectile_mesh),
-                    MeshMaterial3d(mats.black.clone()),
-                ));
-            }
-        }
     }
 }
 
