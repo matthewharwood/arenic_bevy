@@ -34,12 +34,17 @@ impl Materials {
             }),
             black: materials.add(StandardMaterial {
                 base_color: Color::srgb(0.1, 0.1, 0.1),
-                metallic: 0.0,
+                metallic: 0.9,
                 perceptual_roughness: 1.0,
                 ..default()
             }),
             yellow: materials.add(StandardMaterial {
-                base_color: Color::srgba(0.9647059, 0.7372549, 0.18431373, 0.3),
+                base_color: Color::srgba(1.0, 0.85, 0.3, 0.75), // Rich golden color
+                emissive: Color::srgb(0.9, 0.7, 0.15).into(),   // Moderate glow
+                alpha_mode: AlphaMode::Premultiplied,           // Premultiplied alpha
+                metallic: 0.0,
+                perceptual_roughness: 0.2, // Smooth surface for better light interaction
+
                 ..default()
             }),
         }

@@ -71,24 +71,6 @@ struct PendingArenaChild {
 // PROJECTILE COMPONENTS - Single-purpose components for ECS best practices
 // ============================================================================
 
-/// Marker component for projectile entities
-#[derive(Component)]
-struct Projectile;
-
-/// Component tracking time-to-live (elapsed, total) in seconds
-type TtlElapsed = f32;
-type TtlTotal = f32;
-#[derive(Component)]
-struct TimeToLive(TtlElapsed, TtlTotal);
-
-/// Component storing the target position for the projectile
-#[derive(Component)]
-struct Target(Vec3);
-
-/// Component storing the initial spawn position for lerp calculations
-#[derive(Component)]
-struct Origin(Vec3);
-
 fn setup_scene(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,

@@ -19,7 +19,7 @@ impl HolyNovaVfx {
     pub fn new() -> Self {
         Self {
             elapsed: 0.0,
-            duration: 0.3, // seconds
+            duration: 0.225, // seconds
             start_radius: 4.0,
             end_radius: 32.0,
         }
@@ -65,7 +65,7 @@ pub fn update_holy_nova_vfx(
         let t = (vfx.elapsed / vfx.duration).clamp(0.0, 1.0);
 
         // Use Bevy's official cubic ease-in function
-        let easing_curve = EasingCurve::new(0.0, 1.0, EaseFunction::CubicIn);
+        let easing_curve = EasingCurve::new(0.0, 1.0, EaseFunction::ExponentialOut);
         let eased = easing_curve.sample(t).unwrap_or(0.0);
 
         let radius = vfx.start_radius + (vfx.end_radius - vfx.start_radius) * eased;

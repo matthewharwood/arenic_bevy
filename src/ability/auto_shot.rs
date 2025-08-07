@@ -1,8 +1,8 @@
+use crate::ability::{Origin, Projectile, Target, TimeToLive};
 use crate::arena::TILE_SIZE;
 use crate::character::{Boss, Character};
 use crate::materials::Materials;
 use crate::selectors::Active;
-use crate::{Origin, Projectile, Target, TimeToLive};
 use bevy::asset::Assets;
 use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::{
