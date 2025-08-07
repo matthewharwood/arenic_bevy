@@ -40,6 +40,7 @@ fn main() {
             Update,
             (
                 active_character_movement,
+                select_active_character_optimal,
                 autoshot_ability,
                 move_projectiles,
             ),
@@ -161,7 +162,7 @@ fn spawn_starting_hero_v2(
     query: Single<Entity, (With<Arena>, With<Active>)>,
 ) {
     let arena_entity = query.into_inner();
-    let blue_material = materials.add(StandardMaterial {
+    let gray_material = materials.add(StandardMaterial {
         base_color: Color::srgb(0.91, 0.91, 0.91), // #E8E8E8
         metallic: 0.0,                             // Non-metallic
         perceptual_roughness: 1.0,                 // Maximum roughness
@@ -174,7 +175,7 @@ fn spawn_starting_hero_v2(
         Character,
         AutoShot::new(3.0),
         Mesh3d(sphere_mesh),
-        MeshMaterial3d(blue_material),
+        MeshMaterial3d(gray_material),
         Transform::from_translation(local_position),
     ));
 }
@@ -341,6 +342,59 @@ fn autoshot_ability(
             }
         }
     }
+}
+
+fn select_active_character_optimal(
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    mut commands: Commands,
+    arena_query: Single<&Children, (With<Active>, With<Arena>)>,
+    active_character: Single<Entity, (With<Character>, With<Active>)>,
+    character_query: Query<Entity, With<Character>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    if !keyboard_input.just_pressed(KeyCode::Tab) {
+        return;
+    }
+
+    let arena_children = arena_query.into_inner();
+    let current_active_entity = active_character.into_inner();
+
+    // THE KEY INSIGHT: iter_many() is purpose-built for this!
+    // It takes our list of children and returns only those that match the query `_docs/tutorials/iter_many.md`
+    let character_entities: Vec<Entity> = character_query.iter_many(arena_children).collect();
+
+    if character_entities.is_empty() {
+        error!("No characters in active arena!");
+        return;
+    }
+
+    let current_index = character_entities
+        .iter()
+        .position(|&e| e == current_active_entity)
+        .expect("Active character must be in active arena");
+
+    let next_index = (current_index + 1) % character_entities.len();
+    let next_active_entity = character_entities[next_index];
+    let gray_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.91, 0.91, 0.91), // #E8E8E8
+        metallic: 0.0,                             // Non-metallic
+        perceptual_roughness: 1.0,                 // Maximum roughness
+        ..default()
+    });
+    let blue_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.153, 0.431, 0.945), // #276EF1
+        metallic: 0.0,                                // Non-metallic
+        perceptual_roughness: 1.0,                    // Maximum roughness
+        ..default()
+    });
+    commands
+        .entity(current_active_entity)
+        .remove::<Active>()
+        .insert(MeshMaterial3d(gray_material));
+    commands
+        .entity(next_active_entity)
+        .insert(Active)
+        .insert(MeshMaterial3d(blue_material));
 }
 
 /// Simple lighting setup positioned at camera target
