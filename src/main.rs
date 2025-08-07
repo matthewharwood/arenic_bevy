@@ -31,6 +31,7 @@ fn main() {
             (
                 parent_pending_arena_children,
                 spawn_starting_hero,
+                spawn_starting_hero_v2,
                 spawn_starting_bosses,
             )
                 .after(setup_scene),
@@ -147,6 +148,31 @@ fn spawn_starting_hero(
         Character,
         AutoShot,
         Active,
+        Mesh3d(sphere_mesh),
+        MeshMaterial3d(blue_material),
+        Transform::from_translation(local_position),
+    ));
+}
+
+fn spawn_starting_hero_v2(
+    mut commands: Commands,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    query: Single<Entity, (With<Arena>, With<Active>)>,
+) {
+    let arena_entity = query.into_inner();
+    let blue_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.91, 0.91, 0.91), // #E8E8E8
+        metallic: 0.0,                             // Non-metallic
+        perceptual_roughness: 1.0,                 // Maximum roughness
+        ..default()
+    });
+    let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
+    let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
+    let local_position = get_local_tile_space(32, 15);
+    commands.entity(arena_entity).with_child((
+        Character,
+        AutoShot,
         Mesh3d(sphere_mesh),
         MeshMaterial3d(blue_material),
         Transform::from_translation(local_position),
