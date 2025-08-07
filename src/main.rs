@@ -5,10 +5,12 @@ mod battleground;
 // Uncomment these modules to debug pink material issues
 mod character;
 mod class_type;
+mod materials;
 mod selectors;
 
 use crate::arena::{get_local_tile_space, Arena, TILE_SIZE};
 use crate::character::{AutoShot, Boss, Character};
+use crate::materials::Materials;
 use crate::selectors::Active;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
@@ -86,6 +88,7 @@ fn setup_scene(
     asset_server: Res<AssetServer>,
 ) {
     // Load the tile model
+    commands.insert_resource(Materials::new(&mut materials));
     let tile_scene = asset_server.load("tile.glb#Scene0");
 
     // Add Debug component to enable debug visualization
@@ -157,17 +160,11 @@ fn spawn_starting_hero(
 
 fn spawn_starting_hero_v2(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
     query: Single<Entity, (With<Arena>, With<Active>)>,
 ) {
     let arena_entity = query.into_inner();
-    let gray_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.91, 0.91, 0.91), // #E8E8E8
-        metallic: 0.0,                             // Non-metallic
-        perceptual_roughness: 1.0,                 // Maximum roughness
-        ..default()
-    });
     let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
     let local_position = get_local_tile_space(32, 15);
@@ -175,14 +172,14 @@ fn spawn_starting_hero_v2(
         Character,
         AutoShot::new(3.0),
         Mesh3d(sphere_mesh),
-        MeshMaterial3d(gray_material),
+        MeshMaterial3d(mats.gray.clone()),
         Transform::from_translation(local_position),
     ));
 }
 
 fn spawn_starting_bosses(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
     query: Query<(Entity, &arena::ArenaId), With<Arena>>,
 ) {
@@ -191,12 +188,6 @@ fn spawn_starting_bosses(
         println!("Spawning boss in arena {:?}", arena_id);
 
         // Example: spawn a red sphere boss in each arena
-        let red_material = materials.add(StandardMaterial {
-            base_color: Color::srgb(0.945, 0.153, 0.153), // Red color
-            metallic: 0.0,
-            perceptual_roughness: 1.0,
-            ..default()
-        });
 
         let boss_radius = 32.0; // Slightly larger than hero
         let boss_mesh = meshes.add(Sphere::new(boss_radius));
@@ -208,14 +199,14 @@ fn spawn_starting_bosses(
                 Boss,
                 Active,
                 Mesh3d(boss_mesh),
-                MeshMaterial3d(red_material),
+                MeshMaterial3d(mats.red.clone()),
                 Transform::from_translation(local_position),
             ));
         } else {
             commands.entity(arena_entity).with_child((
                 Boss,
                 Mesh3d(boss_mesh),
-                MeshMaterial3d(red_material),
+                MeshMaterial3d(mats.red.clone()),
                 Transform::from_translation(local_position),
             ));
         }
@@ -282,7 +273,7 @@ pub fn tile_dist(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
 /// System that handles autoshot ability - spawns projectiles as independent entities
 fn autoshot_ability(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
     mut timer: Local<Timer>,
@@ -318,14 +309,6 @@ fn autoshot_ability(
                 let distance = character_pos.distance(boss_pos);
                 let travel_time = distance / TILE_SIZE; // 1 tile per second
 
-                // Create projectile materials and mesh
-                let projectile_material = materials.add(StandardMaterial {
-                    base_color: Color::srgb(0.1, 0.1, 0.1),
-                    metallic: 0.0,
-                    perceptual_roughness: 1.0,
-                    ..default()
-                });
-
                 let projectile_radius = 2.5;
                 let projectile_mesh = meshes.add(Sphere::new(projectile_radius));
 
@@ -337,7 +320,7 @@ fn autoshot_ability(
                     Target(boss_pos),
                     TimeToLive(0.0, travel_time),
                     Mesh3d(projectile_mesh),
-                    MeshMaterial3d(projectile_material),
+                    MeshMaterial3d(mats.black.clone()),
                 ));
             }
         }
@@ -350,7 +333,7 @@ fn select_active_character_optimal(
     arena_query: Single<&Children, (With<Active>, With<Arena>)>,
     active_character: Single<Entity, (With<Character>, With<Active>)>,
     character_query: Query<Entity, With<Character>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mats: Res<Materials>,
 ) {
     if !keyboard_input.just_pressed(KeyCode::Tab) {
         return;
@@ -375,26 +358,15 @@ fn select_active_character_optimal(
 
     let next_index = (current_index + 1) % character_entities.len();
     let next_active_entity = character_entities[next_index];
-    let gray_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.91, 0.91, 0.91), // #E8E8E8
-        metallic: 0.0,                             // Non-metallic
-        perceptual_roughness: 1.0,                 // Maximum roughness
-        ..default()
-    });
-    let blue_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.153, 0.431, 0.945), // #276EF1
-        metallic: 0.0,                                // Non-metallic
-        perceptual_roughness: 1.0,                    // Maximum roughness
-        ..default()
-    });
+
     commands
         .entity(current_active_entity)
         .remove::<Active>()
-        .insert(MeshMaterial3d(gray_material));
+        .insert(MeshMaterial3d(mats.gray.clone()));
     commands
         .entity(next_active_entity)
         .insert(Active)
-        .insert(MeshMaterial3d(blue_material));
+        .insert(MeshMaterial3d(mats.blue.clone()));
 }
 
 /// Simple lighting setup positioned at camera target
