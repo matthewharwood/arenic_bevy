@@ -274,22 +274,26 @@ fn select_active_character_optimal(
 }
 
 /// Simple lighting setup positioned at camera target
-fn setup_lighting(commands: &mut Commands, arena_id: arena::ArenaId) {
-    // Hot red color for all lights
-    let hot_red = Color::srgb(1.0, 0.2, 0.1);
+fn setup_lighting(commands: &mut Commands, _arena_id: arena::ArenaId) {
+    // 1) World ambient: subtle neutral/cool to ensure baseline readability
+    commands.insert_resource(AmbientLight {
+        color: Color::srgb(0.95, 0.95, 1.0),
+        brightness: 0.30,
+        affects_lightmapped_meshes: false,
+    });
 
-    // Directional light with hot red color and increased intensity
+    // 2) Single neutral directional for shape and shadows
     commands.spawn((
         DirectionalLight {
-            illuminance: 0.0, // Increased from 10000.0 for more visibility
-            color: hot_red,
+            illuminance: 12000.0,
+            color: Color::WHITE,
             shadows_enabled: true,
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(
             EulerRot::XYZ,
             -std::f32::consts::FRAC_PI_4,
-            std::f32::consts::FRAC_PI_4,
+            std::f32::consts::FRAC_PI_6,
             0.0,
         )),
     ));

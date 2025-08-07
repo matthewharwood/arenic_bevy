@@ -82,5 +82,37 @@ pub fn setup_arena_grid(
 
         // Spawn the tiles for this arena
         spawn_arena_tiles(commands, arena_entity_id, tile_scene.clone());
+
+        // Arena base lighting: 3 cheap point lights as children
+        spawn_arena_base_lights(commands, arena_entity_id);
     }
+}
+
+#[derive(Component, Debug)]
+pub struct ArenaBaseLight;
+
+fn spawn_arena_base_lights(commands: &mut Commands, arena_entity: Entity) {
+    // Three subtle fill lights at logical corners, local to the arena
+    commands.entity(arena_entity).with_children(|parent| {
+        let z = 25.0;
+        let lights = [
+            (Vec3::new(-200.0, -100.0, z), Color::srgb(0.92, 0.95, 1.00)), // cool-ish
+            (Vec3::new( 200.0, -100.0, z), Color::srgb(1.00, 0.96, 0.90)), // warm-ish
+            (Vec3::new(   0.0,  140.0, z), Color::srgb(0.95, 0.95, 0.98)), // neutral
+        ];
+
+        for (pos, color) in lights {
+            parent.spawn((
+                PointLight {
+                    intensity: 220.0,
+                    range: 160.0,
+                    color,
+                    shadows_enabled: false,
+                    ..default()
+                },
+                Transform::from_translation(pos),
+                ArenaBaseLight,
+            ));
+        }
+    });
 }
