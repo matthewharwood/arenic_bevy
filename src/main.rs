@@ -23,6 +23,16 @@ use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
 const GAME_NAME: &str = "Arenic";
+
+// Game state enum for managing different game phases
+#[derive(States, Default, Debug, Clone, Eq, PartialEq, Hash)]
+enum GameState {
+    #[default]
+    Title,
+    Intro,
+    Game,
+    Prototype,
+}
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -33,6 +43,8 @@ fn main() {
             }),
             ..default()
         }))
+        // Initialize game state
+        .init_state::<GameState>()
         // Uncomment these plugins to debug pink material issues
         .add_systems(Startup, setup_scene)
         .add_systems(
