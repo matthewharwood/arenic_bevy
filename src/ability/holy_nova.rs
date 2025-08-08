@@ -1,3 +1,4 @@
+use crate::ability::{Duration, ElapsedTime, EndRadius, StartRadius};
 use crate::audio::Audio;
 use crate::character::Character;
 use crate::materials::Materials;
@@ -9,22 +10,12 @@ use bevy::prelude::*;
 #[derive(Component, Debug)]
 pub struct HolyNova;
 
-#[derive(Component)]
-pub struct HolyNovaVfx {
-    pub elapsed: f32,
-    pub duration: f32,
-    pub start_radius: f32,
-    pub end_radius: f32,
-}
+#[derive(Component, Debug)]
+pub struct HolyNovaVfx;
 
 impl HolyNovaVfx {
     pub fn new() -> Self {
-        Self {
-            elapsed: 0.0,
-            duration: 0.225, // seconds
-            start_radius: 4.0,
-            end_radius: 32.0,
-        }
+        Self
     }
 }
 
@@ -45,6 +36,11 @@ pub fn holy_nova_ability(
         return;
     }
 
+    // Check if there are any valid characters with HolyNova before executing
+    if character_q.is_empty() {
+        return;
+    }
+
     // Play the holy nova sound effect with automatic cleanup
     commands.spawn((
         AudioPlayer::new(audio.holy_nova.clone()),
@@ -56,6 +52,10 @@ pub fn holy_nova_ability(
         let vfx_mesh = meshes.add(Sphere::new(1.0)); // unit sphere, scale controls radius
         commands.entity(character_entity).with_child((
             HolyNovaVfx::new(),
+            ElapsedTime(0.0),
+            Duration(0.225), // seconds
+            StartRadius(4.0),
+            EndRadius(32.0),
             Transform::from_scale(Vec3::splat(4.0)), // start radius
             Mesh3d(vfx_mesh),
             MeshMaterial3d(mats.yellow.clone()),
@@ -67,20 +67,27 @@ pub fn holy_nova_ability(
 pub fn update_holy_nova_vfx(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut HolyNovaVfx)>,
+    mut query: Query<(
+        Entity,
+        &mut Transform,
+        &mut ElapsedTime,
+        &Duration,
+        &StartRadius,
+        &EndRadius,
+    ), With<HolyNovaVfx>>,
 ) {
-    for (entity, mut transform, mut vfx) in query.iter_mut() {
-        vfx.elapsed += time.delta_secs();
-        let t = (vfx.elapsed / vfx.duration).clamp(0.0, 1.0);
+    for (entity, mut transform, mut elapsed, duration, start_radius, end_radius) in query.iter_mut() {
+        elapsed.0 += time.delta_secs();
+        let t = (elapsed.0 / duration.0).clamp(0.0, 1.0);
 
         // Use Bevy's official cubic ease-in function
         let easing_curve = EasingCurve::new(0.0, 1.0, EaseFunction::ExponentialOut);
         let eased = easing_curve.sample(t).unwrap_or(0.0);
 
-        let radius = vfx.start_radius + (vfx.end_radius - vfx.start_radius) * eased;
+        let radius = start_radius.0 + (end_radius.0 - start_radius.0) * eased;
         transform.scale = Vec3::splat(radius);
 
-        if vfx.elapsed >= vfx.duration {
+        if elapsed.0 >= duration.0 {
             commands.entity(entity).despawn();
         }
     }

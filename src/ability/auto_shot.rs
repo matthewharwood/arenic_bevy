@@ -1,4 +1,4 @@
-use crate::ability::{Origin, Projectile, Target, TimeToLive};
+use crate::ability::{Duration, ElapsedTime, Origin, Projectile, Target};
 use crate::arena::TILE_SIZE;
 use crate::audio::Audio;
 use crate::character::{Boss, Character};
@@ -29,14 +29,14 @@ impl AutoShot {
 pub fn move_projectiles(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut TimeToLive, &Origin, &Target), With<Projectile>>,
+    mut query: Query<(Entity, &mut Transform, &mut ElapsedTime, &Duration, &Origin, &Target), With<Projectile>>,
 ) {
-    for (entity, mut transform, mut ttl, origin, target) in query.iter_mut() {
+    for (entity, mut transform, mut elapsed, duration, origin, target) in query.iter_mut() {
         // Update elapsed time
-        ttl.0 += time.delta_secs();
+        elapsed.0 += time.delta_secs();
 
         // Calculate lerp progress (0.0 to 1.0)
-        let progress = (ttl.0 / ttl.1).clamp(0.0, 1.0);
+        let progress = (elapsed.0 / duration.0).clamp(0.0, 1.0);
 
         // Lerp between origin and target
         transform.translation = origin.0.lerp(target.0, progress);
@@ -102,7 +102,8 @@ pub fn auto_shot_ability(
                     Transform::from_translation(character_pos),
                     Origin(character_pos),
                     Target(boss_pos),
-                    TimeToLive(0.0, travel_time),
+                    ElapsedTime(0.0),
+                    Duration(travel_time),
                     Mesh3d(projectile_mesh),
                     MeshMaterial3d(mats.black.clone()),
                 ));

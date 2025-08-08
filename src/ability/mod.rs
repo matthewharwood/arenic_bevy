@@ -10,11 +10,6 @@ pub use holy_nova::*;
 #[derive(Component)]
 pub struct Projectile;
 
-/// Component tracking time-to-live (elapsed, total) in seconds
-pub type TtlElapsed = f32;
-pub type TtlTotal = f32;
-#[derive(Component)]
-pub struct TimeToLive(TtlElapsed, TtlTotal);
 
 /// Component storing the target position for the projectile
 #[derive(Component)]
@@ -23,3 +18,19 @@ pub struct Target(Vec3);
 /// Component storing the initial spawn position for lerp calculations
 #[derive(Component)]
 pub struct Origin(Vec3);
+
+/// Component for tracking elapsed time in animations/effects
+#[derive(Component)]
+pub struct ElapsedTime(pub f32);
+
+/// Component for storing duration of effects
+#[derive(Component)]
+pub struct Duration(pub f32);
+
+/// Component for starting radius of expanding effects
+#[derive(Component)]
+pub struct StartRadius(pub f32);
+
+/// Component for ending radius of expanding effects
+#[derive(Component)]
+pub struct EndRadius(pub f32);
