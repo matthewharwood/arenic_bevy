@@ -1,63 +1,282 @@
 # Ability Components Architecture
 
-A comprehensive component-based architecture for Arenic's deterministic ability system, designed for recording/replay compatibility and mass character performance.
+A comprehensive single-use component architecture for Arenic's deterministic ability system, following the patterns established in `holy_nova.rs` and `auto_shot.rs`.
 
 ## Architecture Overview
 
-Every ability in Arenic is implemented as a Bevy entity with:
-1. **Unique Marker Component** - Identifies the specific ability type
-2. **Shared Functional Components** - Compose ability behavior from reusable parts
-3. **Recording Components** - Enable deterministic timeline recording and replay
-4. **Visual/Audio Components** - Manage effects independent of core logic
+Every ability in Arenic follows a **composition-based pattern** where abilities are built from multiple single-purpose components:
 
-This design ensures perfect determinism for the 2-minute recording system while scaling efficiently for 320 characters across 8 arenas.
+1. **Unique Ability Markers** - Zero-sized components identifying ability types (e.g., `HolyNova`, `AutoShot`)
+2. **Single-Value Components** - Each component holds exactly one value or purpose
+3. **Ephemeral Effect Entities** - Short-lived entities spawned for projectiles, areas, and effects
+4. **Deterministic Systems** - Small, focused systems that process specific component combinations
 
-## Core Design Principles
+This design pattern, as demonstrated in the codebase:
+- Uses components like `Duration(f32)`, `ElapsedTime(f32)`, `StartRadius(f32)`, `EndRadius(f32)`
+- Spawns projectiles as independent entities with `Origin(Vec3)`, `Target(Vec3)` components
+- Keeps systems under 50 lines with single responsibilities
+- Ensures perfect determinism for the recording/replay system
 
-### 1. Components First
-- Use Components for entity state, not Resources
-- Resources only for truly global singletons (Time, Input, AssetServer)
-- Prefer `Query<&Component>` over `Res<GlobalState>`
+## Core Design Principles (From Codebase Analysis)
 
-### 2. Single Responsibility Systems
-- One system = one job
-- Name systems by what they do
-- Keep systems under 50 lines
-- Chain systems with explicit ordering
+### 1. Single-Value Components
+- Each component holds exactly one value: `Duration(f32)`, not `Duration { value: f32, unit: TimeUnit }`
+- Compose behavior from multiple components: `ElapsedTime` + `Duration` + `StartRadius` + `EndRadius`
+- Zero-sized markers for categorization: `HolyNova`, `HolyNovaVfx`, `Projectile`
 
-### 3. Deterministic Recording
-- All random elements use seeded RNG
-- Component state drives behavior, not wall clock time
-- Frame-perfect reproducibility across replays
-- Events communicate state changes, not direct mutation
+### 2. Ephemeral Entity Pattern
+- Spawn short-lived entities for effects (projectiles, areas, pulses)
+- Compose all needed components at spawn time
+- Systems process and despawn when `ElapsedTime >= Duration`
 
-### 4. Shallow Components
-- No nested properties or complex structures
-- Prefer multiple simple components over single complex ones
-- Easy to serialize for timeline storage
-- Cache-friendly memory layout
+### 3. Component Composition at Spawn
+```rust
+// From holy_nova.rs - VFX entity composition
+commands.entity(character_entity).with_child((
+    HolyNovaVfx::new(),
+    ElapsedTime(0.0),
+    Duration(0.225),
+    StartRadius(4.0),
+    EndRadius(32.0),
+    Transform::from_scale(Vec3::splat(4.0)),
+    Mesh3d(vfx_mesh),
+    MeshMaterial3d(mats.yellow.clone()),
+));
 
-## Ability Marker Components
+// From auto_shot.rs - Projectile composition
+commands.spawn((
+    Projectile,
+    Transform::from_translation(character_pos),
+    Origin(character_pos),
+    Target(boss_pos),
+    ElapsedTime(0.0),
+    Duration(travel_time),
+    Mesh3d(projectile_mesh),
+    MeshMaterial3d(mats.black.clone()),
+));
+```
 
-Each ability has a unique zero-sized marker component for identification and queries.
+### 4. Focused Systems
+- One system per behavior: `move_projectiles`, `update_holy_nova_vfx`
+- Query only needed components: `Query<(Entity, &mut Transform, &mut ElapsedTime, &Duration, &Origin, &Target), With<Projectile>>`
+- Despawn entities when their purpose is complete
 
-### Hunter Abilities
+## Shared Single-Purpose Components
+
+All abilities compose their behavior from these single-value components:
+
+### Time and Duration Components
 ```rust
 #[derive(Component)]
-pub struct AutoShotAbility;
+pub struct ElapsedTime(pub f32);  // Seconds elapsed since spawn
 
 #[derive(Component)]
-pub struct PoisonShotAbility;
+pub struct Duration(pub f32);  // Total duration in seconds
+
+#[derive(Component)]
+pub struct Cooldown(pub f32);  // Cooldown remaining in seconds
+
+#[derive(Component)]
+pub struct CastTime(pub f32);  // Cast time required in seconds
+
+#[derive(Component)]
+pub struct ChannelTime(pub f32);  // Channel duration in seconds
+
+#[derive(Component)]
+pub struct TickInterval(pub f32);  // Seconds between periodic ticks
+
+#[derive(Component)]
+pub struct TicksRemaining(pub u32);  // Number of ticks left
+```
+
+### Spatial Components
+```rust
+#[derive(Component)]
+pub struct Origin(pub Vec3);  // Starting position
+
+#[derive(Component)]
+pub struct Target(pub Vec3);  // Target position
+
+#[derive(Component)]
+pub struct Range(pub f32);  // Maximum range in world units
+
+#[derive(Component)]
+pub struct Radius(pub f32);  // Effect radius in world units
+
+#[derive(Component)]
+pub struct StartRadius(pub f32);  // Initial radius for expanding effects
+
+#[derive(Component)]
+pub struct EndRadius(pub f32);  // Final radius for expanding effects
+
+#[derive(Component)]
+pub struct Speed(pub f32);  // Movement speed in units/second
+
+#[derive(Component)]
+pub struct Distance(pub f32);  // Distance value in world units
+
+#[derive(Component)]
+pub struct Height(pub f32);  // Height/altitude value
+
+#[derive(Component)]
+pub struct Width(pub f32);  // Width value for areas
+
+#[derive(Component)]
+pub struct Angle(pub f32);  // Angle in radians for cones/arcs
+```
+
+### Effect Value Components
+```rust
+#[derive(Component)]
+pub struct Damage(pub f32);  // Damage amount
+
+#[derive(Component)]
+pub struct Healing(pub f32);  // Healing amount
+
+#[derive(Component)]
+pub struct DamageReduction(pub f32);  // Percentage reduction (0.0-1.0)
+
+#[derive(Component)]
+pub struct HealingReduction(pub f32);  // Percentage reduction (0.0-1.0)
+
+#[derive(Component)]
+pub struct MovementReduction(pub f32);  // Percentage slow (0.0-1.0)
+
+#[derive(Component)]
+pub struct AttackSpeedReduction(pub f32);  // Percentage reduction (0.0-1.0)
+
+#[derive(Component)]
+pub struct CritChance(pub f32);  // Critical strike chance (0.0-1.0)
+
+#[derive(Component)]
+pub struct CritMultiplier(pub f32);  // Critical damage multiplier
+
+#[derive(Component)]
+pub struct BlockChance(pub f32);  // Chance to block (0.0-1.0)
+
+#[derive(Component)]
+pub struct DodgeChance(pub f32);  // Chance to dodge (0.0-1.0)
+
+#[derive(Component)]
+pub struct ArmorValue(pub f32);  // Armor amount
+
+#[derive(Component)]
+pub struct ResistanceValue(pub f32);  // Resistance amount
+
+#[derive(Component)]
+pub struct ShieldAmount(pub f32);  // Shield/barrier health
+```
+
+### Resource Components
+```rust
+#[derive(Component)]
+pub struct ManaCost(pub f32);  // Mana required to cast
+
+#[derive(Component)]
+pub struct EnergyCost(pub f32);  // Energy required
+
+#[derive(Component)]
+pub struct HealthCost(pub f32);  // Health sacrificed
+
+#[derive(Component)]
+pub struct ManaGeneration(pub f32);  // Mana per second
+
+#[derive(Component)]
+pub struct EnergyGeneration(pub f32);  // Energy per second
+
+#[derive(Component)]
+pub struct ResourceDrain(pub f32);  // Resource drain per second
+```
+
+### Stacking and Charges
+```rust
+#[derive(Component)]
+pub struct Stacks(pub u32);  // Current stack count
+
+#[derive(Component)]
+pub struct MaxStacks(pub u32);  // Maximum stacks allowed
+
+#[derive(Component)]
+pub struct Charges(pub u32);  // Ability charges available
+
+#[derive(Component)]
+pub struct MaxCharges(pub u32);  // Maximum charges
+
+#[derive(Component)]
+pub struct ChargeRegenTime(pub f32);  // Seconds to regenerate one charge
+
+#[derive(Component)]
+pub struct StackDecayTime(pub f32);  // Seconds before a stack decays
+```
+
+### Targeting Components
+```rust
+#[derive(Component)]
+pub struct TargetEntity(pub Entity);  // Specific target entity
+
+#[derive(Component)]
+pub struct TargetPosition(pub Vec3);  // Target world position
+
+#[derive(Component)]
+pub struct TargetCount(pub u32);  // Number of targets to affect
+
+#[derive(Component)]
+pub struct PierceCount(pub u32);  // Enemies to pierce through
+
+#[derive(Component)]
+pub struct BounceCount(pub u32);  // Times to bounce
+
+#[derive(Component)]
+pub struct ChainCount(pub u32);  // Targets to chain to
+
+#[derive(Component)]
+pub struct ChainRange(pub f32);  // Max distance between chain targets
+
+#[derive(Component)]
+pub struct SplashRadius(pub f32);  // Splash damage radius
+
+#[derive(Component)]
+pub struct SplashDamage(pub f32);  // Splash damage amount
+```
+
+### Probability Components
+```rust
+#[derive(Component)]
+pub struct ProcChance(pub f32);  // Chance to trigger effect (0.0-1.0)
+
+#[derive(Component)]
+pub struct MissChance(pub f32);  // Chance to miss (0.0-1.0)
+
+#[derive(Component)]
+pub struct FailChance(pub f32);  // Chance to fail (0.0-1.0)
+
+#[derive(Component)]
+pub struct SuccessRate(pub f32);  // Success rate (0.0-1.0)
+```
+
+## Marker Components for Abilities
+
+These zero-sized components mark ability entities or their effects:
+
+### Ability Type Markers
+```rust
+// Hunter Abilities
+#[derive(Component)]
+pub struct AutoShot;
+
+#[derive(Component)]
+pub struct PoisonShot;
 
 #[derive(Component)]
 pub struct TrapAbility;
 
 #[derive(Component)]
-pub struct SniperAbility;
-```
+pub struct SniperShot;
 
-### Cardinal Abilities
-```rust
+// Cardinal Abilities
+#[derive(Component)]
+pub struct HolyNova;
+
 #[derive(Component)]
 pub struct HealAbility;
 
@@ -69,10 +288,73 @@ pub struct BeamAbility;
 
 #[derive(Component)]
 pub struct ResurrectAbility;
-```
 
-### Forager Abilities
-```rust
+// Warrior Abilities
+#[derive(Component)]
+pub struct BashAbility;
+
+#[derive(Component)]
+pub struct BlockAbility;
+
+#[derive(Component)]
+pub struct TauntAbility;
+
+#[derive(Component)]
+pub struct BulwarkAbility;
+
+// Thief Abilities
+#[derive(Component)]
+pub struct BackstabAbility;
+
+#[derive(Component)]
+pub struct ShadowStepAbility;
+
+#[derive(Component)]
+pub struct SmokeScreenAbility;
+
+#[derive(Component)]
+pub struct PickpocketAbility;
+
+// Merchant Abilities
+#[derive(Component)]
+pub struct DiceAbility;
+
+#[derive(Component)]
+pub struct CoinTossAbility;
+
+#[derive(Component)]
+pub struct FortuneAbility;
+
+#[derive(Component)]
+pub struct VaultAbility;
+
+// Alchemist Abilities
+#[derive(Component)]
+pub struct TransmuteAbility;
+
+#[derive(Component)]
+pub struct AcidFlaskAbility;
+
+#[derive(Component)]
+pub struct SiphonAbility;
+
+#[derive(Component)]
+pub struct IronskinAbility;
+
+// Bard Abilities
+#[derive(Component)]
+pub struct DanceAbility;
+
+#[derive(Component)]
+pub struct CleanseAbility;
+
+#[derive(Component)]
+pub struct HelixAbility;
+
+#[derive(Component)]
+pub struct MimicAbility;
+
+// Forager Abilities
 #[derive(Component)]
 pub struct DigAbility;
 
@@ -86,368 +368,445 @@ pub struct BoulderAbility;
 pub struct MushroomAbility;
 ```
 
-### Thief Abilities
+### Effect Markers
 ```rust
 #[derive(Component)]
-pub struct ShadowStepAbility;
+pub struct Projectile;  // Marks projectile entities
 
 #[derive(Component)]
-pub struct BackstabAbility;
+pub struct AreaEffect;  // Marks area effect entities
 
 #[derive(Component)]
-pub struct PickpocketAbility;
+pub struct Buff;  // Marks buff entities
 
 #[derive(Component)]
-pub struct SmokeScreenAbility;
+pub struct Debuff;  // Marks debuff entities
+
+#[derive(Component)]
+pub struct Shield;  // Marks shield entities
+
+#[derive(Component)]
+pub struct Barrier;  // Marks barrier entities
+
+#[derive(Component)]
+pub struct Trap;  // Marks trap entities
+
+#[derive(Component)]
+pub struct Totem;  // Marks totem entities
+
+#[derive(Component)]
+pub struct Pet;  // Marks pet/summon entities
+
+#[derive(Component)]
+pub struct Clone;  // Marks clone/illusion entities
+
+#[derive(Component)]
+pub struct Pulse;  // Marks pulse/nova entities
+
+#[derive(Component)]
+pub struct Beam;  // Marks beam entities
+
+#[derive(Component)]
+pub struct Chain;  // Marks chain effect entities
+
+#[derive(Component)]
+pub struct Pool;  // Marks persistent pool entities
 ```
 
-### Warrior Abilities
+### Visual Effect Markers
 ```rust
 #[derive(Component)]
-pub struct BlockAbility;
+pub struct HolyNovaVfx;  // Holy nova visual effect
 
 #[derive(Component)]
-pub struct BashAbility;
+pub struct HealVfx;  // Healing visual effect
 
 #[derive(Component)]
-pub struct TauntAbility;
+pub struct DamageVfx;  // Damage visual effect
 
 #[derive(Component)]
-pub struct BulwarkAbility;
+pub struct ExplosionVfx;  // Explosion visual effect
+
+#[derive(Component)]
+pub struct TrailVfx;  // Trail visual effect
+
+#[derive(Component)]
+pub struct FlashVfx;  // Flash visual effect
+
+#[derive(Component)]
+pub struct ShieldVfx;  // Shield visual effect
+
+#[derive(Component)]
+pub struct BuffVfx;  // Buff visual effect
+
+#[derive(Component)]
+pub struct DebuffVfx;  // Debuff visual effect
 ```
 
-### Merchant Abilities
+### Behavior Markers
 ```rust
 #[derive(Component)]
-pub struct DiceAbility;
+pub struct Homing;  // Projectile homes to target
 
 #[derive(Component)]
-pub struct CoinTossAbility;
+pub struct Piercing;  // Projectile pierces targets
 
 #[derive(Component)]
-pub struct FortuneAbility;
+pub struct Bouncing;  // Projectile bounces between targets
 
 #[derive(Component)]
-pub struct VaultAbility;
+pub struct Chaining;  // Effect chains to nearby targets
+
+#[derive(Component)]
+pub struct Explosive;  // Creates explosion on impact
+
+#[derive(Component)]
+pub struct Persistent;  // Effect persists after initial application
+
+#[derive(Component)]
+pub struct Spreading;  // Effect spreads to nearby entities
+
+#[derive(Component)]
+pub struct Stacking;  // Effect can stack multiple times
+
+#[derive(Component)]
+pub struct Channeled;  // Ability requires channeling
+
+#[derive(Component)]
+pub struct Instant;  // Ability has no cast time
+
+#[derive(Component)]
+pub struct Periodic;  // Effect ticks periodically
+
+#[derive(Component)]
+pub struct Delayed;  // Effect has a delay before activation
 ```
 
-### Alchemist Abilities
+### Targeting Markers
 ```rust
 #[derive(Component)]
-pub struct IronskinDraftAbility;
+pub struct TargetSelf;  // Targets the caster
 
 #[derive(Component)]
-pub struct AcidFlaskAbility;
+pub struct TargetAlly;  // Can target allies
 
 #[derive(Component)]
-pub struct TransmuteAbility;
+pub struct TargetEnemy;  // Can target enemies
 
 #[derive(Component)]
-pub struct SiphonAbility;
+pub struct TargetGround;  // Targets ground position
+
+#[derive(Component)]
+pub struct TargetNearest;  // Auto-targets nearest valid target
+
+#[derive(Component)]
+pub struct TargetLowest;  // Targets lowest health
+
+#[derive(Component)]
+pub struct TargetHighest;  // Targets highest threat/damage
+
+#[derive(Component)]
+pub struct RequiresLineOfSight;  // Needs clear path to target
+
+#[derive(Component)]
+pub struct IgnoresLineOfSight;  // Can target through obstacles
+
+#[derive(Component)]
+pub struct SmartTargeting;  // Uses intelligent target selection
 ```
 
-### Bard Abilities
+## Visual and Audio Components
+
+Single-purpose components for effects:
+
+### Visual Components
 ```rust
 #[derive(Component)]
-pub struct CleanseAbility;
+pub struct EmissiveIntensity(pub f32);  // Glow intensity
 
 #[derive(Component)]
-pub struct DanceAbility;
+pub struct EmissiveColor(pub Color);  // Glow color
 
 #[derive(Component)]
-pub struct HelixAbility;
+pub struct TrailLength(pub f32);  // Trail effect length
 
 #[derive(Component)]
-pub struct MimicAbility;
+pub struct TrailColor(pub Color);  // Trail color
+
+#[derive(Component)]
+pub struct ParticleCount(pub u32);  // Number of particles
+
+#[derive(Component)]
+pub struct ParticleVelocity(pub Vec3);  // Particle emission velocity
+
+#[derive(Component)]
+pub struct ParticleLifetime(pub f32);  // Particle duration
+
+#[derive(Component)]
+pub struct FlashIntensity(pub f32);  // Flash brightness
+
+#[derive(Component)]
+pub struct FlashDuration(pub f32);  // Flash duration
+
+#[derive(Component)]
+pub struct ScreenShakeIntensity(pub f32);  // Camera shake strength
+
+#[derive(Component)]
+pub struct ScreenShakeDuration(pub f32);  // Shake duration
+
+#[derive(Component)]
+pub struct LightIntensity(pub f32);  // Light brightness
+
+#[derive(Component)]
+pub struct LightRadius(pub f32);  // Light range
+
+#[derive(Component)]
+pub struct LightColor(pub Color);  // Light color
 ```
 
-## Core Functional Components
-
-### Casting and Timing
+### Audio Components
 ```rust
 #[derive(Component)]
-pub struct InstantCast;
+pub struct SoundVolume(pub f32);  // Volume level (0.0-1.0)
 
 #[derive(Component)]
-pub struct CastTime(pub Timer);
+pub struct SoundPitch(pub f32);  // Pitch modifier
 
 #[derive(Component)]
-pub struct Cooldown(pub Timer);
+pub struct SoundFalloff(pub f32);  // Distance falloff rate
 
 #[derive(Component)]
-pub struct Duration(pub Timer);
+pub struct SoundLoop(pub bool);  // Whether sound loops
 
 #[derive(Component)]
-pub struct PeriodicEffect {
-    pub interval: Timer,
-    pub effect_type: String,
-    pub remaining_ticks: Option<u32>,
+pub struct SoundDelay(pub f32);  // Delay before playing
+
+#[derive(Component)]
+pub struct AudioHandle(pub Handle<AudioSource>);  // Audio asset handle
+```
+
+## Composition Examples from Codebase
+
+### Holy Nova VFX Entity (from holy_nova.rs)
+```rust
+commands.entity(character_entity).with_child((
+    HolyNovaVfx::new(),     // Marker
+    ElapsedTime(0.0),       // Time tracking
+    Duration(0.225),        // Total duration
+    StartRadius(4.0),       // Initial size
+    EndRadius(32.0),        // Final size
+    Transform::from_scale(Vec3::splat(4.0)),
+    Mesh3d(vfx_mesh),
+    MeshMaterial3d(mats.yellow.clone()),
+));
+```
+
+### Auto Shot Projectile (from auto_shot.rs)
+```rust
+commands.spawn((
+    Projectile,             // Marker
+    Transform::from_translation(character_pos),
+    Origin(character_pos),  // Start position
+    Target(boss_pos),       // End position
+    ElapsedTime(0.0),       // Time tracking
+    Duration(travel_time),  // Travel duration
+    Mesh3d(projectile_mesh),
+    MeshMaterial3d(mats.black.clone()),
+));
+```
+
+## System Patterns
+
+### Movement System (from auto_shot.rs)
+```rust
+pub fn move_projectiles(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(
+        Entity,
+        &mut Transform,
+        &mut ElapsedTime,
+        &Duration,
+        &Origin,
+        &Target
+    ), With<Projectile>>,
+) {
+    for (entity, mut transform, mut elapsed, duration, origin, target) in query.iter_mut() {
+        elapsed.0 += time.delta_secs();
+        let progress = (elapsed.0 / duration.0).clamp(0.0, 1.0);
+        transform.translation = origin.0.lerp(target.0, progress);
+        
+        if progress >= 1.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+```
+
+### Expansion System (from holy_nova.rs)
+```rust
+pub fn update_holy_nova_vfx(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(
+        Entity,
+        &mut Transform,
+        &mut ElapsedTime,
+        &Duration,
+        &StartRadius,
+        &EndRadius,
+    ), With<HolyNovaVfx>>,
+) {
+    for (entity, mut transform, mut elapsed, duration, start_radius, end_radius) in query.iter_mut() {
+        elapsed.0 += time.delta_secs();
+        let t = (elapsed.0 / duration.0).clamp(0.0, 1.0);
+        
+        let easing_curve = EasingCurve::new(0.0, 1.0, EaseFunction::ExponentialOut);
+        let eased = easing_curve.sample(t).unwrap_or(0.0);
+        
+        let radius = start_radius.0 + (end_radius.0 - start_radius.0) * eased;
+        transform.scale = Vec3::splat(radius);
+        
+        if elapsed.0 >= duration.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+```
+
+## Implementation Guidelines
+
+### 1. Ability Entity Composition Pattern
+Every ability should spawn ephemeral entities with composed components:
+
+```rust
+// Example: Heal Pulse
+commands.spawn((
+    HealPulse,              // Marker
+    Origin(caster_pos),     // Center position
+    Radius(5.0 * TILE_SIZE), // Effect radius
+    Healing(150.0),         // Heal amount
+    ElapsedTime(0.0),       // Time tracking
+    Duration(0.1),          // Brief pulse
+    HealVfx,                // Visual marker
+));
+
+// Example: Poison Cloud
+commands.spawn((
+    PoisonCloud,            // Marker
+    AreaEffect,             // Area marker
+    Origin(target_pos),     // Center position
+    Radius(3.0 * TILE_SIZE), // Cloud radius
+    Damage(20.0),           // Damage per tick
+    TickInterval(1.0),      // Tick every second
+    TicksRemaining(10),     // 10 ticks total
+    ElapsedTime(0.0),       // Time tracking
+    Duration(10.0),         // Total duration
+));
+```
+
+### 2. System Design Pattern
+Keep systems small and focused on single responsibilities:
+
+```rust
+// Good: Single responsibility
+fn apply_healing_system(
+    mut commands: Commands,
+    pulses: Query<(Entity, &Origin, &Radius, &Healing), With<HealPulse>>,
+    mut targets: Query<(&Transform, &mut Health), With<Ally>>,
+) {
+    for (pulse_entity, origin, radius, healing) in pulses.iter() {
+        for (transform, mut health) in targets.iter_mut() {
+            if transform.translation.distance(origin.0) <= radius.0 {
+                health.0 = (health.0 + healing.0).min(health.1); // health.1 is max
+            }
+        }
+        commands.entity(pulse_entity).despawn();
+    }
 }
 
-#[derive(Component)]
-pub struct ChannelTime {
-    pub duration: Timer,
-    pub can_interrupt: bool,
+// Good: Timer management separate
+fn pulse_lifetime_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut pulses: Query<(Entity, &mut ElapsedTime, &Duration), With<HealPulse>>,
+) {
+    for (entity, mut elapsed, duration) in pulses.iter_mut() {
+        elapsed.0 += time.delta_secs();
+        if elapsed.0 >= duration.0 {
+            commands.entity(entity).despawn();
+        }
+    }
 }
 ```
 
-### Damage and Effects
+### 3. Avoid Complex Components
+Never create components with multiple fields when single values suffice:
+
 ```rust
+// BAD: Complex component
+#[derive(Component)]
+pub struct ProjectileData {
+    pub speed: f32,
+    pub damage: f32,
+    pub lifetime: f32,
+    pub pierce_count: u32,
+}
+
+// GOOD: Single-value components
+#[derive(Component)]
+pub struct Speed(pub f32);
+
 #[derive(Component)]
 pub struct Damage(pub f32);
 
 #[derive(Component)]
-pub struct Healing(pub f32);
+pub struct Duration(pub f32);
 
 #[derive(Component)]
-pub struct DamageReduction(pub f32);
+pub struct PierceCount(pub u32);
+```
 
-#[derive(Component)]
-pub struct DamageReflection(pub f32);
+### 4. Use Markers for Behavior
+Combine markers to create complex behaviors:
 
-#[derive(Component)]
-pub struct CriticalChance(pub f32);
+```rust
+// Homing explosive projectile
+commands.spawn((
+    Projectile,
+    Homing,
+    Explosive,
+    Origin(start_pos),
+    TargetEntity(enemy),
+    Speed(10.0),
+    Damage(100.0),
+    SplashRadius(2.0),
+    SplashDamage(50.0),
+    // ... visual components
+));
 
-#[derive(Component)]
-pub struct CriticalMultiplier(pub f32);
+// System queries for specific combinations
+fn homing_projectile_system(
+    mut projectiles: Query<(&mut Transform, &TargetEntity, &Speed), (With<Projectile>, With<Homing>)>,
+    targets: Query<&Transform, Without<Projectile>>,
+) {
+    // Update projectile direction toward target
+}
 
-#[derive(Component)]
-pub struct DamageOverTime {
-    pub damage_per_tick: f32,
-    pub tick_interval: Timer,
-    pub remaining_ticks: u32,
+fn explosive_impact_system(
+    mut commands: Commands,
+    projectiles: Query<(Entity, &Transform, &SplashRadius, &SplashDamage), (With<Projectile>, With<Explosive>)>,
+) {
+    // Spawn explosion entity on impact
 }
 ```
 
-### Spatial and Targeting
+### 5. Recording Integration
+All ability entities should include recording components when spawned during gameplay:
+
 ```rust
-#[derive(Component)]
-pub struct AttackRange(pub f32);
+use bevy::utils::HashMap;
 
-#[derive(Component)]
-pub struct ProjectileSpeed(pub f32);
-
-#[derive(Component)]
-pub struct ProjectileTarget(pub Vec2);
-
-#[derive(Component)]
-pub struct ProjectileLifetime(pub Timer);
-
-#[derive(Component)]
-pub struct AreaOfEffect(pub f32);
-
-#[derive(Component)]
-pub struct ConicalArea {
-    pub angle: f32,
-    pub range: f32,
-    pub direction: Vec2,
-}
-
-#[derive(Component)]
-pub struct GridArea {
-    pub width: u32,
-    pub height: u32,
-}
-
-#[derive(Component)]
-pub struct LineArea {
-    pub length: f32,
-    pub width: f32,
-    pub direction: Vec2,
-}
-```
-
-### Movement and Positioning
-```rust
-#[derive(Component)]
-pub struct MovementSpeed(pub f32);
-
-#[derive(Component)]
-pub struct DashDistance(pub f32);
-
-#[derive(Component)]
-pub struct DashSpeed(pub f32);
-
-#[derive(Component)]
-pub struct Knockback {
-    pub force: f32,
-    pub direction: Vec2,
-}
-
-#[derive(Component)]
-pub struct DirectionalInput {
-    pub required_direction: Vec2,
-    pub tolerance: f32,
-}
-```
-
-### Input and Interaction
-```rust
-#[derive(Component)]
-pub struct MultiTap {
-    pub required_taps: u32,
-    pub tap_window: f32,
-    pub current_taps: u32,
-    pub last_tap_time: f32,
-}
-
-#[derive(Component)]
-pub struct HoldInput {
-    pub minimum_duration: f32,
-    pub maximum_duration: f32,
-    pub current_duration: f32,
-}
-
-#[derive(Component)]
-pub struct ChargeInput {
-    pub charge_rate: f32,
-    pub current_charge: f32,
-    pub max_charge: f32,
-}
-```
-
-### Targeting Behavior
-```rust
-#[derive(Component)]
-pub struct TargetNearest;
-
-#[derive(Component)]
-pub struct TargetLowestHealth;
-
-#[derive(Component)]
-pub struct TargetHighestThreat;
-
-#[derive(Component)]
-pub struct TargetSelf;
-
-#[derive(Component)]
-pub struct TargetAlly;
-
-#[derive(Component)]
-pub struct TargetEnemy;
-
-#[derive(Component)]
-pub struct RequiresLOS; // Line of Sight
-
-#[derive(Component)]
-pub struct SmartTarget {
-    pub strategy: TargetStrategy,
-    pub max_range: f32,
-}
-
-#[derive(Component)]
-pub enum TargetStrategy {
-    LowestHealthPercent,
-    ClosestEnemy,
-    HighestDamage,
-    MostVulnerable,
-}
-```
-
-### Status Effects and Modifiers
-```rust
-#[derive(Component)]
-pub struct Invulnerability {
-    pub duration: Timer,
-    pub immunity_type: ImmunityType,
-}
-
-#[derive(Component)]
-pub enum ImmunityType {
-    Physical,
-    Magical,
-    Environmental,
-    All,
-}
-
-#[derive(Component)]
-pub struct Stealth {
-    pub duration: Timer,
-    pub break_on_action: bool,
-}
-
-#[derive(Component)]
-pub struct BuffEffect {
-    pub effect_type: BuffType,
-    pub magnitude: f32,
-    pub duration: Timer,
-}
-
-#[derive(Component)]
-pub enum BuffType {
-    DamageBoost,
-    SpeedBoost,
-    CriticalChance,
-    Healing,
-    Shield,
-}
-
-#[derive(Component)]
-pub struct StackableEffect {
-    pub current_stacks: u32,
-    pub max_stacks: u32,
-    pub stack_value: f32,
-    pub decay_timer: Option<Timer>,
-}
-```
-
-### Resource Management
-```rust
-#[derive(Component)]
-pub struct ManaCost(pub f32);
-
-#[derive(Component)]
-pub struct ResourceGeneration {
-    pub mana_per_second: f32,
-    pub health_per_second: f32,
-}
-
-#[derive(Component)]
-pub struct ResourceCost {
-    pub mana: f32,
-    pub energy: f32,
-    pub special_resource: f32,
-}
-```
-
-### Environmental Interaction
-```rust
-#[derive(Component)]
-pub struct TerrainModification {
-    pub terrain_type: TerrainType,
-    pub duration: Option<Timer>,
-}
-
-#[derive(Component)]
-pub enum TerrainType {
-    Normal,
-    Dug,
-    Barrier,
-    Hazardous,
-    Mushroom,
-}
-
-#[derive(Component)]
-pub struct EnvironmentalEffect {
-    pub effect_type: EnvironmentType,
-    pub radius: f32,
-    pub duration: Timer,
-}
-
-#[derive(Component)]
-pub enum EnvironmentType {
-    AcidPool,
-    HealingGround,
-    SmokeCloud,
-    IceField,
-    FireZone,
-}
-```
-
-## Recording and Replay Components
-
-### Timeline Integration
-```rust
 #[derive(Component)]
 pub struct RecordableAction {
     pub action_type: String,
@@ -456,641 +815,89 @@ pub struct RecordableAction {
     pub parameters: HashMap<String, f32>,
 }
 
-#[derive(Component)]
-pub struct ReplayableEvent {
-    pub event_id: u64,
-    pub trigger_time: f32,
-    pub event_data: EventData,
-}
-
-#[derive(Component)]
-pub struct TimelinePosition {
-    pub current_time: f32,
-    pub loop_duration: f32,
-    pub is_recording: bool,
-}
-
-#[derive(Component)]
-pub struct DeterministicRNG {
-    pub seed: u64,
-    pub state: u64,
-}
+// Example spawn with recording
+commands.spawn((
+    Projectile,
+    Origin(character_pos),
+    Target(enemy_pos),
+    Damage(75.0),
+    Duration(travel_time),
+    ElapsedTime(0.0),
+    RecordableAction {
+        action_type: "auto_shot_fire".to_string(),
+        timestamp: recording.current_time,
+        position: character_pos,
+        parameters: HashMap::from([
+            ("damage".to_string(), 75.0),
+            ("target_x".to_string(), enemy_pos.x),
+            ("target_y".to_string(), enemy_pos.y),
+        ]),
+    },
+));
 ```
 
-### State Tracking
+## Performance Considerations
+
+### 1. Archetype Efficiency
+Group commonly queried components together:
+
 ```rust
-#[derive(Component)]
-pub struct AbilityState {
-    pub is_active: bool,
-    pub charges_remaining: u32,
-    pub last_used: f32,
-}
-
-#[derive(Component)]
-pub struct ComponentHistory {
-    pub snapshots: VecDeque<ComponentSnapshot>,
-    pub max_history: usize,
-}
-
-#[derive(Component)]
-pub struct ComponentSnapshot {
-    pub timestamp: f32,
-    pub component_data: Vec<u8>, // Serialized component state
-}
-```
-
-## Visual and Audio Components
-
-### Visual Effects
-```rust
-#[derive(Component)]
-pub struct VisualEffect {
-    pub effect_type: String,
-    pub scale: f32,
-    pub color: Color,
-    pub duration: Timer,
-}
-
-#[derive(Component)]
-pub struct ParticleEffect {
-    pub particle_count: u32,
-    pub emission_rate: f32,
-    pub lifetime: f32,
-    pub velocity_range: Vec2,
-}
-
-#[derive(Component)]
-pub struct LightEffect {
-    pub intensity: f32,
-    pub color: Color,
-    pub range: f32,
-    pub flicker_pattern: Option<String>,
-}
-```
-
-### Audio Effects
-```rust
-#[derive(Component)]
-pub struct AudioEffect {
-    pub sound_file: String,
-    pub volume: f32,
-    pub pitch: f32,
-}
-
-#[derive(Component)]
-pub struct SpatialAudio {
-    pub max_distance: f32,
-    pub rolloff_factor: f32,
-    pub doppler_factor: f32,
-}
-
-#[derive(Component)]
-pub struct LoopingAudio {
-    pub fade_in_duration: f32,
-    pub fade_out_duration: f32,
-}
-```
-
-## Upgrade and Progression Components
-
-### Ability Upgrades
-```rust
-#[derive(Component)]
-pub struct UpgradeLevel(pub u32);
-
-#[derive(Component)]
-pub struct UpgradeModifier {
-    pub modifier_type: ModifierType,
-    pub value: f32,
-    pub unlock_level: u32,
-}
-
-#[derive(Component)]
-pub enum ModifierType {
-    DamageMultiplier,
-    CooldownReduction,
-    RangeIncrease,
-    AdditionalEffect,
-    NewMechanic,
-}
-
-#[derive(Component)]
-pub struct ConditionalUpgrade {
-    pub condition: UpgradeCondition,
-    pub modifier: UpgradeModifier,
-}
-
-#[derive(Component)]
-pub enum UpgradeCondition {
-    TargetHealthBelow(f32),
-    StacksAbove(u32),
-    EnemiesInRange(u32),
-    AllyCount(u32),
-}
-```
-
-## System Patterns for Recording Integration
-
-### Recording Systems
-```rust
-// Example system for recording-compatible ability activation
-fn ability_activation_system(
-    mut commands: Commands,
-    input: Res<ButtonInput<KeyCode>>,
-    time: Res<Time>,
-    recording: Res<RecordingState>,
-    mut abilities: Query<(Entity, &Transform, &mut Cooldown), With<HealAbility>>,
-) {
-    if input.just_pressed(KeyCode::Digit3) {
-        for (entity, transform, mut cooldown) in abilities.iter_mut() {
-            if cooldown.0.finished() {
-                // Record the action deterministically
-                commands.entity(entity).insert(RecordableAction {
-                    action_type: "heal_cast".to_string(),
-                    timestamp: recording.current_time,
-                    position: transform.translation,
-                    parameters: HashMap::new(),
-                });
-                
-                cooldown.0.reset();
-            }
-        }
-    }
-}
-
-// System for deterministic periodic effects
-fn periodic_effect_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut effects: Query<(Entity, &mut PeriodicEffect, &Transform)>,
-    recording: Res<RecordingState>,
-) {
-    for (entity, mut periodic, transform) in effects.iter_mut() {
-        periodic.interval.tick(time.delta());
-        
-        if periodic.interval.just_finished() {
-            // Execute effect deterministically
-            commands.spawn((
-                RecordableAction {
-                    action_type: periodic.effect_type.clone(),
-                    timestamp: recording.current_time,
-                    position: transform.translation,
-                    parameters: HashMap::new(),
-                },
-                // Additional effect components...
-            ));
-            
-            // Decrement remaining ticks if limited
-            if let Some(ref mut ticks) = periodic.remaining_ticks {
-                *ticks = ticks.saturating_sub(1);
-                if *ticks == 0 {
-                    commands.entity(entity).remove::<PeriodicEffect>();
-                }
-            }
-        }
-    }
-}
-```
-
-### Replay Systems
-```rust
-// System for replaying recorded actions
-fn replay_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    recording: Res<RecordingState>,
-    recorded_actions: Query<&RecordableAction>,
-) {
-    if recording.is_replaying {
-        for action in recorded_actions.iter() {
-            if (recording.current_time - action.timestamp).abs() < time.delta_seconds() {
-                // Execute recorded action exactly
-                match action.action_type.as_str() {
-                    "heal_cast" => {
-                        // Recreate heal effect at recorded position and time
-                        commands.spawn((
-                            HealEffect {
-                                target: /* lookup target */,
-                                heal_amount: action.parameters.get("heal_amount").copied().unwrap_or(150.0),
-                                channel_progress: 0.0,
-                                visual_effect: Entity::PLACEHOLDER,
-                                audio_source: Entity::PLACEHOLDER,
-                            },
-                            Transform::from_translation(action.position),
-                        ));
-                    },
-                    "auto_shot_fire" => {
-                        // Recreate projectile with exact parameters
-                        // ... 
-                    },
-                    _ => {}
-                }
-            }
-        }
-    }
-}
-```
-
-## Performance Optimizations for Mass Combat
-
-### Component Storage Optimization
-```rust
-// Group related components for archetype efficiency
-#[derive(Bundle)]
-pub struct DamageAbilityBundle {
-    pub damage: Damage,
-    pub range: AttackRange,
-    pub cooldown: Cooldown,
-    pub recordable: RecordableAction,
-}
-
+// Bundle for common projectile components
 #[derive(Bundle)]
 pub struct ProjectileBundle {
-    pub speed: ProjectileSpeed,
-    pub target: ProjectileTarget,
-    pub lifetime: ProjectileLifetime,
-    pub damage: Damage,
-    pub visual: VisualEffect,
+    pub projectile: Projectile,
+    pub transform: Transform,
+    pub origin: Origin,
+    pub target: Target,
+    pub elapsed: ElapsedTime,
+    pub duration: Duration,
 }
 
+// Bundle for area effects
 #[derive(Bundle)]
 pub struct AreaEffectBundle {
-    pub area: AreaOfEffect,
+    pub area: AreaEffect,
+    pub transform: Transform,
+    pub origin: Origin,
+    pub radius: Radius,
+    pub elapsed: ElapsedTime,
     pub duration: Duration,
-    pub effect: EnvironmentalEffect,
-    pub visual: VisualEffect,
 }
 ```
 
-### System Scheduling
-```rust
-// Optimal system ordering for ability processing
-impl Plugin for AbilityPlugin {
-    fn build(&self, app: &mut App) {
-        app
-            .add_systems(Update, (
-                // Input processing first
-                ability_input_system,
-                // State updates
-                cooldown_system,
-                duration_system,
-                // Effect processing
-                damage_system,
-                healing_system,
-                // Recording
-                recording_system,
-                // Visual/Audio last
-                visual_effect_system,
-                audio_effect_system,
-            ).chain());
-    }
-}
-```
-
-## Integration with Arenic's Core Systems
-
-### Unit Marker Integration
-```rust
-// Updated ability targeting with unit markers
-fn ability_targeting_system(
-    hunters: Query<(Entity, &GridPosition, &AttackRange), 
-                   (With<Hunter>, With<Active>, Without<Dead>)>,
-    cardinals: Query<(Entity, &GridPosition, &AttackRange), 
-                     (With<Cardinal>, With<Active>, Without<Dead>)>,
-    bosses: Query<(Entity, &GridPosition, &Health), 
-                  (With<Boss>, With<BossActive>, Without<Dead>)>,
-    heroes: Query<(Entity, &GridPosition, &Health), 
-                  (With<Hero>, With<Active>, Without<Dead>)>,
-    mut target_events: EventWriter<TargetAcquiredEvent>,
-) {
-    // Hunter abilities target bosses and enemies
-    for (hunter_entity, hunter_pos, range) in hunters.iter() {
-        if let Some(target) = find_closest_target(hunter_pos, range, &bosses) {
-            target_events.send(TargetAcquiredEvent {
-                caster: hunter_entity,
-                target: target.0,
-                position: target.1,
-            });
-        }
-    }
-
-    // Cardinal abilities target other heroes for healing
-    for (cardinal_entity, cardinal_pos, range) in cardinals.iter() {
-        if let Some(target) = find_closest_injured_hero(cardinal_pos, range, &heroes) {
-            target_events.send(TargetAcquiredEvent {
-                caster: cardinal_entity,
-                target: target.0,
-                position: target.1,
-            });
-        }
-    }
-}
-
-// Grid-based targeting with unit markers
-fn grid_targeting_system(
-    abilities: Query<(&GridPosition, &AttackRange), With<TargetNearest>>,
-    enemies: Query<(&GridPosition, &Health), (With<Boss>, With<BossActive>)>,
-    mut target_events: EventWriter<TargetAcquiredEvent>,
-) {
-    for (ability_pos, range) in abilities.iter() {
-        let closest_enemy = enemies.iter()
-            .filter(|(enemy_pos, _)| {
-                let distance = ((enemy_pos.x - ability_pos.x).pow(2) + 
-                               (enemy_pos.y - ability_pos.y).pow(2)) as f32;
-                distance.sqrt() <= range.0
-            })
-            .min_by_key(|(enemy_pos, _)| {
-                (enemy_pos.x - ability_pos.x).abs() + (enemy_pos.y - ability_pos.y).abs()
-            });
-            
-        // Send targeting event...
-    }
-}
-```
-
-### Timeline Integration
-```rust
-// Timeline-aware component updates
-fn timeline_component_system(
-    mut abilities: Query<(&mut Duration, &TimelinePosition)>,
-    time: Res<Time>,
-) {
-    for (mut duration, timeline_pos) in abilities.iter_mut() {
-        // Update duration based on timeline position, not wall clock
-        let delta = if timeline_pos.is_recording {
-            time.delta_seconds()
-        } else {
-            // Use recorded delta for replay
-            timeline_pos.current_time - timeline_pos.loop_duration
-        };
-        
-        duration.0.tick(Duration::from_secs_f32(delta));
-    }
-}
-```
-
-This component-based architecture provides:
-
-1. **Perfect Determinism**: All ability behavior driven by components, not external state
-2. **Recording Compatibility**: Every action generates recordable events with timestamps
-3. **Mass Performance**: ECS archetype optimization handles 320+ characters efficiently  
-4. **Modular Design**: Abilities composed from reusable, single-purpose components
-5. **Easy Extension**: New abilities created by combining existing components
-6. **Clean Systems**: Each system has single responsibility and clear data dependencies
-
-The architecture scales from simple abilities (few components) to complex abilities (many components) while maintaining consistent patterns and performance characteristics optimal for Arenic's unique recording/replay requirements.
-
-## Integration with Unit Marker System
-
-The ability component architecture seamlessly integrates with Arenic's comprehensive unit marker system for complete game functionality across 8 arenas with 320+ characters.
-
-### Hero Class Integration
-
-Abilities are now tightly coupled with hero class markers for efficient system routing:
+### 2. Query Filtering
+Use marker components for efficient filtering:
 
 ```rust
-// Class-specific ability queries using unit markers
-type HunterAbilities = Query<(Entity, &AbilitySlots), (With<Hunter>, With<Active>)>;
-type CardinalAbilities = Query<(Entity, &AbilitySlots), (With<Cardinal>, With<Active>)>;
-type WarriorAbilities = Query<(Entity, &AbilitySlots), (With<Warrior>, With<Active>)>;
+// Efficient: Filter with markers
+Query<&Transform, (With<Projectile>, With<Homing>, Without<Explosive>)>
 
-// Ability activation with hero state filtering
-fn hunter_ability_system(
-    mut commands: Commands,
-    input: Res<ButtonInput<KeyCode>>,
-    recording_state: Res<RecordingState>,
-    hunters: Query<(Entity, &GridPosition, &AbilitySlots), 
-                   (With<Hunter>, With<Player>, With<Recording>)>,
-    targets: Query<(Entity, &GridPosition), (With<Boss>, With<BossActive>)>,
-) {
-    for (hunter_entity, position, abilities) in hunters.iter() {
-        if input.just_pressed(KeyCode::Digit1) {
-            // Trigger hunter-specific ability with recording integration
-            commands.entity(hunter_entity).insert(RecordableAction {
-                action_type: "hunter_ability_1".to_string(),
-                timestamp: recording_state.current_time,
-                position: Vec3::new(position.x as f32, position.y as f32, 0.0),
-                parameters: HashMap::new(),
-            });
-            
-            // Spawn class-specific ability effect
-            spawn_hunter_ability_1(&mut commands, position, &targets);
-        }
-    }
-}
+// Efficient: Change detection
+Query<Entity, (With<Buff>, Changed<Duration>)>
 ```
 
-### Boss Targeting Integration
-
-Abilities now properly target bosses and enemies using the boss marker system:
+### 3. Entity Spawning
+Compose all components at spawn to avoid archetype moves:
 
 ```rust
-// Updated targeting for boss encounters
-fn ability_boss_targeting_system(
-    mut target_events: EventWriter<TargetAcquiredEvent>,
-    heroes: Query<(Entity, &GridPosition, &AttackRange), 
-                  (With<Hero>, With<Active>, With<TargetNearest>)>,
-    bosses: Query<(Entity, &GridPosition, &Health), 
-                  (With<Boss>, With<BossActive>, Without<Dead>)>,
-    mini_bosses: Query<(Entity, &GridPosition, &Health), 
-                       (With<MiniBoss>, With<BossActive>, Without<Dead>)>,
-    current_arena: Res<CurrentArena>,
-) {
-    for (hero_entity, hero_pos, range) in heroes.iter() {
-        // Prioritize main bosses, then mini-bosses
-        let target = find_closest_boss(hero_pos, range, &bosses, &current_arena)
-            .or_else(|| find_closest_mini_boss(hero_pos, range, &mini_bosses, &current_arena));
-            
-        if let Some((target_entity, target_pos)) = target {
-            target_events.send(TargetAcquiredEvent {
-                caster: hero_entity,
-                target: target_entity,
-                position: target_pos,
-            });
-        }
-    }
-}
+// Good: All components at once
+commands.spawn((component1, component2, component3, component4));
+
+// Bad: Adding components incrementally
+let entity = commands.spawn(component1).id();
+commands.entity(entity).insert(component2);
+commands.entity(entity).insert(component3);
 ```
 
-### Arena-Scoped Ability Processing
+## Summary
 
-Abilities now respect arena boundaries and only process entities in relevant arenas:
+This single-use component architecture provides:
 
-```rust
-// Arena-aware ability processing
-fn arena_scoped_ability_system(
-    current_arena: Res<CurrentArena>,
-    abilities: Query<(Entity, &AbilityEffect, &ArenaLocal), With<ActiveAbility>>,
-    mut effect_events: EventWriter<AbilityEffectEvent>,
-) {
-    for (entity, effect, arena_local) in abilities.iter() {
-        // Only process abilities in the currently active arena or global effects
-        if arena_local.arena_id == current_arena.id || effect.is_global {
-            effect_events.send(AbilityEffectEvent {
-                ability_entity: entity,
-                effect_type: effect.effect_type.clone(),
-                arena_id: arena_local.arena_id,
-            });
-        }
-    }
-}
-```
+1. **Simplicity**: Each component has one clear purpose
+2. **Composability**: Complex behaviors from simple components
+3. **Performance**: Cache-friendly, archetype-efficient queries
+4. **Determinism**: Component state drives all behavior
+5. **Maintainability**: Small, focused systems under 50 lines
+6. **Flexibility**: Easy to add new abilities by composing existing components
 
-### Recording Integration with Unit States
-
-Abilities now properly handle different unit states during recording and replay:
-
-```rust
-// State-aware ability recording
-fn ability_recording_system(
-    mut commands: Commands,
-    recording_state: Res<RecordingState>,
-    player_abilities: Query<(Entity, &AbilityActivation), 
-                            (With<Player>, With<Recording>, Added<AbilityActivation>)>,
-    ghost_abilities: Query<(Entity, &ReplayAction), 
-                           (With<Ghost>, With<Replaying>)>,
-) {
-    // Record new player actions
-    for (entity, activation) in player_abilities.iter() {
-        commands.entity(entity).insert(RecordableAction {
-            action_type: activation.ability_type.clone(),
-            timestamp: recording_state.current_time,
-            position: activation.cast_position,
-            parameters: activation.parameters.clone(),
-        });
-    }
-    
-    // Execute ghost replay actions
-    for (entity, replay_action) in ghost_abilities.iter() {
-        if should_execute_replay_action(replay_action, &recording_state) {
-            execute_ghost_ability(&mut commands, entity, replay_action);
-        }
-    }
-}
-```
-
-### Tile Interaction Updates
-
-Abilities now interact with the comprehensive tile marker system:
-
-```rust
-// Tile-based ability effects using tile markers
-fn ability_tile_interaction_system(
-    mut commands: Commands,
-    abilities: Query<(Entity, &AreaOfEffect, &GridPosition), With<EnvironmentalAbility>>,
-    tiles: Query<(Entity, &GridPosition, &TileType), With<Tile>>,
-    interactive_tiles: Query<Entity, (With<InteractiveTile>, With<Targetable>)>,
-) {
-    for (ability_entity, aoe, ability_pos) in abilities.iter() {
-        // Find all tiles within area of effect
-        let affected_tiles: Vec<Entity> = tiles.iter()
-            .filter(|(_, tile_pos, _)| {
-                let distance = ((tile_pos.x - ability_pos.x).pow(2) + 
-                               (tile_pos.y - ability_pos.y).pow(2)) as f32;
-                distance.sqrt() <= aoe.0
-            })
-            .map(|(entity, _, _)| entity)
-            .collect();
-            
-        for tile_entity in affected_tiles {
-            // Apply ability effects to tiles
-            if interactive_tiles.contains(tile_entity) {
-                commands.entity(tile_entity).insert(TileEffect {
-                    effect_type: TileEffectType::Modified,
-                    duration: Timer::from_seconds(10.0, TimerMode::Once),
-                    source_ability: ability_entity,
-                });
-            }
-        }
-    }
-}
-```
-
-### Performance Optimization with Markers
-
-The marker system enables significant performance optimizations for ability processing:
-
-```rust
-// Optimized ability processing using marker filtering
-fn optimized_ability_system(
-    // Only process abilities for active, non-dead heroes in current arena
-    active_abilities: Query<(Entity, &AbilityComponent), 
-                            (With<Hero>, With<Active>, Without<Dead>, With<ArenaLocal>)>,
-    current_arena: Res<CurrentArena>,
-) {
-    // This query automatically filters out ~87.5% of entities (7/8 arenas)
-    // Plus additional filtering for dead/inactive heroes
-    for (entity, ability) in active_abilities.iter() {
-        // Process only the most relevant abilities
-        process_ability_efficiently(entity, ability);
-    }
-}
-
-// Batch processing for similar ability types
-fn batched_projectile_system(
-    hunter_projectiles: Query<(Entity, &ProjectileComponent), 
-                              (With<HunterProjectile>, With<Active>)>,
-    cardinal_projectiles: Query<(Entity, &ProjectileComponent), 
-                                (With<CardinalProjectile>, With<Active>)>,
-) {
-    // Process all hunter projectiles together for cache efficiency
-    process_projectile_batch(hunter_projectiles.iter());
-    
-    // Process all cardinal projectiles together
-    process_projectile_batch(cardinal_projectiles.iter());
-}
-```
-
-### Cross-System Communication
-
-Abilities communicate with other game systems through the marker-based event system:
-
-```rust
-// Events that integrate with unit markers
-#[derive(Event)]
-pub struct HeroAbilityEvent {
-    pub caster: Entity,
-    pub target: Option<Entity>,
-    pub ability_type: String,
-    pub position: GridPosition,
-    pub arena_id: usize,
-}
-
-#[derive(Event)]
-pub struct BossAbilityEvent {
-    pub boss: Entity,
-    pub ability_id: u32,
-    pub targets: Vec<Entity>,
-    pub phase: BossPhase,
-    pub arena_id: usize,
-}
-
-// System that handles cross-arena ability effects
-fn cross_arena_ability_system(
-    mut hero_events: EventReader<HeroAbilityEvent>,
-    mut boss_events: EventReader<BossAbilityEvent>,
-    mut global_effects: EventWriter<GlobalEffectEvent>,
-) {
-    // Process hero abilities that might affect other arenas
-    for event in hero_events.read() {
-        if is_global_ability(&event.ability_type) {
-            global_effects.send(GlobalEffectEvent {
-                source_arena: event.arena_id,
-                effect_type: GlobalEffectType::Buff,
-                magnitude: 1.0,
-                duration: 30.0,
-            });
-        }
-    }
-    
-    // Process boss abilities that create arena-wide effects
-    for event in boss_events.read() {
-        if event.ability_id == ARENA_SHAKE_ABILITY {
-            // Effect all heroes in the same arena
-            apply_arena_wide_effect(event.arena_id, ArenaEffect::Shake);
-        }
-    }
-}
-```
-
-This comprehensive integration ensures that the ability system works seamlessly with all unit types, respects arena boundaries, handles 320+ characters efficiently, and maintains perfect determinism for the recording/replay system while supporting all game mechanics described in the RULEBOOK.md.
+Following these patterns from `holy_nova.rs` and `auto_shot.rs` ensures consistent, performant, and maintainable ability implementations across the entire game.

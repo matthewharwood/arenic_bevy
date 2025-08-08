@@ -1,6 +1,6 @@
 # Dance
 
-A complete implementation guide for the Bard's rhythm-based offensive ability.
+A complete implementation guide for the Bard's rhythm-based offensive ability using single-component architecture.
 
 ## Overview
 
@@ -16,143 +16,425 @@ This ability demonstrates innovative skill expression through rhythm-based gamep
 
 **Performance Anxiety Design**: The public nature of the sequence creates social pressure that mirrors real musical performance, adding emotional weight to execution.
 
-## Implementation Architecture
+## Component Architecture
 
-### Component-Based Design
+### Entity Composition Pattern
+
+Following the single-component architecture, Dance uses simple, single-value components:
 
 ```rust
-Dance {
-    sequence_length: 8,             // 8-beat musical phrase
-    base_damage: 150.0,             // Base damage for perfect sequence
-    timing_window: 0.15,            // 150ms timing tolerance per beat
-    tempo: 120.0,                   // 120 BPM (beats per minute)
-    perfect_multiplier: 2.0,        // 2x damage for perfect timing
-    good_multiplier: 1.5,           // 1.5x damage for good timing
-    miss_penalty: 0.1,              // 10% damage reduction per miss
+// Dance Sequence Entity
+commands.spawn((
+    // Marker Components
+    DanceSequence,
+    RhythmGame,
+    
+    // Sequence Components
+    SequenceLength(8),
+    CurrentBeat(0),
+    Tempo(120.0),  // BPM
+    
+    // Timing Components
+    TimingWindow(0.15),
+    NextBeatTime(0.0),
+    ElapsedTime(0.0),
+    
+    // Scoring Components
+    PerfectMultiplier(2.0),
+    GoodMultiplier(1.5),
+    MissPenalty(0.1),
+    ComboMultiplier(1.0),
+    
+    // Damage Components
+    BaseDamage(150.0),
+    AccumulatedScore(0.0),
+));
+
+// Beat Indicator Entity (per beat)
+commands.spawn((
+    // Marker Components
+    BeatIndicator,
+    
+    // Beat Components
+    BeatIndex(index),
+    RequiredKey(key),
+    BeatTime(beat_time),
+    
+    // Visual Components
+    Transform::from_translation(ui_pos),
+    EmissiveColor(Color::srgb(0.8, 0.2, 0.8)),
+    EmissiveIntensity(1.0),
+));
+
+// Input Result Entity (spawned on input)
+commands.spawn((
+    // Marker Components
+    InputResult,
+    
+    // Result Components
+    TimingRating(rating),
+    ScoreValue(score),
+    BeatIndex(beat),
+    
+    // Visual Components
+    FlashColor(result_color),
+    FlashIntensity(2.0),
+    Duration(0.3),
+    ElapsedTime(0.0),
+));
+```
+
+### Core Components Used
+
+All components are single-value/single-purpose:
+
+```rust
+// Sequence Components
+pub struct SequenceLength(pub u8);
+pub struct CurrentBeat(pub u8);
+pub struct Tempo(pub f32);
+pub struct BeatIndex(pub u8);
+pub struct RequiredKey(pub KeyCode);
+pub struct BeatTime(pub f32);
+
+// Timing Components
+pub struct TimingWindow(pub f32);
+pub struct NextBeatTime(pub f32);
+pub struct ElapsedTime(pub f32);
+pub struct Duration(pub f32);
+
+// Scoring Components
+pub struct PerfectMultiplier(pub f32);
+pub struct GoodMultiplier(pub f32);
+pub struct MissPenalty(pub f32);
+pub struct ComboMultiplier(pub f32);
+pub struct AccumulatedScore(pub f32);
+pub struct ScoreValue(pub f32);
+
+// Rating Components
+pub struct TimingRating(pub TimingGrade);
+pub enum TimingGrade { Perfect, Good, Okay, Miss }
+
+// Damage Components
+pub struct BaseDamage(pub f32);
+pub struct FinalDamage(pub f32);
+
+// Visual Components
+pub struct FlashColor(pub Color);
+pub struct FlashIntensity(pub f32);
+pub struct EmissiveColor(pub Color);
+pub struct EmissiveIntensity(pub f32);
+
+// Marker Components (zero-sized)
+pub struct DanceSequence;
+pub struct RhythmGame;
+pub struct BeatIndicator;
+pub struct InputResult;
+```
+
+### System Implementation
+
+Systems query only the components they need:
+
+```rust
+// Beat generation system
+fn beat_generation_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut sequences: Query<(
+        Entity,
+        &SequenceLength,
+        &mut CurrentBeat,
+        &Tempo,
+        &mut NextBeatTime,
+        &mut ElapsedTime
+    ), With<DanceSequence>>,
+) {
+    for (entity, length, mut current, tempo, mut next_beat, mut elapsed) in sequences.iter_mut() {
+        elapsed.0 += time.delta_secs();
+        
+        let beat_interval = 60.0 / tempo.0;  // Convert BPM to seconds per beat
+        
+        if elapsed.0 >= next_beat.0 {
+            if current.0 < length.0 {
+                // Spawn beat indicator
+                let key = get_key_for_beat(current.0);
+                commands.spawn((
+                    BeatIndicator,
+                    BeatIndex(current.0),
+                    RequiredKey(key),
+                    BeatTime(elapsed.0),
+                    Duration(beat_interval),
+                    ElapsedTime(0.0),
+                ));
+                
+                current.0 += 1;
+                next_beat.0 += beat_interval;
+            } else {
+                // Sequence complete
+                commands.entity(entity).insert(SequenceComplete);
+            }
+        }
+    }
 }
 
-DanceSequence {
-    current_beat: u8,
-    required_inputs: Vec<InputKey>,
-    timing_scores: Vec<TimingRating>,
-    total_score: f32,
-    combo_multiplier: f32,
+// Input detection system
+fn input_detection_system(
+    mut commands: Commands,
+    input: Res<ButtonInput<KeyCode>>,
+    beats: Query<(&BeatIndex, &RequiredKey, &BeatTime), With<BeatIndicator>>,
+    mut sequences: Query<(&ElapsedTime, &TimingWindow, &mut AccumulatedScore, &mut ComboMultiplier)>,
+) {
+    for (elapsed, window, mut score, mut combo) in sequences.iter_mut() {
+        for (beat_index, required_key, beat_time) in beats.iter() {
+            if input.just_pressed(required_key.0) {
+                let timing_diff = (elapsed.0 - beat_time.0).abs();
+                
+                let rating = if timing_diff <= 0.05 {
+                    TimingGrade::Perfect
+                } else if timing_diff <= window.0 {
+                    TimingGrade::Good
+                } else if timing_diff <= window.0 * 2.0 {
+                    TimingGrade::Okay
+                } else {
+                    TimingGrade::Miss
+                };
+                
+                // Apply scoring
+                let beat_score = match rating {
+                    TimingGrade::Perfect => {
+                        combo.0 += 0.1;
+                        2.0 * combo.0
+                    },
+                    TimingGrade::Good => {
+                        1.5 * combo.0
+                    },
+                    TimingGrade::Okay => {
+                        combo.0 = 1.0;
+                        1.0
+                    },
+                    TimingGrade::Miss => {
+                        combo.0 = 1.0;
+                        -0.1
+                    }
+                };
+                
+                score.0 += beat_score;
+                
+                // Spawn result indicator
+                commands.spawn((
+                    InputResult,
+                    TimingRating(rating),
+                    ScoreValue(beat_score),
+                    BeatIndex(beat_index.0),
+                    FlashColor(rating_to_color(rating)),
+                    FlashIntensity(2.0),
+                    Duration(0.3),
+                    ElapsedTime(0.0),
+                ));
+            }
+        }
+    }
+}
+
+// Damage application system
+fn dance_damage_system(
+    mut commands: Commands,
+    sequences: Query<(&BaseDamage, &AccumulatedScore), (With<DanceSequence>, With<SequenceComplete>)>,
+    enemies: Query<(Entity, &Transform), With<Enemy>>,
+) {
+    for (base_damage, score) in sequences.iter() {
+        let final_damage = base_damage.0 * score.0.max(0.1);
+        
+        // Apply damage to all enemies in range
+        for (enemy_entity, enemy_transform) in enemies.iter() {
+            if enemy_transform.translation.distance(Vec3::ZERO) <= 3.0 * TILE_SIZE {
+                commands.entity(enemy_entity).with_child((
+                    DamageInstance,
+                    Damage(final_damage),
+                    DamageType::Musical,
+                ));
+            }
+        }
+        
+        // Spawn damage effect
+        commands.spawn((
+            DanceFinale,
+            AreaEffect,
+            Radius(3.0),
+            FinalDamage(final_damage),
+            Duration(1.0),
+            ElapsedTime(0.0),
+            ParticleCount(200),
+        ));
+    }
+}
+
+// Visual feedback system
+fn beat_visual_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut indicators: Query<(
+        Entity,
+        &mut Transform,
+        &mut ElapsedTime,
+        &Duration
+    ), With<BeatIndicator>>,
+) {
+    for (entity, mut transform, mut elapsed, duration) in indicators.iter_mut() {
+        elapsed.0 += time.delta_secs();
+        
+        // Scroll indicator toward timing window
+        let progress = elapsed.0 / duration.0;
+        transform.translation.x = lerp(100.0, 0.0, progress);
+        
+        if elapsed.0 >= duration.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+// Bard animation system
+fn bard_animation_system(
+    results: Query<&TimingRating, Added<InputResult>>,
+    mut bard: Query<&mut AnimationState, With<Bard>>,
+) {
+    for rating in results.iter() {
+        if let Ok(mut anim) = bard.get_single_mut() {
+            match rating.0 {
+                TimingGrade::Perfect => anim.0 = "dance_flourish",
+                TimingGrade::Good => anim.0 = "dance_step",
+                TimingGrade::Okay => anim.0 = "dance_basic",
+                TimingGrade::Miss => anim.0 = "dance_stumble",
+            }
+        }
+    }
 }
 ```
-
-### Event-Driven Systems
-
-The ability coordinates through five rhythm-synchronized systems:
-1. **Beat Generation** - Maintains precise 120 BPM timing and visual metronome
-2. **Input Detection** - Captures player key presses and evaluates timing accuracy
-3. **Sequence Management** - Progresses through the 8-beat pattern with increasing complexity
-4. **Score Calculation** - Computes damage multipliers based on timing performance
-5. **Visual Choreography** - Synchronizes Bard animation with musical performance
-
-## Step-by-Step Gameplay
-
-### Phase 1: Performance Initiation (Ability Activation)
-- **Input Method**: Activate ability to begin musical sequence
-- **Visual Setup**: Musical staff appears with scrolling note indicators
-- **Audio Preparation**: Introductory musical phrase establishes tempo
-- **UI Display**: Timing windows and required key sequence preview
-
-### Phase 2: Beat Sequence (8-Beat Pattern)
-- **Beat 1-2**: Simple alternating arrow keys (↑ ↓) to establish rhythm
-- **Beat 3-4**: Add diagonal inputs (↖ ↗) for basic complexity
-- **Beat 5-6**: Introduce held notes requiring sustained key presses
-- **Beat 7-8**: Rapid triplet combination (↑↓↑) for finale flourish
-
-### Phase 3: Timing Evaluation (Per Beat)
-- **Perfect Timing**: Within 50ms of beat center (2.0x multiplier)
-- **Good Timing**: Within 150ms of beat center (1.5x multiplier)
-- **Acceptable**: Within 300ms of beat center (1.0x multiplier)
-- **Miss**: Outside timing window (0.1x damage reduction)
-
-### Phase 4: Damage Application (Sequence Completion)
-- **Score Calculation**: Base damage × perfect multiplier × combo score
-- **Area Effect**: Damage affects all enemies within 3-tile radius
-- **Visual Climax**: Spectacular musical explosion with note particle effects
-- **Performance Rating**: UI displays timing accuracy and total damage dealt
-
-## Timing Windows and Scoring
-
-### Precision Ratings
-```
-Perfect: ±50ms   | Visual: Golden note flash  | Multiplier: 2.0x
-Good:    ±150ms  | Visual: Blue note flash    | Multiplier: 1.5x
-Okay:    ±300ms  | Visual: White note flash   | Multiplier: 1.0x
-Miss:    >300ms  | Visual: Red X indicator    | Penalty: -10% total
-```
-
-### Combo System
-- **Consecutive Perfects**: Each perfect hit increases combo multiplier by 0.1x
-- **Combo Preservation**: Good hits maintain combo but don't increase it
-- **Combo Breaking**: Miss or okay rating resets combo multiplier to 1.0x
-- **Maximum Combo**: 8 consecutive perfects = 1.8x final damage multiplier
 
 ## Upgrade Paths
 
 ### Tier 1: Extended Performance
-- **Sequence Length**: 8 beats → 12 beats with additional complexity patterns
-- **Damage Scaling**: Each additional beat increases potential damage by 15%
-- **Musical Variety**: Introduces new rhythm patterns and key combinations
-- **Visual Enhancement**: More elaborate Bard choreography and particle effects
+Adds sequence enhancement components:
+```rust
+// Additional components
+SequenceLengthBonus(4)     // +4 beats
+DamagePerBeat(15.0)        // +15 damage per beat
+MusicalVariety             // New patterns
+```
 
 ### Tier 2: Harmonic Resonance
-- **Ally Buff**: Perfect performance grants 20% damage boost to nearby allies for 10 seconds
-- **Team Synchronization**: Nearby allies gain visual rhythm indicators
-- **Shared Glory**: Team benefits create incentive for perfect execution
-- **Social Pressure**: Adds positive team dependency to performance outcome
+Adds team buff components:
+```rust
+// Additional components
+AllyBuff
+BuffStrength(0.2)          // 20% damage boost
+BuffDuration(10.0)         // 10 seconds
+SharedRhythm               // Allies see indicators
+```
 
 ### Tier 3: Maestro's Mastery
-- **Adaptive Difficulty**: Sequence complexity adjusts based on player's historical performance
-- **Perfect Streak**: 3 consecutive perfect sequences unlocks "Encore Mode" with doubled effects
-- **Crowd Favorite**: Enemies within range suffer movement speed reduction during performance
-- **Legendary Performance**: Maximum combo creates persistent damage aura for 30 seconds
+Adds mastery components:
+```rust
+// Additional components
+AdaptiveDifficulty
+PerfectStreak(0)
+StreakBonus(2.0)           // Double damage on streak
+EncoreMode                 // Unlocked by streak
+MovementSlow(0.5)          // Enemies slowed during performance
+AuraDuration(30.0)         // Persistent damage aura
+```
 
 ## Musical Theory Integration
 
-### Rhythm Patterns (8-Beat Sequence)
-```
-Beat 1: ↑     (Downbeat - strong emphasis)
-Beat 2: ↓     (Upbeat - light touch)
-Beat 3: ↖     (Syncopation - off-beat accent)
-Beat 4: ↗     (Resolution - return to pattern)
-Beat 5: ↑─    (Sustained note - hold for full beat)
-Beat 6: ↓─    (Sustained note - hold for full beat)
-Beat 7: ↑↓↑   (Triplet - three inputs in one beat)
-Beat 8: (Rest) (Musical pause - no input required)
-```
+Rhythm patterns use component-based timing:
 
-### Tempo Variations
-- **Adagio**: 60 BPM - Slower tempo for learning (Practice Mode)
-- **Moderato**: 90 BPM - Standard tempo for casual play
-- **Allegro**: 120 BPM - Default competitive tempo
-- **Presto**: 150 BPM - Advanced tempo for expert players
+```rust
+// Beat pattern components
+fn get_key_for_beat(beat: u8) -> KeyCode {
+    match beat {
+        0 => KeyCode::ArrowUp,      // Downbeat
+        1 => KeyCode::ArrowDown,    // Upbeat
+        2 => KeyCode::ArrowLeft,    // Syncopation
+        3 => KeyCode::ArrowRight,   // Resolution
+        4 => KeyCode::Space,        // Hold
+        5 => KeyCode::Space,        // Hold
+        6 => KeyCode::ArrowUp,      // Triplet start
+        7 => KeyCode::ArrowDown,    // Triplet end
+        _ => KeyCode::Space,
+    }
+}
+
+// Tempo variations
+commands.spawn((
+    TempoVariation,
+    BaseTempo(120.0),
+    CurrentTempo(120.0),
+    TempoChange(0.0),  // Accelerando/ritardando
+));
+```
 
 ## Visual & Audio Design
 
-### Performance Setup
-- **Visual**: Musical staff materializes in front of Bard with scrolling notation
-- **UI**: Timing meter shows beat positions and required input indicators
-- **Audio**: Introductory musical phrase establishes key signature and tempo
-- **Animation**: Bard assumes performance stance with instrument raised
+Visual effects use single-value components:
 
-### Beat-by-Beat Execution
-- **Visual**: Notes light up as they approach timing window
-- **Animation**: Bard performs corresponding dance moves for each input
-- **Audio**: Musical notes play with perfect pitch for accurate timing
-- **Feedback**: Timing rating appears instantly above each note
+```rust
+// Performance setup
+commands.spawn((
+    MusicalStaff,
+    StaffPosition(Vec3::new(0.0, 100.0, 0.0)),
+    StaffWidth(400.0),
+    NoteSpeed(100.0),
+    Duration(10.0),
+));
 
-### Performance Climax
-- **Visual**: Explosive musical finale with rainbow note particles
-- **Animation**: Bard strikes dramatic final pose with instrument gleaming
-- **Audio**: Orchestral crescendo matching the accumulated score
-- **Effect**: Damage numbers appear with musical note styling
+// Beat indicators
+commands.spawn((
+    NoteVisual,
+    NoteType(note_type),
+    NoteColor(Color::srgb(0.8, 0.2, 0.8)),
+    GlowIntensity(1.0),
+    ScrollSpeed(100.0),
+));
 
-### Aftermath
-- **Visual**: Lingering musical sparkles around Bard for 3 seconds
-- **UI**: Performance score card displays with accuracy percentages
-- **Audio**: Satisfied audience applause sound for good performances
-- **Feedback**: Ability cooldown begins with musical note countdown timer
+// Performance climax
+commands.spawn((
+    MusicalExplosion,
+    ParticleCount(500),
+    ParticleColors(vec![Color::srgb(0.8, 0.2, 0.8)]),
+    ExplosionRadius(5.0),
+    Duration(2.0),
+    AudioVolume(1.0),
+));
+
+// Score display
+commands.spawn((
+    ScoreCard,
+    Accuracy(0.85),
+    PerfectCount(6),
+    GoodCount(2),
+    TotalDamage(final_damage),
+    DisplayDuration(3.0),
+));
+```
+
+## Recording Integration
+
+All components are deterministic and recordable:
+
+```rust
+commands.spawn((
+    RecordableAction,
+    ActionType::DanceSequence,
+    Timestamp(recording.current_time),
+    InputSequence(recorded_inputs),
+    TimingSequence(recorded_timings),
+));
+```
+
+This single-component architecture ensures:
+- **Frame-perfect timing** with single timing window values
+- **Clean combo tracking** through single multiplier components
+- **Flexible beat patterns** with index-based key mapping
+- **Efficient visual scrolling** with single-value positions
+- **Deterministic rhythm** for recording system

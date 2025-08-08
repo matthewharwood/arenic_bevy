@@ -18,35 +18,41 @@ This ability demonstrates positional design through spatial skill expression:
 
 ## Implementation Architecture
 
-### Component-Based Design
+### Component-Based Design (Single-Use Pattern)
 
 ```rust
-Backstab {
-    damage_multiplier: 1.75,            // 75% damage increase from behind
-    concealment_multiplier: 2.0,        // 100% damage increase while concealed
-    detection_angle: 120.0,             // 120-degree cone for "behind" detection
-    bleed_damage: 10.0,                 // 10 damage per second bleed effect
-    bleed_duration: 6.0,                // 6 second bleed duration
-    activation_type: Passive,           // Always active, no input required
-}
+// Backstab passive ability composition
+commands.entity(thief_entity).insert((
+    BackstabAbility,                    // Marker
+    DamageMultiplier(1.75),             // 75% increase from behind
+    CritMultiplier(2.0),                // 100% increase while concealed
+    Angle(120.0_f32.to_radians()),      // Detection cone angle
+    BleedDamage(10.0),                  // DoT damage per tick
+    BleedDuration(6.0),                 // DoT duration
+    TickInterval(1.0),                  // DoT tick rate
+));
 
-PositionalAttack {
-    attacker: Entity,
-    target: Entity,
-    attack_angle: f32,
-    target_facing: f32,
-    is_behind: bool,
-    is_concealed: bool,
-    damage_multiplier: f32,
-}
+// Backstab attack entity (spawned on attack)
+commands.spawn((
+    BackstabStrike,                     // Strike marker
+    Origin(thief_pos),                  // Attacker position
+    TargetEntity(enemy),                // Target entity
+    Damage(base_damage * 1.75),         // Enhanced damage
+    Duration(0.1),                      // Strike duration
+    ElapsedTime(0.0),                   // Timer
+));
 
-BleedEffect {
-    damage_per_tick: f32,
-    duration_remaining: f32,
-    tick_interval: 1.0,                 // Damage every 1 second
-    source_entity: Entity,
-    visual_effect: Entity,
-}
+// Bleed effect entity (applied to target)
+commands.entity(target).with_child((
+    Debuff,                             // Debuff marker
+    BleedEffect,                        // Bleed marker
+    Damage(10.0),                       // Damage per tick
+    TickInterval(1.0),                  // Tick every second
+    TicksRemaining(6),                  // 6 ticks total
+    Duration(6.0),                      // Total duration
+    ElapsedTime(0.0),                   // Timer
+    DebuffVfx,                          // Visual indicator
+));
 ```
 
 ### Event-Driven Systems

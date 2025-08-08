@@ -18,36 +18,44 @@ This ability showcases hybrid design through combined offensive and defensive me
 
 ## Implementation Architecture
 
-### Component-Based Design
+### Component-Based Design (Single-Use Pattern)
 
 ```rust
-Bash {
-    damage: 150.0,                      // 150 base damage to target
-    cast_time: 0.0,                     // Instant activation
-    range: 1.5,                         // 1.5 tile melee range
-    damage_reduction: 0.3,              // 30% reduction to enemy's next attack
-    reduction_duration: 8.0,            // Effect lasts 8 seconds or until enemy attacks
-    cooldown: 6.0,                      // 6 second ability cooldown
-    shield_requirement: true,           // Must have shield equipped/active
-}
+// Bash ability entity composition
+commands.spawn((
+    BashAbility,                        // Marker
+    Instant,                            // No cast time
+    Damage(150.0),                      // Base damage
+    Range(1.5 * TILE_SIZE),             // Melee range
+    DamageReduction(0.3),               // 30% damage reduction debuff
+    Duration(8.0),                      // Debuff duration
+    Cooldown(6.0),                      // Ability cooldown
+    TargetNearest,                      // Auto-target nearest enemy
+    TargetEnemy,                        // Can only target enemies
+    RequiresLineOfSight,                // Needs clear path
+));
 
-BashStrike {
-    attacker: Entity,
-    target: Entity,
-    damage_dealt: f32,
-    impact_position: Vec2,
-    visual_effect: Entity,
-    audio_source: Entity,
-}
+// Bash strike effect entity (spawned on activation)
+commands.spawn((
+    BashStrike,                         // Marker for strike effect
+    Origin(warrior_pos),                // Attacker position
+    TargetEntity(enemy),                // Target entity
+    Damage(150.0),                      // Damage to apply
+    DamageReduction(0.3),               // Debuff to apply
+    Duration(0.1),                      // Strike duration
+    ElapsedTime(0.0),                   // Timer
+    ScreenShakeIntensity(3.0),          // Camera shake
+    ScreenShakeDuration(0.3),           // Shake duration
+));
 
-DamageReduction {
-    affected_entity: Entity,
-    reduction_percentage: f32,
-    duration_remaining: f32,
-    applies_to_next_attack: bool,
-    visual_indicator: Entity,
-    source_ability: Entity,
-}
+// Damage reduction debuff entity (applied to target)
+commands.entity(target).insert((
+    Debuff,                             // Debuff marker
+    DamageReduction(0.3),               // 30% reduction
+    Duration(8.0),                      // Maximum duration
+    ElapsedTime(0.0),                   // Timer
+    DebuffVfx,                          // Visual indicator
+));
 ```
 
 ### Event-Driven Systems
@@ -59,57 +67,59 @@ The ability operates through five combat systems:
 4. **Duration Management** - Tracks debuff duration and removal conditions
 5. **Visual Coordination** - Manages bash impact effects and debuff indicators
 
-### Required Components
+### Required Single-Use Components
 
 ```rust
-// Core Components
-Damage(150.0)
-AttackRange(1.5)
-InstantCast
-Cooldown(Timer::from_seconds(6.0, TimerMode::Once))
-TargetNearest
-EnemyOnly
-RequiresLOS
+// Core Components (composed at spawn)
+BashAbility                 // Marker
+Instant                     // No cast time marker
+Damage(150.0)               // Base damage value
+Range(1.5 * TILE_SIZE)      // Attack range
+Cooldown(6.0)               // Cooldown in seconds
+TargetNearest               // Targeting behavior marker
+TargetEnemy                 // Valid target marker
+RequiresLineOfSight         // LOS requirement marker
 
-// Shield Requirement Components
-// Equipment check handled in system logic
+// Strike Effect Components
+BashStrike                  // Strike effect marker
+Origin(Vec3)                // Attacker position
+TargetEntity(Entity)        // Target entity reference
+DamageReduction(0.3)        // Debuff percentage
+Duration(0.1)               // Effect duration
+ElapsedTime(0.0)            // Timer tracking
 
-// Debuff Components
-Curse { 
-    damage_reduction: 0.3, 
-    healing_reduction: 0.0, 
-    duration: Timer::from_seconds(8.0, TimerMode::Once) 
-}
-DelayedEffect { 
-    delay: Timer::from_seconds(0.0, TimerMode::Once), 
-    effect_type: "apply_debuff".to_string() 
-}
+// Debuff Components (applied to target)
+Debuff                      // Debuff marker
+DamageReduction(0.3)        // 30% reduction value
+Duration(8.0)               // Max duration in seconds
+ElapsedTime(0.0)            // Timer tracking
+DebuffVfx                   // Visual effect marker
 
-// Visual Components
-VisualEffect { 
-    effect_type: "bash_strike".to_string(), 
-    scale: 1.5, 
-    color: Color::srgb(0.8, 0.6, 0.2), 
-    duration: Timer::from_seconds(0.5, TimerMode::Once) 
-}
-AudioEffect { sound_file: "shield_bash.ogg".to_string(), volume: 0.9, pitch: 1.0 }
-ScreenShake { intensity: 3.0, duration: Timer::from_seconds(0.3, TimerMode::Once) }
+// Visual/Audio Components
+ScreenShakeIntensity(3.0)   // Shake strength
+ScreenShakeDuration(0.3)    // Shake duration
+FlashIntensity(20.0)        // Impact flash brightness
+FlashDuration(0.1)          // Flash duration
+SoundVolume(0.9)            // Audio volume
+AudioHandle(audio.bash)     // Sound asset
 
-// Upgrade Components
-Upgrade 1:
-- Damage(200.0)
-- Curse { damage_reduction: 0.4, healing_reduction: 0.0, duration: Timer::from_seconds(12.0, TimerMode::Once) }
+// Upgrade 1 Components
+Damage(200.0)               // Increased damage
+DamageReduction(0.4)        // Stronger debuff
+Duration(12.0)              // Longer debuff
 
-Upgrade 2:
-- AreaOfEffect(2.0)
-- Slow { movement_reduction: 0.25, duration: Timer::from_seconds(5.0, TimerMode::Once) }
-- Cooldown(Timer::from_seconds(4.0, TimerMode::Once))
+// Upgrade 2 Components
+Radius(2.0 * TILE_SIZE)     // AoE radius
+AreaEffect                  // AoE marker
+MovementReduction(0.25)     // Slow effect
+Cooldown(4.0)               // Reduced cooldown
 
-Upgrade 3:
-- CritChance(0.5)
-- CritMultiplier(2.0)
-- DamageBonus { flat_bonus: 0.0, multiplier: 1.25, duration: Timer::from_seconds(8.0, TimerMode::Once) }  // Vulnerability
-- ConditionalReplay { condition_type: "on_target_death".to_string(), condition_value: 1.0, fallback_action: Some("spread_debuff".to_string()) }
+// Upgrade 3 Components
+CritChance(0.5)             // 50% crit chance
+CritMultiplier(2.0)         // Double damage on crit
+Spreading                   // Debuff spreads on kill
+ChainCount(2)               // Spreads to 2 enemies
+ChainRange(3.0 * TILE_SIZE) // Chain range
 ```
 
 ### High-Level Implementation Plan

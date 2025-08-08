@@ -49,39 +49,45 @@ This inverts traditional support positioning wisdom and creates unique tactical 
 
 ## Implementation Architecture
 
-### Component-Based Design
+### Component-Based Design (Single-Use Pattern)
 
 ```rust
-HolyNova {
-range: TileRadius::new(2),           // 2-tile radius (5x5 grid)
-heal_amount: 120.0,                  // 120 HP restoration per ally
-damage_amount: 80.0,                 // 80 damage per enemy
-cast_time: 0.8,                      // 0.8 second channel time
-cooldown: 9.0,                       // 9 second ability cooldown
-targeting: AreaOfEffect::CenteredOnSelf,
-mana_cost: 40.0,                     // 40 MP per cast
-line_of_sight_required: false,       // Penetrates through obstacles
-}
+// Holy Nova ability composition (following holy_nova.rs pattern)
+commands.spawn((
+    HolyNova,                           // Marker
+    Radius(2.0 * TILE_SIZE),            // 2-tile radius
+    Healing(120.0),                     // Heal amount per ally
+    Damage(80.0),                       // Damage per enemy
+    ChannelTime(0.8),                   // Channel duration
+    Cooldown(9.0),                      // Cooldown duration
+    ManaCost(40.0),                     // Mana required
+    TargetSelf,                         // Centered on caster
+    IgnoresLineOfSight,                 // Penetrates obstacles
+));
 
-HolyNovaTargeting {
-affected_allies: Vec<Entity>,
-affected_enemies: Vec<Entity>,
-impact_tiles: Vec<GridPos>,
-total_healing: f32,
-total_damage: f32,
-efficiency_bonus: f32,               // Bonus based on target count
-}
+// Holy Nova pulse entity (spawned on cast completion)
+commands.spawn((
+    HolyNova,                           // Ability marker
+    Pulse,                              // Pulse effect marker
+    Origin(cardinal_pos),               // Center position
+    Radius(2.0 * TILE_SIZE),            // Effect radius
+    Healing(120.0),                     // Heal per ally
+    Damage(80.0),                       // Damage per enemy
+    Duration(0.1),                      // Brief pulse
+    ElapsedTime(0.0),                   // Timer
+));
 
-HolyNovaEffect {
-caster: Entity,
-targets: Vec<Entity>,
-heal_targets: Vec<Entity>,
-damage_targets: Vec<Entity>,
-channel_progress: f32,
-nova_intensity: f32,
-visual_effect: Entity,
-audio_source: Entity,
-}
+// Holy Nova VFX entity (from holy_nova.rs)
+commands.entity(character_entity).with_child((
+    HolyNovaVfx,                        // VFX marker
+    ElapsedTime(0.0),                   // Time tracking
+    Duration(0.225),                    // VFX duration
+    StartRadius(4.0),                   // Initial radius
+    EndRadius(32.0),                    // Final radius
+    Transform::from_scale(Vec3::splat(4.0)),
+    Mesh3d(vfx_mesh),
+    MeshMaterial3d(mats.yellow.clone()),
+));
 ```
 
 ### Event-Driven Systems

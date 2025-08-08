@@ -1,6 +1,6 @@
 # Dice
 
-A complete implementation guide for the Merchant's stacking critical chance self-enhancement ability.
+A complete implementation guide for the Merchant's stacking critical chance self-enhancement ability using single-component architecture.
 
 ## Overview
 
@@ -16,176 +16,420 @@ This ability demonstrates accumulation design through stackable probability enha
 
 **Resource-Free Investment**: The instant cast and lack of resource costs encourage frequent use during downtime, creating ongoing tactical decisions about when to accumulate versus when to deploy.
 
-## Implementation Architecture
+## Component Architecture
 
-### Component-Based Design
+### Entity Composition Pattern
+
+Following the single-component architecture, Dice uses simple, single-value components:
 
 ```rust
-Dice {
-    crit_chance_per_stack: 0.01,        // 1% critical chance per stack
-    max_stacks: 50,                     // Maximum 50 stacks (50% crit chance)
-    stack_duration: f32::INFINITY,      // Stacks persist until used
-    cast_time: 0.0,                     // Instant activation
-    cooldown: 0.5,                      // 0.5 second cooldown between casts
-    consumption_trigger: CriticalHit,   // All stacks consumed on critical hit
-}
+// Dice Activation Entity
+commands.spawn((
+    // Marker Components
+    DiceRoll,
+    InstantCast,
+    
+    // Ability Components
+    Cooldown(0.5),
+    CritChancePerStack(0.01),
+    
+    // Owner
+    Owner(merchant_entity),
+));
 
-DiceStacks {
-    current_stacks: u32,
-    total_crit_chance: f32,
-    visual_effect: Entity,
-    stack_indicators: Vec<Entity>,
-    accumulated_luck: f32,
-}
+// Dice Stack Entity (child of Merchant)
+commands.entity(merchant_entity).with_child((
+    // Marker Components
+    DiceStacks,
+    CriticalEnhancement,
+    
+    // Stack Components
+    CurrentStacks(current),
+    MaxStacks(50),
+    TotalCritChance(current as f32 * 0.01),
+    
+    // Persistence
+    PersistUntilUsed,
+    ConsumeOnCrit,
+));
 
-CriticalStrike {
-    base_damage: f32,
-    critical_multiplier: f32,           // Typically 2.0x damage
-    dice_enhanced: bool,
-    stacks_consumed: u32,
-    visual_effect: Entity,
-}
+// Visual Dice Entity (per stack)
+commands.spawn((
+    // Marker Components
+    DiceVisual,
+    
+    // Stack Reference
+    StackIndex(index),
+    Owner(merchant_entity),
+    
+    // Visual Components
+    Transform::from_translation(orbit_pos),
+    RotationSpeed(2.0),
+    OrbitRadius(1.5),
+    OrbitAngle(angle),
+    EmissiveIntensity(0.5),
+));
+
+// Critical Strike Entity (on trigger)
+commands.spawn((
+    // Marker Components
+    CriticalStrike,
+    DiceEnhanced,
+    
+    // Effect Components
+    BaseDamage(base),
+    CritMultiplier(2.0),
+    StacksConsumed(stacks),
+    
+    // Visual Components
+    FlashIntensity(3.0),
+    FlashColor(Color::srgb(1.0, 0.8, 0.0)),
+    Duration(0.5),
+    ElapsedTime(0.0),
+));
 ```
 
-### Event-Driven Systems
+### Core Components Used
 
-The ability operates through five gambling-themed systems:
-1. **Stack Accumulation** - Manages dice roll stacking and visual indicators
-2. **Critical Calculation** - Modifies base critical hit chance with accumulated stacks
-3. **Stack Consumption** - Removes all stacks when critical hit occurs
-4. **Visual Management** - Shows stack count and probability enhancement effects
-5. **Luck Tracking** - Monitors accumulated probability for strategic decision-making
+All components are single-value/single-purpose:
 
-## Step-by-Step Gameplay
-
-### Phase 1: Stack Accumulation (Repeated Activation)
-- **Input Method**: Tap to add 1 stack of critical chance (1% per stack)
-- **Instant Effect**: Stack immediately applies to Merchant's critical hit probability
-- **Visual Feedback**: Dice appear around Merchant showing current stack count
-- **Strategic Decision**: Continue stacking versus using current accumulated chance
-
-### Phase 2: Enhanced Probability (Passive Modification)
-- **Critical Calculation**: All attacks modified by accumulated critical chance percentage
-- **Stack Persistence**: Stacks remain active until critical hit occurs
-- **Risk Assessment**: Higher stacks create higher reward potential but longer investment
-- **Timing Consideration**: Evaluate when accumulated chance justifies aggressive combat
-
-### Phase 3: Critical Hit Trigger (Attack Resolution)
-- **Probability Roll**: Enhanced critical chance applied to all offensive actions
-- **Critical Success**: When critical hit occurs, all accumulated stacks provide benefit
-- **Damage Amplification**: Critical hits deal enhanced damage with visual flair
-- **Satisfaction Payoff**: Accumulated patience pays off with devastating attack
-
-### Phase 4: Stack Consumption (Post-Critical)
-- **Complete Reset**: All accumulated stacks consumed in single critical hit
-- **Visual Dissipation**: Dice effects dramatically dissolve after critical strike
-- **Cycle Restart**: Merchant can begin accumulating new stacks immediately
-- **Strategic Reset**: New accumulation phase begins with fresh tactical decisions
-
-## Stack Management Strategy
-
-### Accumulation Tactics
 ```rust
-fn optimal_stacking_strategy(combat_intensity: f32, enemy_health: f32) -> StackDecision {
-    let current_stacks = get_dice_stacks();
-    let current_crit_chance = current_stacks as f32 * 0.01;
-    
-    if combat_intensity < 0.3 && current_stacks < 20 {
-        StackDecision::KeepStacking
-    } else if enemy_health < 30.0 && current_crit_chance > 0.15 {
-        StackDecision::UseNow
-    } else if current_stacks >= 40 {
-        StackDecision::UseNext
-    } else {
-        StackDecision::Evaluate
+// Stack Components
+pub struct CurrentStacks(pub u32);
+pub struct MaxStacks(pub u32);
+pub struct StackIndex(pub u32);
+pub struct CritChancePerStack(pub f32);
+pub struct TotalCritChance(pub f32);
+pub struct StacksConsumed(pub u32);
+
+// Ability Components
+pub struct Cooldown(pub f32);
+pub struct BaseDamage(pub f32);
+pub struct CritMultiplier(pub f32);
+
+// Visual Components
+pub struct RotationSpeed(pub f32);
+pub struct OrbitRadius(pub f32);
+pub struct OrbitAngle(pub f32);
+pub struct FlashIntensity(pub f32);
+pub struct FlashColor(pub Color);
+pub struct EmissiveIntensity(pub f32);
+
+// Time Components
+pub struct Duration(pub f32);
+pub struct ElapsedTime(pub f32);
+
+// Ownership
+pub struct Owner(pub Entity);
+
+// Marker Components (zero-sized)
+pub struct DiceRoll;
+pub struct DiceStacks;
+pub struct DiceVisual;
+pub struct CriticalEnhancement;
+pub struct CriticalStrike;
+pub struct DiceEnhanced;
+pub struct InstantCast;
+pub struct PersistUntilUsed;
+pub struct ConsumeOnCrit;
+```
+
+### System Implementation
+
+Systems query only the components they need:
+
+```rust
+// Stack accumulation system
+fn dice_accumulation_system(
+    mut commands: Commands,
+    input: Res<ButtonInput<KeyCode>>,
+    merchants: Query<Entity, With<DiceAbility>>,
+    mut stacks: Query<(&mut CurrentStacks, &MaxStacks, &CritChancePerStack), With<DiceStacks>>,
+) {
+    if input.just_pressed(KeyCode::KeyD) {
+        for merchant_entity in merchants.iter() {
+            // Find or create stack component
+            let mut found = false;
+            
+            for (mut current, max, per_stack) in stacks.iter_mut() {
+                if current.0 < max.0 {
+                    current.0 += 1;
+                    found = true;
+                    
+                    // Spawn visual dice
+                    let angle = (current.0 as f32 / max.0 as f32) * TAU;
+                    commands.spawn((
+                        DiceVisual,
+                        StackIndex(current.0),
+                        Owner(merchant_entity),
+                        Transform::default(),
+                        OrbitRadius(1.5),
+                        OrbitAngle(angle),
+                        RotationSpeed(2.0),
+                        EmissiveIntensity(0.5),
+                    ));
+                }
+            }
+            
+            if !found {
+                // Create initial stack
+                commands.entity(merchant_entity).with_child((
+                    DiceStacks,
+                    CriticalEnhancement,
+                    CurrentStacks(1),
+                    MaxStacks(50),
+                    TotalCritChance(0.01),
+                    PersistUntilUsed,
+                    ConsumeOnCrit,
+                ));
+            }
+        }
     }
 }
 
-fn calculate_expected_value(stacks: u32, time_investment: f32) -> f32 {
-    let crit_chance = stacks as f32 * 0.01;
-    let expected_damage_bonus = crit_chance * CRITICAL_MULTIPLIER;
-    let opportunity_cost = time_investment * NORMAL_DPS;
-    
-    expected_damage_bonus - opportunity_cost
+// Critical chance calculation system
+fn critical_calculation_system(
+    mut stacks: Query<(&CurrentStacks, &CritChancePerStack, &mut TotalCritChance), With<DiceStacks>>,
+) {
+    for (current, per_stack, mut total) in stacks.iter_mut() {
+        total.0 = current.0 as f32 * per_stack.0;
+    }
+}
+
+// Attack critical check system
+fn attack_critical_system(
+    mut commands: Commands,
+    attacks: Query<(Entity, &BaseDamage, &Owner), Added<Attack>>,
+    stacks: Query<(&CurrentStacks, &TotalCritChance, &Parent), With<DiceStacks>>,
+    mut rng: ResMut<GlobalRng>,
+) {
+    for (attack_entity, base_damage, owner) in attacks.iter() {
+        // Check if attacker has dice stacks
+        for (current, crit_chance, parent) in stacks.iter() {
+            if parent.get() == owner.0 {
+                let roll = rng.gen_range(0.0..1.0);
+                
+                if roll < crit_chance.0 {
+                    // Critical hit!
+                    commands.entity(attack_entity).insert((
+                        CriticalStrike,
+                        DiceEnhanced,
+                        CritMultiplier(2.0),
+                        StacksConsumed(current.0),
+                    ));
+                    
+                    // Queue stack consumption
+                    commands.entity(parent.get()).insert(ConsumeStacks);
+                }
+            }
+        }
+    }
+}
+
+// Stack consumption system
+fn stack_consumption_system(
+    mut commands: Commands,
+    mut to_consume: Query<(Entity, &mut CurrentStacks), (With<DiceStacks>, With<ConsumeStacks>)>,
+    visuals: Query<(Entity, &StackIndex, &Owner), With<DiceVisual>>,
+) {
+    for (entity, mut stacks) in to_consume.iter_mut() {
+        // Despawn all visual dice
+        for (visual_entity, index, owner) in visuals.iter() {
+            if owner.0 == entity {
+                commands.entity(visual_entity).despawn();
+            }
+        }
+        
+        // Reset stacks
+        stacks.0 = 0;
+        
+        // Remove consumption marker
+        commands.entity(entity).remove::<ConsumeStacks>();
+    }
+}
+
+// Visual orbit system
+fn dice_orbit_system(
+    time: Res<Time>,
+    mut visuals: Query<(
+        &mut Transform,
+        &mut OrbitAngle,
+        &OrbitRadius,
+        &RotationSpeed,
+        &Owner
+    ), With<DiceVisual>>,
+    merchants: Query<&Transform, (With<Merchant>, Without<DiceVisual>)>,
+) {
+    for (mut dice_transform, mut angle, radius, speed, owner) in visuals.iter_mut() {
+        if let Ok(merchant_transform) = merchants.get(owner.0) {
+            // Update orbit angle
+            angle.0 += speed.0 * time.delta_secs();
+            
+            // Calculate orbit position
+            let x = angle.0.cos() * radius.0;
+            let z = angle.0.sin() * radius.0;
+            let y = 1.0 + (angle.0 * 2.0).sin() * 0.3;  // Bobbing motion
+            
+            dice_transform.translation = merchant_transform.translation + Vec3::new(x, y, z);
+            
+            // Rotate dice
+            dice_transform.rotate_y(speed.0 * time.delta_secs());
+        }
+    }
+}
+
+// Critical damage application system
+fn critical_damage_system(
+    criticals: Query<(&BaseDamage, &CritMultiplier, &StacksConsumed), With<CriticalStrike>>,
+    mut damage_events: EventWriter<DamageEvent>,
+) {
+    for (base, multiplier, stacks) in criticals.iter() {
+        let final_damage = base.0 * multiplier.0;
+        
+        damage_events.send(DamageEvent {
+            damage: final_damage,
+            is_critical: true,
+            bonus_effects: vec![
+                BonusEffect::ScreenShake(0.5),
+                BonusEffect::CriticalText(format!("{}x CRIT!", stacks.0)),
+            ],
+        });
+    }
 }
 ```
-
-### Timing Optimization
-- **Low-Intensity Accumulation**: Stack during safe periods or enemy downtime
-- **High-Value Targets**: Save high stacks for dangerous or valuable enemies
-- **Emergency Usage**: Use moderate stacks when immediate damage is needed
-- **Risk Management**: Balance accumulation greed with tactical necessity
-
-## Probability Mathematics
-
-### Critical Chance Scaling
-- **Base Rate**: Merchant's normal critical hit chance (typically 5-10%)
-- **Stack Enhancement**: Each stack adds exactly 1% to critical probability
-- **Maximum Benefit**: 50 stacks = 50% bonus critical chance (55-60% total)
-- **Diminishing Psychology**: Higher stacks feel more valuable due to investment
-
-### Expected Value Calculations
-- **1-10 Stacks**: Low investment, reasonable to use for moderate threats
-- **11-25 Stacks**: Medium investment, save for significant targets
-- **26-40 Stacks**: High investment, reserve for major threats or bosses
-- **41-50 Stacks**: Maximum investment, only use for critical moments
 
 ## Upgrade Paths
 
 ### Tier 1: Loaded Dice
-- **Stack Value**: 1% → 1.5% critical chance per stack
-- **Cooldown Reduction**: 0.5 → 0.3 seconds between activations
-- **Stack Limit**: 50 → 60 maximum stacks
-- **Strategic Value**: Faster accumulation with higher ceiling for extreme critical chances
+Adds enhanced stacking components:
+```rust
+// Additional components
+CritChanceBonus(0.005)     // +0.5% per stack (1.5% total)
+CooldownReduction(0.2)     // 0.3s cooldown
+MaxStacksBonus(10)         // 60 max stacks
+```
 
 ### Tier 2: Lucky Streak
-- **Partial Consumption**: Critical hits only consume half of accumulated stacks
-- **Chain Criticals**: Critical hits grant temporary 25% critical chance for 3 seconds
-- **Lucky Sevens**: Every 7th stack grants bonus damage on next attack regardless of critical
-- **Risk Mitigation**: Reduces all-or-nothing nature while adding consistent benefits
+Adds partial consumption components:
+```rust
+// Additional components
+PartialConsume(0.5)        // Only consume half stacks
+ChainCritWindow(3.0)       // 3 second window
+ChainCritBonus(0.25)       // +25% crit during window
+LuckySevens                // Every 7th stack bonus damage
+```
 
 ### Tier 3: Probability Master
-- **Guaranteed Criticals**: At 30+ stacks, next attack is guaranteed critical hit
-- **Stack Sharing**: Can transfer up to 20 stacks to nearby allies
-- **Critical Overflow**: Critical hits create area explosions proportional to stacks consumed
-- **Ultimate Control**: Perfect mastery over probability with team-wide benefits
-
-## Combat Integration and Synergy
-
-### Ability Combinations
-- **Coin Toss Setup**: Use coin toss to increase base damage before triggering critical
-- **Fortune Timing**: Activate fortune before using accumulated stacks for enhanced rewards
-- **Vault Coordination**: Use accumulated criticals within merchant vault areas for maximum impact
-- **Team Synergy**: Time critical strikes to coincide with ally abilities
-
-### Strategic Applications
-- **Boss Encounters**: Accumulate maximum stacks before major boss fights
-- **Finishing Moves**: Use moderate stacks to guarantee kills on low-health enemies
-- **Emergency Burst**: Deploy accumulated chance when team needs immediate high damage
-- **Economic Efficiency**: Balance time investment in stacking against immediate combat needs
+Adds mastery components:
+```rust
+// Additional components
+GuaranteedCritThreshold(30) // 30+ stacks = guaranteed crit
+StackTransfer              // Can transfer to allies
+TransferAmount(20)         // Max 20 stacks to transfer
+CriticalExplosion          // Area damage on crit
+ExplosionScale(0.1)        // Damage per stack consumed
+```
 
 ## Visual & Audio Design
 
-### Stack Accumulation
-- **Visual**: Floating dice appear around Merchant, increasing in number with each stack
-- **Animation**: New dice materialize with satisfying rolling animation
-- **Audio**: Satisfying dice rolling sound with increasing pitch for higher stacks
-- **UI**: Stack counter shows current stacks and total critical chance percentage
+Visual effects use single-value components:
 
-### Probability Enhancement
-- **Visual**: Merchant's weapons glow with increasing intensity based on stack count
-- **Particle**: Luck-themed sparkles and fortune symbols around Merchant
-- **Audio**: Subtle magical humming that builds with accumulated probability
-- **Status**: Critical chance indicator prominently displayed in UI
+```rust
+// Stack accumulation
+commands.spawn((
+    DiceRollEffect,
+    Duration(0.5),
+    ElapsedTime(0.0),
+    RotationSpeed(10.0),
+    EmissiveIntensity(2.0),
+    AudioPitch(1.0 + (stacks as f32 * 0.02)),  // Higher pitch with more stacks
+));
 
-### Critical Hit Payoff
-- **Visual**: Explosive critical effects enhanced by number of stacks consumed
-- **Animation**: Dramatic strike animation with enhanced particle effects
-- **Audio**: Satisfying critical impact sound with gambling win audio cues
-- **Screen Effect**: Brief screen flash and shake proportional to stacks used
+// Probability enhancement
+commands.spawn((
+    LuckAura,
+    Owner(merchant_entity),
+    GlowIntensity(stacks as f32 * 0.02),
+    ParticleCount(stacks * 2),
+    ParticleColor(Color::srgb(1.0, 0.8, 0.0)),
+));
 
-### Stack Consumption
-- **Visual**: All dice dramatically explode in burst of golden light
-- **Animation**: Spectacular dissolution of accumulated luck into critical strike
-- **Audio**: Jackpot-style sound effect as stacks convert to critical damage
-- **Feedback**: Clear indication that investment has paid off with massive damage
+// Critical hit payoff
+commands.spawn((
+    CriticalExplosionVfx,
+    Duration(1.0),
+    ElapsedTime(0.0),
+    StartRadius(0.5),
+    EndRadius(3.0 + (stacks as f32 * 0.1)),
+    ParticleCount(100 + stacks * 10),
+    FlashIntensity(2.0 + (stacks as f32 * 0.05)),
+    ScreenShakeIntensity(0.3 + (stacks as f32 * 0.01)),
+));
+
+// Stack consumption
+commands.spawn((
+    DiceExplosion,
+    ParticleCount(stacks * 5),
+    ExplosionForce(10.0),
+    Duration(1.0),
+    AudioVolume(1.0),
+));
+```
+
+## Strategic Applications
+
+Component-based stacking strategies:
+
+```rust
+// Accumulation decision system
+fn should_keep_stacking(
+    current: &CurrentStacks,
+    combat_intensity: f32,
+    enemy_health: f32,
+) -> bool {
+    if current.0 >= 40 {
+        false  // Use at high stacks
+    } else if enemy_health < 30.0 && current.0 >= 15 {
+        false  // Use for finishing blow
+    } else if combat_intensity < 0.3 {
+        true   // Keep stacking in low combat
+    } else {
+        current.0 < 20  // Moderate threshold
+    }
+}
+
+// Expected value calculation
+fn calculate_dice_value(stacks: &CurrentStacks, multiplier: &CritMultiplier) -> f32 {
+    let crit_chance = stacks.0 as f32 * 0.01;
+    let expected_multiplier = 1.0 + (crit_chance * (multiplier.0 - 1.0));
+    expected_multiplier
+}
+```
+
+## Recording Integration
+
+All components are deterministic and recordable:
+
+```rust
+commands.spawn((
+    RecordableAction,
+    ActionType::DiceRoll,
+    Timestamp(recording.current_time),
+    StackCount(current_stacks),
+));
+
+commands.spawn((
+    RecordableAction,
+    ActionType::CriticalStrike,
+    Timestamp(recording.current_time),
+    StacksUsed(consumed),
+    DamageDealt(final_damage),
+));
+```
+
+This single-component architecture ensures:
+- **Efficient stack tracking** with single counter values
+- **Clean visual management** through indexed dice entities
+- **Flexible probability math** with single chance components
+- **Smooth consumption** through marker-based systems
+- **Deterministic critical rolls** for recording system

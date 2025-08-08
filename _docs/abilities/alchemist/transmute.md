@@ -1,6 +1,6 @@
 # Transmute
 
-A complete implementation guide for the Alchemist's resource conversion utility ability.
+A complete implementation guide for the Alchemist's resource conversion utility ability using single-component architecture.
 
 ## Overview
 
@@ -16,121 +16,380 @@ This ability demonstrates economic design principles that create meaningful reso
 
 **Knowledge-Based Optimization**: Experienced players learn optimal timing and item prioritization, creating skill expression through game system mastery rather than mechanical execution.
 
-## Implementation Architecture
+## Component Architecture
 
-### Component-Based Design
+### Entity Composition Pattern
+
+Following the single-component architecture, Transmute uses simple, single-value components:
 
 ```rust
-Transmute {
-    range: 2.0,                 // 2-tile activation range
-    cooldown: 6.0,              // 6 second ability cooldown
-    cast_time: 1.5,             // 1.5 second channel duration
-    success_rate_base: 0.7,     // 70% chance for upgraded result
-    value_guarantee: true,      // Never produces lower value items
-}
+// Transmute Ability Activation
+commands.spawn((
+    // Marker Components
+    TransmuteAction,
+    ChannelCast,
+    
+    // Ability Components
+    Range(2.0),
+    Cooldown(6.0),
+    CastTime(1.5),
+    
+    // Target Components
+    TargetEntity(item_entity),
+    TargetPosition(item_pos),
+    
+    // Effect Components
+    SuccessRate(0.7),
+    ValueMultiplier(1.0),
+));
 
-TransmutationTarget {
-    original_item: ItemType,
-    target_position: Vec2,
-    transmutation_tier: u8,     // 1-3 upgrade potential
-    value_multiplier: f32,      // Economic value scaling
-}
+// Channeling Entity
+commands.entity(alchemist_entity).with_child((
+    // Marker Components
+    TransmuteChannel,
+    Channeling,
+    
+    // Time Components
+    Duration(1.5),
+    ElapsedTime(0.0),
+    
+    // Visual Components
+    EmissiveIntensity(2.0),
+    EmissiveColor(Color::srgb(0.8, 0.6, 0.2)),
+    ParticleCount(30),
+));
+
+// Transmutation Result Entity
+commands.spawn((
+    // Marker Components
+    TransmutedItem,
+    
+    // Item Components
+    ItemTier(new_tier),
+    ItemValue(new_value),
+    Transform::from_translation(item_pos),
+    
+    // Visual Components
+    FlashIntensity(3.0),
+    Duration(0.5),
+    ElapsedTime(0.0),
+));
 ```
 
-### Event-Driven Systems
+### Core Components Used
 
-The ability operates through five interconnected systems:
-1. **Item Detection** - Scans nearby tiles for transmutable objects
-2. **Channeling Control** - Manages the 1.5-second casting window
-3. **Outcome Calculation** - Determines transmutation results based on item tier
-4. **Resource Generation** - Spawns new items and removes originals
-5. **Economy Tracking** - Maintains value balance and upgrade statistics
+All components are single-value/single-purpose:
 
-## Step-by-Step Gameplay
+```rust
+// Ability Components
+pub struct Range(pub f32);
+pub struct Cooldown(pub f32);
+pub struct CastTime(pub f32);
+pub struct SuccessRate(pub f32);
+pub struct ValueMultiplier(pub f32);
 
-### Phase 1: Target Selection (Double-Tap Activation)
-- **Input Method**: Double-tap near target item to begin transmutation
-- **Range Validation**: Must be within 2 tiles of target item
-- **Item Assessment**: UI shows potential upgrade tiers and success probability
-- **Strategic Decision**: Evaluate current item value against potential outcomes
+// Target Components
+pub struct TargetEntity(pub Entity);
+pub struct TargetPosition(pub Vec3);
 
-### Phase 2: Channeling (1.5 Second Cast)
-- **Animation**: Alchemist extends hands with swirling energy effects
-- **Vulnerability Window**: Cannot move or use other abilities during channel
-- **Visual Feedback**: Energy streams flow from Alchemist to target item
-- **Interruption Risk**: Taking damage cancels the transmutation attempt
+// Time Components
+pub struct Duration(pub f32);
+pub struct ElapsedTime(pub f32);
 
-### Phase 3: Material Analysis (System Processing)
-- **Item Evaluation**: System determines base item tier and upgrade potential
-- **Success Calculation**: Rolls against 70% base success rate
-- **Value Protection**: Failed upgrades still maintain or slightly increase value
-- **Outcome Determination**: Selects specific replacement item from upgrade pool
+// Item Components
+pub struct ItemTier(pub u8);
+pub struct ItemValue(pub f32);
+pub struct OriginalItem(pub Entity);
 
-### Phase 4: Transmutation Result (Instant Resolution)
-- **Item Replacement**: Original item vanishes, new item appears instantly
-- **Visual Effect**: Bright alchemical flash with particle transformation
-- **Audio Feedback**: Distinct sounds for success vs. standard transmutation
-- **UI Notification**: Brief display showing transmutation outcome and value change
+// Visual Components
+pub struct EmissiveIntensity(pub f32);
+pub struct EmissiveColor(pub Color);
+pub struct ParticleCount(pub u32);
+pub struct FlashIntensity(pub f32);
+
+// Marker Components (zero-sized)
+pub struct TransmuteAction;
+pub struct TransmuteChannel;
+pub struct Channeling;
+pub struct ChannelCast;
+pub struct TransmutedItem;
+pub struct Interruptible;
+```
+
+### System Implementation
+
+Systems query only the components they need:
+
+```rust
+// Target selection system
+fn transmute_target_system(
+    mut commands: Commands,
+    input: Res<ButtonInput<KeyCode>>,
+    alchemists: Query<(Entity, &Transform), With<TransmuteAbility>>,
+    items: Query<(Entity, &Transform, &ItemTier), With<GroundItem>>,
+) {
+    if input.just_pressed(KeyCode::KeyT) {
+        for (alchemist_entity, alchemist_transform) in alchemists.iter() {
+            // Find nearest item within range
+            let mut closest: Option<(Entity, f32)> = None;
+            
+            for (item_entity, item_transform, tier) in items.iter() {
+                let distance = alchemist_transform.translation.distance(item_transform.translation);
+                
+                if distance <= 2.0 * TILE_SIZE {
+                    if closest.is_none() || distance < closest.unwrap().1 {
+                        closest = Some((item_entity, distance));
+                    }
+                }
+            }
+            
+            if let Some((target, _)) = closest {
+                // Start channeling
+                commands.entity(alchemist_entity).with_child((
+                    TransmuteChannel,
+                    Channeling,
+                    TargetEntity(target),
+                    Duration(1.5),
+                    ElapsedTime(0.0),
+                    Interruptible,
+                ));
+            }
+        }
+    }
+}
+
+// Channeling progress system
+fn channel_progress_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut channels: Query<(
+        Entity,
+        &mut ElapsedTime,
+        &Duration,
+        &TargetEntity,
+        &Parent
+    ), With<TransmuteChannel>>,
+) {
+    for (channel_entity, mut elapsed, duration, target, parent) in channels.iter_mut() {
+        elapsed.0 += time.delta_secs();
+        
+        if elapsed.0 >= duration.0 {
+            // Channel complete - trigger transmutation
+            commands.spawn((
+                TransmuteAction,
+                TargetEntity(target.0),
+                SuccessRate(0.7),
+                ValueMultiplier(1.0),
+            ));
+            
+            // Remove channel
+            commands.entity(channel_entity).despawn();
+        }
+    }
+}
+
+// Transmutation resolution system
+fn transmute_resolution_system(
+    mut commands: Commands,
+    actions: Query<(&TargetEntity, &SuccessRate, &ValueMultiplier), Added<TransmuteAction>>,
+    items: Query<(&Transform, &ItemTier, &ItemValue), With<GroundItem>>,
+    mut rng: ResMut<GlobalRng>,
+) {
+    for (target, success_rate, multiplier) in actions.iter() {
+        if let Ok((transform, tier, value)) = items.get(target.0) {
+            let roll = rng.gen_range(0.0..1.0);
+            
+            let (new_tier, new_value) = if roll < success_rate.0 {
+                // Success - upgrade tier
+                (tier.0 + 1, value.0 * 1.5)
+            } else {
+                // Standard - maintain value
+                (tier.0, value.0 * 1.2)
+            };
+            
+            // Spawn new item
+            commands.spawn((
+                TransmutedItem,
+                GroundItem,
+                ItemTier(new_tier),
+                ItemValue(new_value),
+                Transform::from_translation(transform.translation),
+                FlashIntensity(3.0),
+                Duration(0.5),
+                ElapsedTime(0.0),
+            ));
+            
+            // Remove original
+            commands.entity(target.0).despawn();
+        }
+    }
+}
+
+// Visual effect system
+fn transmute_visual_system(
+    channels: Query<(&Parent, &ElapsedTime, &Duration), With<TransmuteChannel>>,
+    mut alchemists: Query<&mut Handle<ColorMaterial>>,
+) {
+    for (parent, elapsed, duration) in channels.iter() {
+        if let Ok(mut material) = alchemists.get_mut(parent.get()) {
+            // Increase glow intensity as channel progresses
+            let progress = elapsed.0 / duration.0;
+            // Update material emissive based on progress
+        }
+    }
+}
+
+// Interrupt system
+fn channel_interrupt_system(
+    mut commands: Commands,
+    damaged: Query<Entity, (With<TookDamage>, With<Channeling>)>,
+    channels: Query<Entity, With<TransmuteChannel>>,
+) {
+    for damaged_entity in damaged.iter() {
+        // Find and remove any channels on damaged entity
+        for channel in channels.iter() {
+            commands.entity(channel).despawn();
+        }
+    }
+}
+```
 
 ## Upgrade Paths
 
 ### Tier 1: Enhanced Probability
-- **Success Rate**: 70% → 85% chance for upgraded results
-- **Quality Improvement**: Higher likelihood of rare material outcomes
-- **Visual Enhancement**: Brighter energy effects during channeling
-- **Strategic Value**: Makes transmutation more reliable for high-value items
+Adds success enhancement components:
+```rust
+// Additional components
+SuccessRateBonus(0.15)  // +15% success rate
+QualityBonus(1)         // +1 tier potential
+```
 
 ### Tier 2: Batch Processing
-- **Multi-Target**: Can transmute up to 3 items simultaneously within range
-- **Efficiency Gain**: Same 1.5-second channel time for multiple targets
-- **Resource Management**: Dramatically improves inventory clearing speed
-- **Visual Spectacle**: Energy streams connect to multiple items simultaneously
+Adds multi-target components:
+```rust
+// Additional components
+MaxTargets(3)
+AreaOfEffect(2.0)
+SharedChannel         // All targets use same channel time
+```
 
 ### Tier 3: Alchemical Mastery
-- **Guaranteed Upgrades**: 100% success rate with additional tier bonus
-- **Value Multiplication**: Successful transmutations gain 1.5x value multiplier
-- **Range Extension**: Activation range increases from 2 → 4 tiles
-- **Strategic Dominance**: Transforms resource economy for late-game optimization
+Adds guaranteed success components:
+```rust
+// Additional components
+GuaranteedSuccess
+ValueMultiplierBonus(0.5)  // +50% value
+RangeBonus(2.0)            // +2 tile range
+```
 
 ## Item Transmutation Tables
 
-### Common Item Outcomes (70% Upgrade Success)
-- **Success**: Common → Uncommon tier equivalent
-- **Standard**: Common → Improved common (1.2x value)
-- **Examples**: Iron Ore → Steel Ingot, Basic Potion → Enhanced Potion
+Transmutation uses tier-based components:
 
-### Uncommon Item Outcomes (70% Upgrade Success)  
-- **Success**: Uncommon → Rare tier equivalent
-- **Standard**: Uncommon → Superior uncommon (1.3x value)
-- **Examples**: Steel Ingot → Mithril Ore, Enhanced Potion → Master's Brew
+```rust
+// Common tier transmutation
+if item_tier.0 == 1 {
+    commands.spawn((
+        ItemTier(2),  // Upgrade to uncommon
+        ItemValue(base_value * 1.5),
+    ));
+}
 
-### Rare Item Outcomes (70% Upgrade Success)
-- **Success**: Rare → Epic tier equivalent  
-- **Standard**: Rare → Perfected rare (1.5x value)
-- **Examples**: Mithril Ore → Adamantine Fragment, Master's Brew → Legendary Elixir
+// Uncommon tier transmutation  
+if item_tier.0 == 2 {
+    commands.spawn((
+        ItemTier(3),  // Upgrade to rare
+        ItemValue(base_value * 2.0),
+    ));
+}
+
+// Rare tier transmutation
+if item_tier.0 == 3 {
+    commands.spawn((
+        ItemTier(4),  // Upgrade to epic
+        ItemValue(base_value * 3.0),
+    ));
+}
+```
 
 ## Visual & Audio Design
 
-### Targeting Phase
-- **Visual**: Golden highlight outline around valid transmutation targets
-- **UI**: Floating tooltip showing item name, current value, and upgrade probability
-- **Audio**: Soft chiming sound when valid targets are detected
-- **Feedback**: Range indicator shows 2-tile activation radius
+Visual effects use single-value components:
 
-### Channeling Phase
-- **Visual**: Swirling golden energy streams flowing from hands to target
-- **Animation**: Alchemist's robes billow with alchemical wind effects
-- **Audio**: Building harmonic resonance with increasing intensity
-- **Progress**: Energy intensity grows throughout 1.5-second channel
+```rust
+// Targeting phase
+commands.spawn((
+    TargetHighlight,
+    EmissiveColor(Color::srgb(0.8, 0.6, 0.2)),
+    EmissiveIntensity(1.0),
+    PulseRate(2.0),
+));
 
-### Transmutation Resolution
-- **Visual**: Brilliant flash of golden light consuming target item
-- **Transformation**: Item dissolves into particle stream, reforms as new item
-- **Audio**: Success produces clear bell chime, standard produces softer tone
-- **UI**: Brief value comparison popup shows economic outcome
+// Channeling phase
+commands.spawn((
+    ChannelBeam,
+    Origin(alchemist_pos),
+    Target(item_pos),
+    BeamWidth(0.2),
+    BeamColor(Color::srgb(0.8, 0.6, 0.2)),
+    ParticleCount(50),
+    Duration(1.5),
+));
 
-### Environmental Effects
-- **Particle System**: Golden alchemical symbols float briefly around Alchemist
-- **Ground Effect**: Transmutation circle appears temporarily at target location
-- **Ambient Enhancement**: Nearby alchemy equipment glows sympathetically
-- **Cooldown Indicator**: Ability icon shows 6-second recharge progress
+// Transmutation resolution
+commands.spawn((
+    TransmuteFlash,
+    FlashIntensity(3.0),
+    FlashColor(Color::srgb(1.0, 0.8, 0.0)),
+    Duration(0.5),
+    ParticleCount(100),
+    AudioVolume(0.8),
+));
+```
+
+## Strategic Applications
+
+Component-based transmutation strategies:
+
+```rust
+// High-value targeting
+fn prioritize_rare_items(items: Query<(Entity, &ItemTier)>) -> Option<Entity> {
+    items.iter()
+        .filter(|(_, tier)| tier.0 >= 2)
+        .map(|(e, _)| e)
+        .next()
+}
+
+// Batch efficiency
+fn transmute_item_cluster(position: Vec3, radius: f32) {
+    // Transmute all items in area
+}
+
+// Economic optimization
+fn calculate_transmute_value(tier: &ItemTier, value: &ItemValue) -> f32 {
+    let potential_gain = value.0 * 0.5;  // Expected value increase
+    let time_cost = 1.5 + 6.0;           // Cast + cooldown
+    potential_gain / time_cost
+}
+```
+
+## Recording Integration
+
+All components are deterministic and recordable:
+
+```rust
+commands.spawn((
+    RecordableAction,
+    ActionType::Transmute,
+    Timestamp(recording.current_time),
+    TargetEntity(item_entity),
+    SuccessRoll(roll_value),
+));
+```
+
+This single-component architecture ensures:
+- **Simple RNG handling** with single success rate values
+- **Clean channel interruption** through component removal
+- **Flexible item tiers** with single-value tier components
+- **Efficient batch processing** with area components
+- **Deterministic outcomes** for recording system
