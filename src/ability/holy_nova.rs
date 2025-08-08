@@ -1,6 +1,8 @@
+use crate::audio::Audio;
 use crate::character::Character;
 use crate::materials::Materials;
 use crate::selectors::Active;
+use bevy::audio::AudioPlayer;
 use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::*;
 
@@ -30,6 +32,7 @@ impl HolyNovaVfx {
 pub fn holy_nova_ability(
     mut commands: Commands,
     mats: Res<Materials>,
+    audio: Res<Audio>,
     mut meshes: ResMut<Assets<Mesh>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     character_q: Query<Entity, (With<Character>, With<Active>, With<HolyNova>)>,
@@ -41,6 +44,11 @@ pub fn holy_nova_ability(
     if !pressed {
         return;
     }
+
+    // Play the holy nova sound effect
+    commands.spawn((
+        AudioPlayer::new(audio.holy_nova.clone()),
+    ));
 
     // Spawn a VFX sphere as a child of each active character
     for character_entity in character_q.iter() {

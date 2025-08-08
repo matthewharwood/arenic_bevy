@@ -1,10 +1,11 @@
 use crate::ability::{Origin, Projectile, Target, TimeToLive};
 use crate::arena::TILE_SIZE;
+use crate::audio::Audio;
 use crate::character::{Boss, Character};
 use crate::materials::Materials;
 use crate::selectors::Active;
-use bevy::asset::{Assets, AssetServer, Handle};
-use bevy::audio::{AudioPlayer, AudioSource};
+use bevy::asset::Assets;
+use bevy::audio::AudioPlayer;
 use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::{
     Commands, Component, Entity, GlobalTransform, Local, Mesh, Mesh3d, Query, Res, ResMut, Sphere,
@@ -56,20 +57,16 @@ pub fn tile_dist(pos1: (f32, f32), pos2: (f32, f32)) -> f32 {
 pub fn auto_shot_ability(
     mut commands: Commands,
     mats: Res<Materials>,
+    audio: Res<Audio>,
     mut meshes: ResMut<Assets<Mesh>>,
     time: Res<Time>,
-    asset_server: Res<AssetServer>,
     mut timer: Local<Timer>,
-    mut sound_resource: Local<Option<Handle<AudioSource>>>,
     character_query: Query<(&GlobalTransform, &AutoShot), (With<Character>, With<AutoShot>)>,
     boss_query: Query<&GlobalTransform, (With<Boss>, With<Active>)>,
 ) {
-    // Initialize timer and load sound on first run
+    // Initialize timer on first run
     if timer.duration().as_secs_f32() == 0.0 {
         *timer = Timer::from_seconds(1.0, TimerMode::Repeating);
-        
-        // Load the autoshot sound effect once
-        *sound_resource = Some(asset_server.load("abilities/autoshot.mp3"));
     }
 
     timer.tick(time.delta());
@@ -109,13 +106,9 @@ pub fn auto_shot_ability(
                     Mesh3d(projectile_mesh),
                     MeshMaterial3d(mats.black.clone()),
                 ));
-                
+
                 // Play the autoshot sound effect
-                if let Some(sound_handle) = &*sound_resource {
-                    commands.spawn((
-                        AudioPlayer::new(sound_handle.clone()),
-                    ));
-                }
+                commands.spawn((AudioPlayer::new(audio.autoshot.clone()),));
             }
         }
     }

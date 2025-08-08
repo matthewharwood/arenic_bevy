@@ -1,5 +1,6 @@
 mod arena;
 mod arena_camera;
+mod audio;
 mod battleground;
 
 // Uncomment these modules to debug pink material issues
@@ -14,6 +15,7 @@ use crate::ability::{
     HolyNova,
 };
 use crate::arena::{get_local_tile_space, Arena, TILE_SIZE};
+use crate::audio::Audio;
 use crate::character::{Boss, Character};
 use crate::materials::Materials;
 use crate::selectors::Active;
@@ -78,6 +80,7 @@ fn setup_scene(
 ) {
     // Load the tile model
     commands.insert_resource(Materials::new(&mut materials));
+    commands.insert_resource(Audio::new(&asset_server));
     let tile_scene = asset_server.load("tile.glb#Scene0");
 
     // Add Debug component to enable debug visualization
