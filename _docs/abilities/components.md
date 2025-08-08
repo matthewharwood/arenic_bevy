@@ -2,6 +2,8 @@
 
 A comprehensive single-use component architecture for Arenic's deterministic ability system, following the patterns established in `holy_nova.rs` and `auto_shot.rs`.
 
+> **Note**: Common components shared with boss mechanics have been moved to `shared_components.md`. This document now contains only ability-specific components.
+
 ## Architecture Overview
 
 Every ability in Arenic follows a **composition-based pattern** where abilities are built from multiple single-purpose components:
@@ -61,120 +63,46 @@ commands.spawn((
 - Query only needed components: `Query<(Entity, &mut Transform, &mut ElapsedTime, &Duration, &Origin, &Target), With<Projectile>>`
 - Despawn entities when their purpose is complete
 
-## Shared Single-Purpose Components
+## Shared Components
 
-All abilities compose their behavior from these single-value components:
+> **Important**: Common components used by both abilities and bosses have been moved to `shared_components.md`. This includes:
+> - Time and Duration Components (ElapsedTime, Duration, Cooldown, etc.)
+> - Spatial Components (Origin, Target, Radius, Speed, etc.)
+> - Effect Value Components (Damage, Healing, reductions, etc.)
+> - Entity Reference Components (SourceEntity, TargetEntity, etc.)
+> - Resource Components (ManaCost, EnergyCost, etc.)
+> - Stacking and Counter Components (Stacks, Charges, etc.)
+> - Probability Components (ProcChance, MissChance, etc.)
+> 
+> See `shared_components.md` for the complete list of shared components.
 
-### Time and Duration Components
+## Ability-Specific Value Components
+
+These components are unique to player abilities:
+
+### Ability Resource Components
 ```rust
 #[derive(Component)]
-pub struct ElapsedTime(pub f32);  // Seconds elapsed since spawn
+pub struct ManaInvested(pub f32);  // Total mana invested in effect
 
 #[derive(Component)]
-pub struct Duration(pub f32);  // Total duration in seconds
+pub struct GoldInvested(pub f32);  // Total gold invested in effect
 
 #[derive(Component)]
-pub struct Cooldown(pub f32);  // Cooldown remaining in seconds
+pub struct HealthDrain(pub f32);  // Health drain per second
 
 #[derive(Component)]
-pub struct CastTime(pub f32);  // Cast time required in seconds
+pub struct MinimumHP(pub f32);  // Minimum HP threshold (as percentage)
 
 #[derive(Component)]
-pub struct ChannelTime(pub f32);  // Channel duration in seconds
+pub struct ManaGeneration(pub f32);  // Mana per second
 
 #[derive(Component)]
-pub struct TickInterval(pub f32);  // Seconds between periodic ticks
-
-#[derive(Component)]
-pub struct TicksRemaining(pub u32);  // Number of ticks left
+pub struct EnergyGeneration(pub f32);  // Energy per second
 ```
 
-### Spatial Components
+### Ability Effect Components
 ```rust
-#[derive(Component)]
-pub struct Origin(pub Vec3);  // Starting position
-
-#[derive(Component)]
-pub struct Target(pub Vec3);  // Target position
-
-#[derive(Component)]
-pub struct Range(pub f32);  // Maximum range in world units
-
-#[derive(Component)]
-pub struct Radius(pub f32);  // Effect radius in world units
-
-#[derive(Component)]
-pub struct StartRadius(pub f32);  // Initial radius for expanding effects
-
-#[derive(Component)]
-pub struct EndRadius(pub f32);  // Final radius for expanding effects
-
-#[derive(Component)]
-pub struct Speed(pub f32);  // Movement speed in units/second
-
-#[derive(Component)]
-pub struct Distance(pub f32);  // Distance value in world units
-
-#[derive(Component)]
-pub struct Height(pub f32);  // Height/altitude value
-
-#[derive(Component)]
-pub struct Width(pub f32);  // Width value for areas
-
-#[derive(Component)]
-pub struct Angle(pub f32);  // Angle in radians for cones/arcs
-
-#[derive(Component)]
-pub struct ZoneRadius(pub f32);  // Zone area of effect radius
-
-#[derive(Component)]
-pub struct ZoneDuration(pub f32);  // Zone lifetime in seconds
-
-#[derive(Component)]
-pub struct NodeRadius(pub f32);  // Node effect radius
-```
-
-### Effect Value Components
-```rust
-#[derive(Component)]
-pub struct Damage(pub f32);  // Damage amount
-
-#[derive(Component)]
-pub struct Healing(pub f32);  // Healing amount
-
-#[derive(Component)]
-pub struct DamageReduction(pub f32);  // Percentage reduction (0.0-1.0)
-
-#[derive(Component)]
-pub struct HealingReduction(pub f32);  // Percentage reduction (0.0-1.0)
-
-#[derive(Component)]
-pub struct MovementReduction(pub f32);  // Percentage slow (0.0-1.0)
-
-#[derive(Component)]
-pub struct AttackSpeedReduction(pub f32);  // Percentage reduction (0.0-1.0)
-
-#[derive(Component)]
-pub struct CritChance(pub f32);  // Critical strike chance (0.0-1.0)
-
-#[derive(Component)]
-pub struct CritMultiplier(pub f32);  // Critical damage multiplier
-
-#[derive(Component)]
-pub struct BlockChance(pub f32);  // Chance to block (0.0-1.0)
-
-#[derive(Component)]
-pub struct DodgeChance(pub f32);  // Chance to dodge (0.0-1.0)
-
-#[derive(Component)]
-pub struct ArmorValue(pub f32);  // Armor amount
-
-#[derive(Component)]
-pub struct ResistanceValue(pub f32);  // Resistance amount
-
-#[derive(Component)]
-pub struct ShieldAmount(pub f32);  // Shield/barrier health
-
 #[derive(Component)]
 pub struct BaseConversion(pub f32);  // Base conversion rate for effects
 
@@ -189,54 +117,6 @@ pub struct HealingPower(pub f32);  // Healing per second rate
 
 #[derive(Component)]
 pub struct MarkDuration(pub f32);  // Seconds remaining on mark
-```
-
-### Resource Components
-```rust
-#[derive(Component)]
-pub struct ManaCost(pub f32);  // Mana required to cast
-
-#[derive(Component)]
-pub struct EnergyCost(pub f32);  // Energy required
-
-#[derive(Component)]
-pub struct HealthCost(pub f32);  // Health sacrificed
-
-#[derive(Component)]
-pub struct ManaGeneration(pub f32);  // Mana per second
-
-#[derive(Component)]
-pub struct EnergyGeneration(pub f32);  // Energy per second
-
-#[derive(Component)]
-pub struct ResourceDrain(pub f32);  // Resource drain per second
-
-#[derive(Component)]
-pub struct ManaInvested(pub f32);  // Total mana invested in effect
-
-#[derive(Component)]
-pub struct GoldInvested(pub f32);  // Total gold invested in effect
-
-#[derive(Component)]
-pub struct HealthDrain(pub f32);  // Health drain per second
-
-#[derive(Component)]
-pub struct MinimumHP(pub f32);  // Minimum HP threshold (as percentage)
-```
-
-### Stacking and Charges
-```rust
-#[derive(Component)]
-pub struct Stacks(pub u32);  // Current stack count
-
-#[derive(Component)]
-pub struct MaxStacks(pub u32);  // Maximum stacks allowed
-
-#[derive(Component)]
-pub struct Charges(pub u32);  // Ability charges available
-
-#[derive(Component)]
-pub struct MaxCharges(pub u32);  // Maximum charges
 
 #[derive(Component)]
 pub struct ChargeRegenTime(pub f32);  // Seconds to regenerate one charge
@@ -245,14 +125,8 @@ pub struct ChargeRegenTime(pub f32);  // Seconds to regenerate one charge
 pub struct StackDecayTime(pub f32);  // Seconds before a stack decays
 ```
 
-### Entity Reference Components
+### Ability Targeting Components
 ```rust
-#[derive(Component)]
-pub struct SourceEntity(pub Entity);  // Source of an effect
-
-#[derive(Component)]
-pub struct TargetEntity(pub Entity);  // Target of an effect
-
 #[derive(Component)]
 pub struct NodeOwner(pub Entity);  // Owner of a deployable
 
@@ -261,9 +135,6 @@ pub struct MarkSource(pub Entity);  // Source of a mark effect
 
 #[derive(Component)]
 pub struct TargetPosition(pub Vec3);  // Target world position
-
-#[derive(Component)]
-pub struct TargetCount(pub u32);  // Number of targets to affect
 
 #[derive(Component)]
 pub struct PierceCount(pub u32);  // Enemies to pierce through
@@ -282,24 +153,21 @@ pub struct SplashRadius(pub f32);  // Splash damage radius
 
 #[derive(Component)]
 pub struct SplashDamage(pub f32);  // Splash damage amount
-```
-
-### Probability Components
-```rust
-#[derive(Component)]
-pub struct ProcChance(pub f32);  // Chance to trigger effect (0.0-1.0)
-
-#[derive(Component)]
-pub struct MissChance(pub f32);  // Chance to miss (0.0-1.0)
-
-#[derive(Component)]
-pub struct FailChance(pub f32);  // Chance to fail (0.0-1.0)
-
-#[derive(Component)]
-pub struct SuccessRate(pub f32);  // Success rate (0.0-1.0)
 
 #[derive(Component)]
 pub struct RedirectionChance(pub f32);  // Chance to redirect effect (0.0-1.0)
+```
+
+### Ability Zone Components
+```rust
+#[derive(Component)]
+pub struct ZoneRadius(pub f32);  // Zone area of effect radius
+
+#[derive(Component)]
+pub struct ZoneDuration(pub f32);  // Zone lifetime in seconds
+
+#[derive(Component)]
+pub struct NodeRadius(pub f32);  // Node effect radius
 ```
 
 ## Marker Components for Abilities
@@ -431,28 +299,13 @@ pub struct SymbioticNode;  // Resource-fed healing node
 pub struct MushroomAbility;
 ```
 
-### Effect Markers
+### Ability-Specific Effect Markers
 ```rust
-#[derive(Component)]
-pub struct Projectile;  // Marks projectile entities
+// Note: Common markers like Projectile, AreaEffect, Buff, Debuff, Shield, 
+// Barrier, Pulse, Beam, Pool are in shared_components.md
 
 #[derive(Component)]
-pub struct AreaEffect;  // Marks area effect entities
-
-#[derive(Component)]
-pub struct Buff;  // Marks buff entities
-
-#[derive(Component)]
-pub struct Debuff;  // Marks debuff entities
-
-#[derive(Component)]
-pub struct Shield;  // Marks shield entities
-
-#[derive(Component)]
-pub struct Barrier;  // Marks barrier entities
-
-#[derive(Component)]
-pub struct Trap;  // Marks trap entities
+pub struct Trap;  // Marks player trap entities
 
 #[derive(Component)]
 pub struct Totem;  // Marks totem entities
@@ -461,19 +314,10 @@ pub struct Totem;  // Marks totem entities
 pub struct Pet;  // Marks pet/summon entities
 
 #[derive(Component)]
-pub struct Clone;  // Marks clone/illusion entities
-
-#[derive(Component)]
-pub struct Pulse;  // Marks pulse/nova entities
-
-#[derive(Component)]
-pub struct Beam;  // Marks beam entities
+pub struct Clone;  // Marks player clone/illusion entities
 
 #[derive(Component)]
 pub struct Chain;  // Marks chain effect entities
-
-#[derive(Component)]
-pub struct Pool;  // Marks persistent pool entities
 ```
 
 ### Visual Effect Markers
@@ -506,8 +350,11 @@ pub struct BuffVfx;  // Buff visual effect
 pub struct DebuffVfx;  // Debuff visual effect
 ```
 
-### Behavior Markers
+### Ability Behavior Markers
 ```rust
+// Note: Common behavior markers like Persistent, Instant, Periodic, 
+// Delayed, Channeled are in shared_components.md
+
 #[derive(Component)]
 pub struct Homing;  // Projectile homes to target
 
@@ -524,25 +371,10 @@ pub struct Chaining;  // Effect chains to nearby targets
 pub struct Explosive;  // Creates explosion on impact
 
 #[derive(Component)]
-pub struct Persistent;  // Effect persists after initial application
-
-#[derive(Component)]
 pub struct Spreading;  // Effect spreads to nearby entities
 
 #[derive(Component)]
 pub struct Stacking;  // Effect can stack multiple times
-
-#[derive(Component)]
-pub struct Channeled;  // Ability requires channeling
-
-#[derive(Component)]
-pub struct Instant;  // Ability has no cast time
-
-#[derive(Component)]
-pub struct Periodic;  // Effect ticks periodically
-
-#[derive(Component)]
-pub struct Delayed;  // Effect has a delay before activation
 ```
 
 ### Targeting Markers
@@ -578,17 +410,12 @@ pub struct IgnoresLineOfSight;  // Can target through obstacles
 pub struct SmartTargeting;  // Uses intelligent target selection
 ```
 
-## Visual and Audio Components
+## Ability-Specific Visual Components
 
-Single-purpose components for effects:
+Additional visual components specific to abilities:
 
-### Visual Components
 ```rust
-#[derive(Component)]
-pub struct EmissiveIntensity(pub f32);  // Glow intensity
-
-#[derive(Component)]
-pub struct EmissiveColor(pub Color);  // Glow color
+// Note: Common visual/audio components are in shared_components.md
 
 #[derive(Component)]
 pub struct TrailLength(pub f32);  // Trail effect length
@@ -597,19 +424,7 @@ pub struct TrailLength(pub f32);  // Trail effect length
 pub struct TrailColor(pub Color);  // Trail color
 
 #[derive(Component)]
-pub struct ParticleCount(pub u32);  // Number of particles
-
-#[derive(Component)]
 pub struct ParticleVelocity(pub Vec3);  // Particle emission velocity
-
-#[derive(Component)]
-pub struct ParticleLifetime(pub f32);  // Particle duration
-
-#[derive(Component)]
-pub struct FlashIntensity(pub f32);  // Flash brightness
-
-#[derive(Component)]
-pub struct FlashDuration(pub f32);  // Flash duration
 
 #[derive(Component)]
 pub struct ScreenShakeIntensity(pub f32);  // Camera shake strength
@@ -640,27 +455,6 @@ pub struct PulseIntensity(pub f32);  // Visual pulse intensity
 
 #[derive(Component)]
 pub struct PulseRate(pub f32);  // Pulse frequency in Hz
-```
-
-### Audio Components
-```rust
-#[derive(Component)]
-pub struct SoundVolume(pub f32);  // Volume level (0.0-1.0)
-
-#[derive(Component)]
-pub struct SoundPitch(pub f32);  // Pitch modifier
-
-#[derive(Component)]
-pub struct SoundFalloff(pub f32);  // Distance falloff rate
-
-#[derive(Component)]
-pub struct SoundLoop(pub bool);  // Whether sound loops
-
-#[derive(Component)]
-pub struct SoundDelay(pub f32);  // Delay before playing
-
-#[derive(Component)]
-pub struct AudioHandle(pub Handle<AudioSource>);  // Audio asset handle
 ```
 
 ## Composition Examples from Codebase
