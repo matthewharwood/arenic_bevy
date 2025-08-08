@@ -2,7 +2,7 @@ use crate::audio::Audio;
 use crate::character::Character;
 use crate::materials::Materials;
 use crate::selectors::Active;
-use bevy::audio::AudioPlayer;
+use bevy::audio::{AudioPlayer, PlaybackSettings};
 use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::*;
 
@@ -45,9 +45,10 @@ pub fn holy_nova_ability(
         return;
     }
 
-    // Play the holy nova sound effect
+    // Play the holy nova sound effect with automatic cleanup
     commands.spawn((
         AudioPlayer::new(audio.holy_nova.clone()),
+        PlaybackSettings::DESPAWN,
     ));
 
     // Spawn a VFX sphere as a child of each active character

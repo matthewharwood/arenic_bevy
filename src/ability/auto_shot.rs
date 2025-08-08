@@ -5,7 +5,7 @@ use crate::character::{Boss, Character};
 use crate::materials::Materials;
 use crate::selectors::Active;
 use bevy::asset::Assets;
-use bevy::audio::AudioPlayer;
+use bevy::audio::{AudioPlayer, PlaybackSettings};
 use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::{
     Commands, Component, Entity, GlobalTransform, Local, Mesh, Mesh3d, Query, Res, ResMut, Sphere,
@@ -107,8 +107,11 @@ pub fn auto_shot_ability(
                     MeshMaterial3d(mats.black.clone()),
                 ));
 
-                // Play the autoshot sound effect
-                commands.spawn((AudioPlayer::new(audio.autoshot.clone()),));
+                // Play the autoshot sound effect with automatic cleanup
+                commands.spawn((
+                    AudioPlayer::new(audio.autoshot.clone()),
+                    PlaybackSettings::DESPAWN,
+                ));
             }
         }
     }
