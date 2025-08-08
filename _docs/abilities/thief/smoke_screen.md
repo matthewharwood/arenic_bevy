@@ -1,204 +1,311 @@
-# Smoke Screen
+# Misdirection
 
-A complete implementation guide for the Thief's concealment and safe passage utility ability.
+A complete implementation guide for the Thief's ability redirection mechanic that causes enemy abilities to target their own allies.
 
 ## Overview
 
-The **Smoke Screen** ability demonstrates the Thief's mastery over stealth and battlefield control through tactical concealment deployment. When activated, the Thief throws a smoke bomb onto a targeted tile, creating a concealment zone where any ally within the smoke can walk through enemies without taking damage. This defensive utility ability excels at creating safe passages, enabling tactical repositioning, and providing emergency escape routes during dangerous combat situations.
+**Misdirection** transforms the Thief from evasive survivor into tactical manipulator. By creating a zone of confusion, enemy abilities fired through or within the area have their targeting reversed - healing becomes damage to allies, damage hits friendly targets, and buffs affect enemies instead. This redirection mechanic creates chaotic reversals that punish ability spam and reward clever positioning.
 
-## Game Design Philosophy
+## Orthogonal Design Analysis
 
-This ability showcases defensive utility design through temporary invulnerability mechanics:
+**Unique Mechanic**: Ability redirection and reversal. No other ability manipulates enemy targeting or reverses ability effects - most defensive abilities block or evade.
 
-**Safe Passage Creation**: The smoke provides temporary immunity to enemy damage, enabling tactical movement that would otherwise be impossible or extremely dangerous.
+**Strategic Niche**: Creates "friendly fire" scenarios that turn enemy aggression against themselves. Transforms defensive play into offensive opportunity.
 
-**Team-Wide Utility**: Any ally can benefit from the smoke screen, encouraging team coordination and tactical movement planning around concealment zones.
-
-**Strategic Positioning**: The targeted placement allows for predictive tactical planning, rewarding players who can anticipate team movement needs and enemy positioning.
+**Counterplay**: Enemies can avoid using abilities near misdirection zones, wait for expiration, or use basic attacks which aren't redirected.
 
 ## Implementation Architecture
 
-### Component-Based Design
+### Component-Based Design (Single-Value Pattern)
 
 ```rust
-SmokeScreen {
-    throw_range: 5.0,                   // 5-tile maximum throw distance
-    cast_time: 0.5,                     // 0.5 second throw animation
-    smoke_radius: 2.0,                  // 2-tile radius concealment area
-    duration: 8.0,                      // 8 second smoke persistence
-    damage_immunity: true,              // Complete damage immunity while in smoke
-    movement_freedom: true,             // Can move through enemies while concealed
-    cooldown: 15.0,                     // 15 second ability cooldown
+// Misdirection ability marker on Thief
+#[derive(Component)]
+pub struct Misdirection;
+
+// Misdirection zone entity components
+#[derive(Component)]
+pub struct MisdirectionZone;  // Marker
+
+#[derive(Component)]
+pub struct ZoneRadius(pub f32);  // Area of effect
+
+#[derive(Component)]
+pub struct RedirectionChance(pub f32);  // Probability of redirection (0.0-1.0)
+
+#[derive(Component)]
+pub struct ZoneDuration(pub f32);  // Seconds remaining
+
+// Misdirection zone entity composition
+commands.spawn((
+    MisdirectionZone,
+    Origin(target_position),
+    ZoneRadius(3.0 * TILE_SIZE),
+    RedirectionChance(1.0),  // 100% redirection
+    ZoneDuration(6.0),
+    ElapsedTime(0.0),
+));
+
+// Confused projectile marker (attached to redirected abilities)
+#[derive(Component)]
+pub struct Redirected;
+
+#[derive(Component)]
+pub struct OriginalTarget(pub Entity);
+
+#[derive(Component)]
+pub struct NewTarget(pub Entity);
+
+// Zone VFX entity
+commands.spawn((
+    MisdirectionVfx,
+    Origin(zone_center),
+    Radius(3.0 * TILE_SIZE),
+    SwirlingParticles(100),
+    DistortionIntensity(0.5),
+    Duration(6.0),
+    ElapsedTime(0.0),
+));
+```
+
+### Focused Systems
+
+```rust
+// System 1: Zone spawning
+pub fn cast_misdirection_system(
+    mut commands: Commands,
+    input: Res<ButtonInput<KeyCode>>,
+    thief_query: Query<&Transform, With<Misdirection>>,
+    cursor: Res<CursorWorldPos>,
+) {
+    if !input.just_pressed(KeyCode::KeyQ) {
+        return;
+    }
+    
+    for thief_transform in thief_query.iter() {
+        let cast_range = 6.0 * TILE_SIZE;
+        let target_pos = cursor.0.clamp_distance(
+            thief_transform.translation,
+            cast_range
+        );
+        
+        // Spawn misdirection zone
+        commands.spawn((
+            MisdirectionZone,
+            Origin(target_pos),
+            ZoneRadius(3.0 * TILE_SIZE),
+            RedirectionChance(1.0),
+            ZoneDuration(6.0),
+            ElapsedTime(0.0),
+        ));
+        
+        // Spawn VFX
+        commands.spawn((
+            MisdirectionVfx,
+            Origin(target_pos),
+            Radius(3.0 * TILE_SIZE),
+            Duration(6.0),
+            ElapsedTime(0.0),
+        ));
+    }
 }
 
-SmokeZone {
-    center_position: GridPos,
-    coverage_area: CircularArea,
-    duration_remaining: f32,
-    concealed_allies: HashSet<Entity>,
-    visual_effect: Entity,
-    particle_system: Entity,
+// System 2: Projectile redirection
+pub fn redirect_projectiles_system(
+    mut commands: Commands,
+    zones: Query<(&Origin, &ZoneRadius, &RedirectionChance), With<MisdirectionZone>>,
+    mut projectiles: Query<(
+        Entity,
+        &Transform,
+        &mut Target,
+        Option<&TargetEntity>
+    ), (With<Projectile>, Without<Redirected>)>,
+    enemies: Query<Entity, With<Enemy>>,
+    allies: Query<Entity, With<Character>>,
+) {
+    for (zone_origin, radius, chance) in zones.iter() {
+        for (proj_entity, proj_transform, mut target, target_entity) in projectiles.iter_mut() {
+            // Check if projectile is within zone
+            let distance = proj_transform.translation.distance(zone_origin.0);
+            if distance <= radius.0 {
+                // Roll for redirection
+                if rand::random::<f32>() <= chance.0 {
+                    // Find new target (enemy projectile -> ally, ally projectile -> enemy)
+                    let new_target = find_redirected_target(
+                        &enemies,
+                        &allies,
+                        target_entity,
+                        proj_transform
+                    );
+                    
+                    if let Some(new_target_entity) = new_target {
+                        // Update projectile target
+                        target.0 = get_entity_position(new_target_entity);
+                        
+                        // Mark as redirected
+                        commands.entity(proj_entity).insert((
+                            Redirected,
+                            OriginalTarget(target_entity.unwrap_or(Entity::PLACEHOLDER)),
+                            NewTarget(new_target_entity),
+                        ));
+                    }
+                }
+            }
+        }
+    }
 }
 
-Concealment {
-    entity: Entity,
-    damage_immunity: bool,
-    enemy_collision_bypass: bool,
-    smoke_source: Entity,
-    concealment_timer: f32,
+// System 3: Ability reversal for area effects
+pub fn reverse_area_abilities_system(
+    zones: Query<(&Origin, &ZoneRadius), With<MisdirectionZone>>,
+    mut area_effects: Query<(&Transform, &mut TargetAllegiance), With<AreaEffect>>,
+) {
+    for (zone_origin, radius) in zones.iter() {
+        for (effect_transform, mut allegiance) in area_effects.iter_mut() {
+            let distance = effect_transform.translation.distance(zone_origin.0);
+            if distance <= radius.0 {
+                // Reverse targeting allegiance
+                *allegiance = match *allegiance {
+                    TargetAllegiance::Allies => TargetAllegiance::Enemies,
+                    TargetAllegiance::Enemies => TargetAllegiance::Allies,
+                    TargetAllegiance::All => TargetAllegiance::All,
+                };
+            }
+        }
+    }
+}
+
+// System 4: Zone duration and cleanup
+pub fn misdirection_duration_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut zones: Query<(Entity, &mut ZoneDuration, &mut ElapsedTime), With<MisdirectionZone>>,
+) {
+    for (entity, mut duration, mut elapsed) in zones.iter_mut() {
+        elapsed.0 += time.delta_secs();
+        duration.0 -= time.delta_secs();
+        
+        if duration.0 <= 0.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
+// System 5: Visual distortion effect
+pub fn misdirection_vfx_system(
+    time: Res<Time>,
+    mut vfx: Query<(&mut Transform, &DistortionIntensity, &ElapsedTime), With<MisdirectionVfx>>,
+) {
+    for (mut transform, intensity, elapsed) in vfx.iter_mut() {
+        // Swirling distortion effect
+        let rotation = elapsed.0 * 2.0;
+        transform.rotate_y(rotation * time.delta_secs());
+        
+        // Pulsing intensity
+        let pulse = (elapsed.0 * 3.0).sin() * 0.2 + 1.0;
+        transform.scale = Vec3::splat(pulse * intensity.0);
+    }
 }
 ```
 
-### Event-Driven Systems
+## Gameplay Mechanics
 
-The ability operates through five concealment systems:
-1. **Projectile Deployment** - Handles smoke bomb throwing and impact mechanics
-2. **Zone Creation** - Establishes concealment area with defined boundaries
-3. **Concealment Management** - Tracks which allies are within smoke and grants immunity
-4. **Collision Override** - Allows movement through enemies without triggering damage
-5. **Visual Coordination** - Manages smoke effects and concealment indicators
+### Zone Properties
 
-## Step-by-Step Gameplay
+- **Duration**: 6 seconds of active redirection
+- **Radius**: 3-tile radius sphere of influence
+- **Cast Range**: 6 tiles from Thief position
+- **Redirection Rate**: 100% of abilities passing through
 
-### Phase 1: Smoke Deployment (Tap Activation)
-- **Input Method**: Tap to begin smoke bomb throw targeting
-- **Range Selection**: Target any tile within 5-tile range for smoke bomb placement
-- **Throw Animation**: 0.5-second animation as Thief throws smoke bomb to target location
-- **Strategic Planning**: Consider ally movement needs and enemy positioning for optimal placement
+### Redirection Rules
 
-### Phase 2: Smoke Zone Creation (Impact Activation)
-- **Immediate Effect**: Smoke bomb creates 2-tile radius concealment zone on impact
-- **Visual Manifestation**: Dense smoke cloud appears with clear boundary indicators
-- **Area Coverage**: Circular area provides concealment for any character within range
-- **Duration Start**: 8-second concealment period begins immediately
+- **Projectiles**: Change target to nearest enemy of original caster
+- **Area Effects**: Reverse ally/enemy targeting
+- **Buffs/Debuffs**: Apply to opposite allegiance
+- **Healing**: Becomes damage to allies if from enemy source
 
-### Phase 3: Active Concealment (8 Second Duration)
-- **Damage Immunity**: Allies within smoke take no damage from any source
-- **Movement Freedom**: Concealed allies can move through enemy positions without collision
-- **Tactical Opportunities**: Team uses smoke for repositioning, escapes, or aggressive positioning
-- **Dynamic Coverage**: Allies entering/leaving smoke gain/lose concealment benefits immediately
+### Exceptions
 
-### Phase 4: Smoke Dissipation (Natural Expiration)
-- **Visual Fade**: Smoke gradually thins and disperses over final 2 seconds
-- **Benefit Loss**: Concealment effects end as smoke clears
-- **Tactical Transition**: Team must establish new positioning as concealment ends
-- **Cooldown Start**: 15-second cooldown begins for next smoke screen deployment
+- **Basic Attacks**: Not redirected (melee/auto-attacks)
+- **Self-Targeted**: Abilities targeting self are unaffected
+- **Environmental**: Terrain effects pass through normally
 
-## Concealment Mechanics
+## Strategic Depth
 
-### Damage Immunity System
-```rust
-fn apply_damage_to_entity(target: Entity, damage: f32, source: DamageSource) -> f32 {
-    if is_concealed_by_smoke(target) {
-        // Complete damage immunity while in smoke
-        spawn_immunity_effect(target, "smoke_protection");
-        return 0.0;
-    }
-    
-    // Normal damage application
-    apply_damage_normal(target, damage, source)
-}
+### Defensive Usage
 
-fn update_concealment_status(smoke_zone: &SmokeZone) {
-    let entities_in_area = get_entities_in_circle(smoke_zone.center_position, smoke_zone.coverage_area.radius);
-    
-    for entity in entities_in_area {
-        if is_ally(entity) {
-            add_concealment_effect(entity, smoke_zone);
-        }
-    }
-    
-    // Remove concealment from entities no longer in smoke
-    for concealed_entity in &smoke_zone.concealed_allies {
-        if !entities_in_area.contains(concealed_entity) {
-            remove_concealment_effect(*concealed_entity);
-        }
-    }
-}
-```
+Misdirection excels at neutralizing ability-heavy enemies:
+- Place between team and enemy casters
+- Force enemies to reposition or hold abilities
+- Create safe zones during ability barrages
 
-### Movement Through Enemies
-- **Collision Bypass**: Concealed allies ignore enemy collision boundaries
-- **Positioning Freedom**: Can move to any tile regardless of enemy occupation
-- **Strategic Flanking**: Enables movement to optimal tactical positions behind enemy lines
-- **Emergency Escapes**: Allows movement through enemy formations to safety
+### Offensive Opportunities
 
-## Strategic Applications
+Turn enemy power against themselves:
+- Redirect high-damage ultimates back at enemy team
+- Convert enemy healing into friendly fire
+- Make enemies buff your team instead
 
-### Tactical Movement
-- **Formation Repositioning**: Enable team to move through enemy formations safely
-- **Flanking Maneuvers**: Allow damage dealers to reach optimal positioning behind enemies
-- **Escape Routes**: Create safe passages for retreating from dangerous situations
-- **Objective Control**: Provide safe movement to capture points or important battlefield positions
+### Mind Games
 
-### Team Coordination
-- **Planned Movements**: Coordinate smoke placement with team tactical plans
-- **Emergency Response**: Use smoke reactively to save allies in dangerous positions
-- **Formation Transitions**: Enable complex formation changes without enemy interference
-- **Healer Protection**: Provide safe zones for support characters during repositioning
+The threat of misdirection changes enemy behavior:
+- Enemies hesitate to use abilities
+- Forces predictable positioning away from zones
+- Creates psychological pressure on enemy casters
 
 ## Upgrade Paths
 
-### Tier 1: Dense Smoke
-- **Duration Extension**: 8 → 12 seconds smoke persistence
-- **Radius Increase**: 2-tile → 3-tile concealment area
-- **Enhanced Immunity**: Also provides immunity to debuffs and status effects
-- **Strategic Value**: Larger, longer-lasting concealment zones with improved protection
+### Tier 1: Lingering Confusion
+- **Duration**: 6 seconds → 9 seconds
+- **Size**: 3-tile → 4-tile radius
+- **Persistence**: Zone remains for 2 seconds after Thief death
 
-### Tier 2: Tactical Smoke
-- **Multi-Deployment**: Can maintain 2 active smoke screens simultaneously
-- **Movement Bonus**: Concealed allies gain 50% movement speed increase
-- **Stealth Enhancement**: Concealed allies become invisible to enemy targeting
-- **Tactical Evolution**: Improved mobility and concealment effectiveness
+### Tier 2: Chaos Amplification
+- **Damage Boost**: Redirected abilities deal 25% more damage
+- **Double Redirect**: 25% chance to redirect twice (bounces between enemies)
+- **Confusion Spread**: Redirected enemies are slowed by 30%
 
-### Tier 3: Master Infiltrator
-- **Persistent Concealment**: Allies retain 3 seconds of concealment after leaving smoke
-- **Damage Reflection**: Attacks against concealed allies reflect 50% damage back to attacker
-- **Area Expansion**: Smoke zones slowly expand over their duration
-- **Ultimate Stealth**: Provides comprehensive protection with offensive capabilities
+### Tier 3: Mirror Realm
+- **Duplicate Zone**: Creates second zone at Thief's position
+- **Perfect Reflection**: Redirected abilities also copy themselves
+- **Reality Tear**: Zone deals 10 damage/second to enemies inside
 
-## Positioning and Timing Strategy
+## Balance Considerations
 
-### Optimal Placement
-- **Chokepoint Coverage**: Place smoke in narrow passages where team must move through
-- **Retreat Paths**: Position smoke to cover likely escape routes during tactical withdrawals
-- **Objective Access**: Enable safe approach to important battlefield objectives or positions
-- **Formation Centers**: Place smoke at team center to enable radial repositioning
+### Power Budget
+- **No Direct Damage**: Zone itself deals no damage
+- **Requires Enemy Abilities**: Useless against basic attack teams
+- **Cooldown**: 20 second cooldown prevents spam
+- **Visibility**: Zone clearly visible to all players
 
-### Timing Considerations
-- **Predictive Placement**: Deploy smoke before movement needs arise for optimal coverage
-- **Emergency Response**: React quickly to dangerous situations with defensive smoke placement
-- **Coordination Windows**: Time smoke deployment with team tactical plans and movements
-- **Cooldown Management**: Balance immediate needs with future tactical requirements
+### Skill Expression
+- **Predictive Placement**: Anticipating ability trajectories
+- **Timing**: When to deploy for maximum disruption
+- **Positioning**: Forcing enemies into bad positions
+- **Baiting**: Encouraging enemies to waste abilities
 
-## Visual & Audio Design
+## Visual Design
 
-### Smoke Deployment
-- **Visual**: Thief produces and throws distinctive smoke bomb with practiced motion
-- **Animation**: Realistic throwing arc with smoke bomb spinning through air
-- **Audio**: Soft whoosh of thrown object followed by muffled impact sound
-- **Trajectory**: Clear arc visualization shows where smoke will impact
+### Zone Appearance
+- **Swirling Vortex**: Purple-black energy spiral
+- **Distortion Effect**: Space appears warped within zone
+- **Particle System**: Confusing directional particles
+- **Edge Definition**: Clear boundary visualization
 
-### Smoke Zone Creation
-- **Visual**: Dramatic smoke explosion creating dense, opaque concealment cloud
-- **Animation**: Realistic smoke dispersal with natural billowing and swirling effects
-- **Audio**: Muffled pop of smoke bomb activation followed by hissing smoke release
-- **Boundary**: Clear visual indicators show concealment area boundaries
+### Redirection Effect
+- **Color Shift**: Projectiles turn purple when redirected
+- **Trail Bend**: Visible trajectory change
+- **Confusion Particles**: Sparkles indicating redirection
 
-### Active Concealment
-- **Visual**: Dense, swirling smoke with mysterious shadowy depths
-- **Animation**: Continuous smoke movement with allies appearing as shadowy silhouettes
-- **Audio**: Subtle background smoke sounds with muffled movement audio
-- **Concealment**: Allies within smoke show faded/translucent appearance to enemies
+## Audio Design
 
-### Concealment Benefits
-- **Visual**: Damage immunity shown through sparkle effects when attacks are negated
-- **Animation**: Attacks pass harmlessly through concealed allies
-- **Audio**: Distinctive deflection sounds when damage immunity activates
-- **Feedback**: Clear indicators show which allies are receiving concealment benefits
+### Zone Audio
+- **Activation**: Reality-warping "whoosh" sound
+- **Ambient**: Disorienting whispers and echoes
+- **Redirection**: Sharp "reversal" sound effect
 
-### Smoke Dissipation
-- **Visual**: Gradual smoke thinning and dispersal with natural wind effects
-- **Animation**: Smoke breaks apart and fades over 2-second transition period
-- **Audio**: Gentle wind sounds as smoke clears and normal battlefield audio returns
-- **Transition**: Clear indication when concealment effects end and normal gameplay resumes
+## Conclusion
+
+Misdirection creates unique tactical scenarios through ability redirection, transforming the Thief from simple evader into battlefield manipulator. By turning enemy abilities against themselves, it punishes ability spam while rewarding clever positioning. The mechanic is completely orthogonal - no other ability manipulates enemy targeting in this way.
+
+The implementation uses clean single-value components: zone entities with radius and duration, redirection markers on affected projectiles, and focused systems for each behavior. This maintains the repository's pattern of ephemeral entities with composed components while creating genuinely unique gameplay.

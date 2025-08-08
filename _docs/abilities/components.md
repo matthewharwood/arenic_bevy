@@ -123,6 +123,15 @@ pub struct Width(pub f32);  // Width value for areas
 
 #[derive(Component)]
 pub struct Angle(pub f32);  // Angle in radians for cones/arcs
+
+#[derive(Component)]
+pub struct ZoneRadius(pub f32);  // Zone area of effect radius
+
+#[derive(Component)]
+pub struct ZoneDuration(pub f32);  // Zone lifetime in seconds
+
+#[derive(Component)]
+pub struct NodeRadius(pub f32);  // Node effect radius
 ```
 
 ### Effect Value Components
@@ -165,6 +174,21 @@ pub struct ResistanceValue(pub f32);  // Resistance amount
 
 #[derive(Component)]
 pub struct ShieldAmount(pub f32);  // Shield/barrier health
+
+#[derive(Component)]
+pub struct BaseConversion(pub f32);  // Base conversion rate for effects
+
+#[derive(Component)]
+pub struct AmplificationFactor(pub f32);  // Damage/effect amplification multiplier
+
+#[derive(Component)]
+pub struct GrowthLevel(pub f32);  // Growth/scaling progression (0.0-1.0 or higher)
+
+#[derive(Component)]
+pub struct HealingPower(pub f32);  // Healing per second rate
+
+#[derive(Component)]
+pub struct MarkDuration(pub f32);  // Seconds remaining on mark
 ```
 
 ### Resource Components
@@ -186,6 +210,18 @@ pub struct EnergyGeneration(pub f32);  // Energy per second
 
 #[derive(Component)]
 pub struct ResourceDrain(pub f32);  // Resource drain per second
+
+#[derive(Component)]
+pub struct ManaInvested(pub f32);  // Total mana invested in effect
+
+#[derive(Component)]
+pub struct GoldInvested(pub f32);  // Total gold invested in effect
+
+#[derive(Component)]
+pub struct HealthDrain(pub f32);  // Health drain per second
+
+#[derive(Component)]
+pub struct MinimumHP(pub f32);  // Minimum HP threshold (as percentage)
 ```
 
 ### Stacking and Charges
@@ -209,10 +245,19 @@ pub struct ChargeRegenTime(pub f32);  // Seconds to regenerate one charge
 pub struct StackDecayTime(pub f32);  // Seconds before a stack decays
 ```
 
-### Targeting Components
+### Entity Reference Components
 ```rust
 #[derive(Component)]
-pub struct TargetEntity(pub Entity);  // Specific target entity
+pub struct SourceEntity(pub Entity);  // Source of an effect
+
+#[derive(Component)]
+pub struct TargetEntity(pub Entity);  // Target of an effect
+
+#[derive(Component)]
+pub struct NodeOwner(pub Entity);  // Owner of a deployable
+
+#[derive(Component)]
+pub struct MarkSource(pub Entity);  // Source of a mark effect
 
 #[derive(Component)]
 pub struct TargetPosition(pub Vec3);  // Target world position
@@ -252,6 +297,9 @@ pub struct FailChance(pub f32);  // Chance to fail (0.0-1.0)
 
 #[derive(Component)]
 pub struct SuccessRate(pub f32);  // Success rate (0.0-1.0)
+
+#[derive(Component)]
+pub struct RedirectionChance(pub f32);  // Chance to redirect effect (0.0-1.0)
 ```
 
 ## Marker Components for Abilities
@@ -265,6 +313,9 @@ These zero-sized components mark ability entities or their effects:
 pub struct AutoShot;
 
 #[derive(Component)]
+pub struct Marked;  // Target is marked for amplified damage
+
+#[derive(Component)]
 pub struct PoisonShot;
 
 #[derive(Component)]
@@ -276,6 +327,9 @@ pub struct SniperShot;
 // Cardinal Abilities
 #[derive(Component)]
 pub struct HolyNova;
+
+#[derive(Component)]
+pub struct SacrificeChannel;  // Health-to-healing conversion channel
 
 #[derive(Component)]
 pub struct HealAbility;
@@ -308,6 +362,12 @@ pub struct BackstabAbility;
 
 #[derive(Component)]
 pub struct ShadowStepAbility;
+
+#[derive(Component)]
+pub struct MisdirectionZone;  // Zone that redirects enemy abilities
+
+#[derive(Component)]
+pub struct Redirected;  // Projectile/effect has been redirected
 
 #[derive(Component)]
 pub struct SmokeScreenAbility;
@@ -363,6 +423,9 @@ pub struct BorderAbility;
 
 #[derive(Component)]
 pub struct BoulderAbility;
+
+#[derive(Component)]
+pub struct SymbioticNode;  // Resource-fed healing node
 
 #[derive(Component)]
 pub struct MushroomAbility;
@@ -562,6 +625,21 @@ pub struct LightRadius(pub f32);  // Light range
 
 #[derive(Component)]
 pub struct LightColor(pub Color);  // Light color
+
+#[derive(Component)]
+pub struct StreamWidth(pub f32);  // Width of visual stream effects
+
+#[derive(Component)]
+pub struct SwirlingParticles(pub u32);  // Number of swirling particles
+
+#[derive(Component)]
+pub struct DistortionIntensity(pub f32);  // Visual distortion strength
+
+#[derive(Component)]
+pub struct PulseIntensity(pub f32);  // Visual pulse intensity
+
+#[derive(Component)]
+pub struct PulseRate(pub f32);  // Pulse frequency in Hz
 ```
 
 ### Audio Components
