@@ -51,7 +51,6 @@ fn main() {
         .add_systems(
             Startup,
             (
-                parent_pending_arena_children,
                 spawn_starting_hero,
                 spawn_starting_hero_v2,
                 spawn_starting_bosses,
@@ -74,13 +73,6 @@ fn main() {
 
 #[derive(Component, Debug)]
 pub struct Debug;
-
-/// Marker component for spheres that need to be parented to an arena
-#[derive(Component)]
-struct PendingArenaChild {
-    arena_id: arena::ArenaId,
-    local_position: Vec3,
-}
 
 // ============================================================================
 // PROJECTILE COMPONENTS - Single-purpose components for ECS best practices
@@ -110,33 +102,6 @@ fn setup_scene(
     setup_lighting(&mut commands, default_arena);
 }
 
-/// System to parent pending arena children to their respective arenas
-fn parent_pending_arena_children(
-    mut commands: Commands,
-    arena_query: Query<(Entity, &arena::ArenaId), With<Arena>>,
-    pending_query: Query<(Entity, &PendingArenaChild)>,
-) {
-    for (child_entity, pending) in pending_query.iter() {
-        // Find the arena entity with matching ArenaId
-        if let Some(arena_entity) = arena_query
-            .iter()
-            .find(|(_, id)| **id == pending.arena_id)
-            .map(|(entity, _)| entity)
-        {
-            // Parent the child to the arena and update its transform to be relative
-            commands.entity(arena_entity).add_child(child_entity);
-            commands
-                .entity(child_entity)
-                .remove::<PendingArenaChild>()
-                .insert(Transform::from_translation(pending.local_position));
-
-            info!(
-                "Parented sphere to arena {:?} at local position {:?}",
-                pending.arena_id, pending.local_position
-            );
-        }
-    }
-}
 fn spawn_starting_hero(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
