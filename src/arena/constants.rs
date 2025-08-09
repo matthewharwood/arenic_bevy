@@ -21,6 +21,7 @@ pub const WINDOW_WIDTH: f32 = 1280.0;
 pub const WINDOW_HEIGHT: f32 = 720.0;
 pub const HALF_WINDOW_WIDTH: f32 = WINDOW_WIDTH / 2.0;
 pub const HALF_WINDOW_HEIGHT: f32 = WINDOW_HEIGHT / 2.0;
+pub const MAGIC_PERSPECTIVE_NUMBER: f32 = 869.3;
 
 /// Debug colors for arena visualization (one for each arena)
 pub const DEBUG_COLORS: [Color; 9] = [
