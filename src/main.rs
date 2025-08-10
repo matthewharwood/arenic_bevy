@@ -11,13 +11,13 @@ mod materials;
 mod selectors;
 
 use crate::arena::{
-    spawn_lights, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
-    TOTAL_ARENAS,
+    spawn_lights, Arena, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
+    TILE_SIZE, TOTAL_ARENAS,
 };
+use crate::arena_camera::{move_camera_left, move_camera_right, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
-use crate::battleground::BattleGround;
 use crate::materials::Materials;
-use arena_camera::setup_camera;
+
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
@@ -46,6 +46,10 @@ fn main() {
         // Initialize game state
         .init_state::<GameState>()
         .add_systems(Startup, (setup_scene, spawn_lights))
+        .add_systems(
+            Update,
+            (toggle_camera_zoom, move_camera_left, move_camera_right),
+        )
         // .add_systems(
         //     Startup,
         //     (
@@ -83,7 +87,6 @@ fn setup_scene(
     let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
     commands.spawn(Debug);
     setup_camera(&mut commands);
-
     for arena_index in 0..TOTAL_ARENAS {
         let debug_material = materials.add(StandardMaterial {
             base_color: DEBUG_COLORS[arena_index as usize],
@@ -97,7 +100,7 @@ fn setup_scene(
         commands
             .spawn((
                 Transform::from_xyz(offset_x, offset_y, 0.0),
-                BattleGround,
+                Arena(arena_index),
                 InheritedVisibility::default(),
             ))
             .with_children(|parent| {
@@ -112,7 +115,6 @@ fn setup_scene(
                 }
             });
     }
-    let default_arena = arena::ArenaId::new(1).expect("Arena 1 should be valid");
 }
 //
 // fn spawn_starting_hero(
