@@ -1,7 +1,6 @@
 use super::{
     get_local_tile_space, Arena, ArenaId, ArenaTile, GridPosition, ARENA_HEIGHT, ARENA_HEIGHT_HALF,
-    ARENA_WIDTH, ARENA_WIDTH_HALF, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, HALF_TILE,
-    HALF_WINDOW_HEIGHT, HALF_WINDOW_WIDTH, TOTAL_ARENAS,
+    ARENA_WIDTH, ARENA_WIDTH_HALF, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, TOTAL_ARENAS,
 };
 use crate::arena_camera::CAMERA_CENTER;
 use crate::battleground::BattleGround;
@@ -15,8 +14,8 @@ pub fn get_arena_position(arena_id: ArenaId) -> Vec3 {
     let row = arena_id.row() as f32;
 
     // Start from window top-left corner and offset by arena size
-    let x = -HALF_WINDOW_WIDTH + (col * ARENA_WIDTH) + HALF_TILE;
-    let y = HALF_WINDOW_HEIGHT - (row * ARENA_HEIGHT) - HALF_TILE;
+    let x = (col * ARENA_WIDTH);
+    let y = (row * ARENA_HEIGHT);
 
     Vec3::new(x, y, 0.0)
 }
@@ -82,14 +81,11 @@ pub fn setup_arena_grid(
         let arena_entity_id = arena_entity.id();
 
         // Spawn the tiles for this arena
-        spawn_arena_tiles(commands, arena_entity_id, tile_scene.clone());
+        // spawn_arena_tiles(commands, arena_entity_id, tile_scene.clone());
     }
 }
 
-#[derive(Component, Debug)]
-pub struct ArenaBaseLight;
-
-pub fn spawn_arena_base_lights(commands: &mut Commands) {
+pub fn spawn_lights(mut commands: Commands) {
     commands.spawn(DirectionalLight {
         illuminance: 10000.0,
         color: Color::WHITE,

@@ -9,10 +9,14 @@ mod character;
 mod class_type;
 mod materials;
 mod selectors;
-use crate::arena::{ARENA_HEIGHT_HALF, ARENA_WIDTH_HALF};
-use crate::arena::{GRID_HEIGHT, GRID_WIDTH, TILE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH};
-use crate::arena_camera::CAMERA_CENTER;
+
+use crate::arena::{
+    spawn_lights, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
+    TOTAL_ARENAS, WINDOW_HEIGHT, WINDOW_WIDTH,
+};
+use crate::audio::Audio;
 use crate::battleground::BattleGround;
+use crate::materials::Materials;
 use arena_camera::setup_camera;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
@@ -28,27 +32,7 @@ enum GameState {
     Game,
     Prototype,
 }
-fn spawn_lights(mut commands: Commands) {
-    commands.spawn(DirectionalLight {
-        illuminance: 10000.0,
-        color: Color::WHITE,
-        shadows_enabled: true,
-        ..default()
-    });
 
-    commands.spawn((
-        SpotLight {
-            intensity: 10000000.0, // lumens
-            color: Color::srgb(1.0, 0.0, 0.0),
-            shadows_enabled: true,
-            inner_angle: 0.6,
-            outer_angle: 0.6,
-            ..default()
-        },
-        Transform::from_xyz(ARENA_WIDTH_HALF, ARENA_HEIGHT_HALF, 9.0)
-            .looking_at(CAMERA_CENTER, Vec3::Y),
-    ));
-}
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -115,32 +99,48 @@ fn setup_scene_v2(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
 ) {
+    commands.insert_resource(Materials::new(&mut materials));
+    commands.insert_resource(Audio::new(&asset_server));
+    let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
     let white_material = materials.add(StandardMaterial {
         base_color: Color::srgb(1.0, 1.0, 1.0),
         metallic: 0.0,
         perceptual_roughness: 1.0,
         ..default()
     });
+    commands.spawn(Debug);
     setup_camera(&mut commands);
-    let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
-    commands
-        .spawn((
-            Transform::from_xyz(0.0, 0.0, 0.0),
-            BattleGround,
-            InheritedVisibility::default(),
-        ))
-        .with_children(|parent| {
-            for x in 0..GRID_WIDTH {
-                for y in 0..GRID_HEIGHT {
-                    parent.spawn((
-                        Transform::from_xyz(x as f32 * TILE_SIZE, y as f32 * TILE_SIZE, 0.0),
-                        Mesh3d(tile_mesh.clone()),
-                        MeshMaterial3d(white_material.clone()),
-                    ));
-                }
-            }
+
+    for arena_index in 0..TOTAL_ARENAS {
+        let debug_material = materials.add(StandardMaterial {
+            base_color: DEBUG_COLORS[arena_index as usize],
+            metallic: 0.0,
+            perceptual_roughness: 1.0,
+            ..default()
         });
+        let offset_x = ((arena_index % 3) as f32) * ARENA_WIDTH;
+        let offset_y = -((arena_index / 3) as f32) * ARENA_HEIGHT;
+
+        commands
+            .spawn((
+                Transform::from_xyz(offset_x, offset_y, 0.0),
+                BattleGround,
+                InheritedVisibility::default(),
+            ))
+            .with_children(|parent| {
+                for x in 0..GRID_WIDTH {
+                    for y in 0..GRID_HEIGHT {
+                        parent.spawn((
+                            Transform::from_xyz(x as f32 * TILE_SIZE, y as f32 * TILE_SIZE, 0.0),
+                            Mesh3d(tile_mesh.clone()),
+                            MeshMaterial3d(debug_material.clone()),
+                        ));
+                    }
+                }
+            });
+    }
     let red_material = materials.add(StandardMaterial {
         base_color: Color::srgb(1.0, 0.0, 0.0),
         metallic: 0.0,
