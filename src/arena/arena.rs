@@ -1,44 +1,64 @@
-use crate::arena::TILE_SIZE;
+use crate::selectors::Active;
 use bevy::prelude::*;
-
-/// Type-safe identifier for an arena.
-/// Arenas are indexed 0-8 in a 3x3 grid, left-to-right, top-to-bottom.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ArenaId(pub u8);
-
-impl ArenaId {
-    /// Create a new ArenaId, ensuring it's within valid range (0-8)
-    pub fn new(id: u8) -> Option<Self> {
-        if id < 9 { Some(ArenaId(id)) } else { None }
-    }
-
-    /// Calculate the column (0-2) from arena index
-    pub fn col(self) -> u8 {
-        self.0 % 3
-    }
-
-    /// Calculate the row (0-2) from arena index
-    pub fn row(self) -> u8 {
-        self.0 / 3
-    }
-}
 
 /// Marker component identifying an arena entity in the world.
 /// Each arena entity should have this component along with ArenaId.
 #[derive(Component, Debug)]
-pub struct Arena;
+pub struct Arena(pub u8);
 
 /// Marker component for arena tile entities.
 #[derive(Component, Debug)]
 pub struct ArenaTile;
 
-pub fn get_local_tile_space(row: u32, col: u32) -> Vec3 {
-    Vec3::new(row as f32 * TILE_SIZE, -(col as f32 * TILE_SIZE), 0.0)
+#[derive(Component, Debug, Clone)]
+pub struct CurrentArena(pub u8);
+
+impl CurrentArena {
+    /// Increment arena index cyclically (0-8)
+    pub fn increment(value: u8) -> u8 {
+        (value + 1) % 9
+    }
+
+    /// Decrement arena index cyclically (0-8)
+    pub fn decrement(value: u8) -> u8 {
+        if value == 0 { 8 } else { value - 1 }
+    }
 }
 
-/// Grid position component for tiles within an arena.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub struct GridPosition {
-    pub row: u32,
-    pub col: u32,
+pub fn decrement_current_arena(
+    keycode: Res<ButtonInput<KeyCode>>,
+    current_arena_q: Single<&mut CurrentArena>,
+) {
+    if keycode.just_pressed(KeyCode::BracketLeft) {
+        let mut current_arena = current_arena_q.into_inner();
+        current_arena.0 = CurrentArena::decrement(current_arena.0);
+    }
+}
+
+pub fn increment_current_arena(
+    keycode: Res<ButtonInput<KeyCode>>,
+    current_arena_q: Single<&mut CurrentArena>,
+) {
+    if keycode.just_pressed(KeyCode::BracketRight) {
+        let mut current_arena = current_arena_q.into_inner();
+        current_arena.0 = CurrentArena::increment(current_arena.0);
+    }
+}
+
+pub fn toggle_active_arena(
+    mut commands: Commands,
+    current_arena_q: Single<&CurrentArena, Changed<CurrentArena>>,
+    arenas: Query<(Entity, &Arena)>,
+) {
+    let current_arena = current_arena_q.into_inner();
+
+    for (entity, arena) in arenas.iter() {
+        if arena.0 == current_arena.0 {
+            // Add Active component to the current arena
+            commands.entity(entity).insert(Active);
+        } else {
+            // Remove Active component from all other arenas
+            commands.entity(entity).remove::<Active>();
+        }
+    }
 }

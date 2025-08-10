@@ -2,6 +2,7 @@ mod arena;
 mod arena_camera;
 mod audio;
 mod battleground;
+mod lights;
 
 // Uncomment these modules to debug pink material issues
 mod ability;
@@ -14,11 +15,20 @@ use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx, AutoShot,
     HolyNova,
 };
-use crate::arena::{get_local_tile_space, Arena, TILE_SIZE};
+use crate::arena::{
+    decrement_current_arena, get_local_tile_space, increment_current_arena, toggle_active_arena, Arena, CurrentArena, ARENA_HEIGHT,
+    ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
+    TILE_SIZE, TOTAL_ARENAS,
+};
+use crate::arena_camera::{move_camera, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
+use crate::battleground::BattleGround;
 use crate::character::{Boss, Character};
+use crate::class_type::ClassType;
+use crate::lights::spawn_lights;
 use crate::materials::Materials;
 use crate::selectors::Active;
+
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
@@ -29,9 +39,6 @@ const GAME_NAME: &str = "Arenic";
 enum GameState {
     #[default]
     Title,
-    Intro,
-    Game,
-    Prototype,
 }
 
 fn main() {
@@ -46,20 +53,27 @@ fn main() {
         }))
         // Initialize game state
         .init_state::<GameState>()
-        // Uncomment these plugins to debug pink material issues
-        .add_systems(Startup, setup_scene)
         .add_systems(
             Startup,
             (
+                setup_scene,
+                spawn_lights,
+                setup_camera,
+                toggle_active_arena,
                 spawn_starting_hero,
                 spawn_starting_hero_v2,
                 spawn_starting_bosses,
             )
-                .after(setup_scene),
+                .chain(),
         )
         .add_systems(
             Update,
             (
+                toggle_camera_zoom,
+                increment_current_arena,
+                decrement_current_arena,
+                toggle_active_arena,
+                move_camera,
                 active_character_movement,
                 select_active_character_optimal,
                 auto_shot_ability,
@@ -74,56 +88,81 @@ fn main() {
 #[derive(Component, Debug)]
 pub struct Debug;
 
-// ============================================================================
-// PROJECTILE COMPONENTS - Single-purpose components for ECS best practices
-// ============================================================================
-
 fn setup_scene(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
     asset_server: Res<AssetServer>,
 ) {
-    // Load the tile model
     commands.insert_resource(Materials::new(&mut materials));
     commands.insert_resource(Audio::new(&asset_server));
-    let tile_scene = asset_server.load("tile.glb#Scene0");
-
-    // Add Debug component to enable debug visualization
+    let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
     commands.spawn(Debug);
 
-    // Create 3x3 grid of arenas (9 arenas total)
-    arena::setup_arena_grid(&mut commands, tile_scene, &mut materials);
+    commands
+        .spawn((
+            BattleGround,
+            Transform::default(),
+            InheritedVisibility::default(),
+            CurrentArena(1),
+        ))
+        .with_children(|battleground| {
+            for arena_index in 0..TOTAL_ARENAS {
+                let debug_material = materials.add(StandardMaterial {
+                    base_color: DEBUG_COLORS[arena_index as usize],
+                    metallic: 0.0,
+                    perceptual_roughness: 1.0,
+                    ..default()
+                });
+                let offset_x = ((arena_index % 3) as f32) * ARENA_WIDTH;
+                let offset_y = -((arena_index / 3) as f32) * ARENA_HEIGHT;
+                let class_type = ClassType::index_of(arena_index);
+                let arena_name = ClassType::index_of(arena_index).name();
 
-    // Setup camera positioned to see entire grid
-    let default_arena = arena::ArenaId::new(1).expect("Arena 1 should be valid");
-    arena_camera::setup_camera(&mut commands, default_arena);
-
-    // Add simple lighting positioned at the camera's target
-    setup_lighting(&mut commands, default_arena);
+                battleground
+                    .spawn((
+                        Transform::from_xyz(offset_x, offset_y, 0.0),
+                        Arena(arena_index),
+                        InheritedVisibility::default(),
+                        class_type,
+                        Name::new(arena_name),
+                    ))
+                    .with_children(|arena| {
+                        for x in 0..GRID_WIDTH {
+                            for y in 0..GRID_HEIGHT {
+                                arena.spawn((
+                                    Transform::from_xyz(
+                                        x as f32 * TILE_SIZE,
+                                        y as f32 * TILE_SIZE,
+                                        0.0,
+                                    ),
+                                    Mesh3d(tile_mesh.clone()),
+                                    MeshMaterial3d(debug_material.clone()),
+                                ));
+                            }
+                        }
+                    });
+            }
+        });
 }
 
 fn spawn_starting_hero(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
     query: Single<Entity, (With<Arena>, With<Active>)>,
 ) {
     let arena_entity = query.into_inner();
-    let blue_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.153, 0.431, 0.945), // #276EF1
-        metallic: 0.0,                                // Non-metallic
-        perceptual_roughness: 1.0,                    // Maximum roughness
-        ..default()
-    });
-    let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
+    let sphere_radius = 0.125;
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-    let local_position = get_local_tile_space(35, 15);
+    let local_position = get_local_tile_space(36.0, 15.0, 0.125);
+
     commands.entity(arena_entity).with_child((
         Character,
         AutoShot::new(16.0),
         Active,
         Mesh3d(sphere_mesh),
-        MeshMaterial3d(blue_material),
+        MeshMaterial3d(mats.blue.clone()),
         Transform::from_translation(local_position),
     ));
 }
@@ -135,9 +174,10 @@ fn spawn_starting_hero_v2(
     query: Single<Entity, (With<Arena>, With<Active>)>,
 ) {
     let arena_entity = query.into_inner();
-    let sphere_radius = 8.0; // Slightly smaller than half tile size (9.5) for visual spacing
+    let sphere_radius = 0.125;
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-    let local_position = get_local_tile_space(32, 15);
+    let local_position = get_local_tile_space(0.0, 0.0, 0.125);
+
     commands.entity(arena_entity).with_child((
         Character,
         HolyNova,
@@ -151,19 +191,13 @@ fn spawn_starting_bosses(
     mut commands: Commands,
     mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
-    query: Query<(Entity, &arena::ArenaId), With<Arena>>,
+    query: Query<(Entity, &Arena), With<Arena>>,
 ) {
     for (arena_entity, arena_id) in query.iter() {
-        // Spawn a boss in each arena
-        println!("Spawning boss in arena {:?}", arena_id);
-
-        // Example: spawn a red sphere boss in each arena
-
-        let boss_radius = 32.0; // Slightly larger than hero
+        let boss_radius = 0.125 * 4.0;
         let boss_mesh = meshes.add(Sphere::new(boss_radius));
 
-        // Place boss at a different position in each arena
-        let local_position = get_local_tile_space(32, 10);
+        let local_position = get_local_tile_space(32.0, 10.0, boss_radius);
         if arena_id.0 == 1 {
             commands.entity(arena_entity).with_child((
                 Boss,
@@ -182,7 +216,6 @@ fn spawn_starting_bosses(
         }
     }
 }
-
 fn active_character_movement(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     query: Single<&mut Transform, (With<Active>, With<Character>)>,
@@ -252,30 +285,4 @@ fn select_active_character_optimal(
         .entity(next_active_entity)
         .insert(Active)
         .insert(MeshMaterial3d(mats.blue.clone()));
-}
-
-/// Simple lighting setup positioned at camera target
-fn setup_lighting(commands: &mut Commands, _arena_id: arena::ArenaId) {
-    // 1) World ambient: subtle neutral/cool to ensure baseline readability
-    commands.insert_resource(AmbientLight {
-        color: Color::srgb(0.95, 0.95, 1.0),
-        brightness: 0.30,
-        affects_lightmapped_meshes: false,
-    });
-
-    // 2) Single neutral directional for shape and shadows
-    commands.spawn((
-        DirectionalLight {
-            illuminance: 12000.0,
-            color: Color::WHITE,
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform::from_rotation(Quat::from_euler(
-            EulerRot::XYZ,
-            -std::f32::consts::FRAC_PI_4,
-            std::f32::consts::FRAC_PI_6,
-            0.0,
-        )),
-    ));
 }

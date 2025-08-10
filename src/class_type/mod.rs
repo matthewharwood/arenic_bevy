@@ -42,12 +42,3 @@ impl ClassType {
         }
     }
 }
-//
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-//     #[test]
-//     fn test_name() {
-//         assert_eq!(ClassType::Hunter.name(), "Hunter".to_string());
-//     }
-// }
