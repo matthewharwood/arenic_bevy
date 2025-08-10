@@ -12,7 +12,7 @@ mod selectors;
 
 use crate::arena::{
     spawn_lights, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
-    TOTAL_ARENAS, WINDOW_HEIGHT, WINDOW_WIDTH,
+    TOTAL_ARENAS,
 };
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
@@ -45,7 +45,7 @@ fn main() {
         }))
         // Initialize game state
         .init_state::<GameState>()
-        .add_systems(Startup, (setup_scene_v2, spawn_lights))
+        .add_systems(Startup, (setup_scene, spawn_lights))
         // .add_systems(
         //     Startup,
         //     (
@@ -72,30 +72,7 @@ fn main() {
 #[derive(Component, Debug)]
 pub struct Debug;
 
-// fn setup_scene(
-//     mut commands: Commands,
-//     mut materials: ResMut<Assets<StandardMaterial>>,
-//     asset_server: Res<AssetServer>,
-// ) {
-//     // Load the tile model
-//     commands.insert_resource(Materials::new(&mut materials));
-//     commands.insert_resource(Audio::new(&asset_server));
-//     let tile_scene = asset_server.load("tile.glb#Scene0");
-//
-//     // Add Debug component to enable debug visualization
-//     commands.spawn(Debug);
-//
-//     // Create 3x3 grid of arenas (9 arenas total)
-//     arena::setup_arena_grid(&mut commands, tile_scene, &mut materials);
-//
-//     // Setup camera positioned to see entire grid
-//     let default_arena = arena::ArenaId::new(1).expect("Arena 1 should be valid");
-//     arena_camera::setup_camera(&mut commands, default_arena);
-//
-//     // Add simple lighting positioned at the camera's target
-//     setup_lighting(&mut commands, default_arena);
-// }
-fn setup_scene_v2(
+fn setup_scene(
     mut commands: Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -104,12 +81,6 @@ fn setup_scene_v2(
     commands.insert_resource(Materials::new(&mut materials));
     commands.insert_resource(Audio::new(&asset_server));
     let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
-    let white_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 1.0, 1.0),
-        metallic: 0.0,
-        perceptual_roughness: 1.0,
-        ..default()
-    });
     commands.spawn(Debug);
     setup_camera(&mut commands);
 
@@ -141,30 +112,7 @@ fn setup_scene_v2(
                 }
             });
     }
-    let red_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(1.0, 0.0, 0.0),
-        metallic: 0.0,
-        perceptual_roughness: 1.0,
-        ..default()
-    });
-
-    // let sphere_radius = 0.125;
-    // let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-
-    // commands.spawn((
-    //     Transform::from_translation(Vec3::new(TILE_SIZE * 15.0, TILE_SIZE * 15.0, 1.0)),
-    //     Mesh3d(sphere_mesh),
-    //     MeshMaterial3d(white_material.clone()),
-    // ));
-
-    let tile_mesh_v2 = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE * 4.0));
-
-    commands.spawn((
-        Transform::from_xyz(0.0, 0.0, 0.0),
-        Mesh3d(tile_mesh_v2.clone()),
-        MeshMaterial3d(white_material.clone()),
-    ));
-    println!("tile_mesh: {:?}, {:?}", WINDOW_WIDTH, WINDOW_HEIGHT);
+    let default_arena = arena::ArenaId::new(1).expect("Arena 1 should be valid");
 }
 //
 // fn spawn_starting_hero(
