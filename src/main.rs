@@ -2,6 +2,7 @@ mod arena;
 mod arena_camera;
 mod audio;
 mod battleground;
+mod lights;
 
 // Uncomment these modules to debug pink material issues
 mod ability;
@@ -11,11 +12,14 @@ mod materials;
 mod selectors;
 
 use crate::arena::{
-    spawn_lights, Arena, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
-    TILE_SIZE, TOTAL_ARENAS,
+    decrement_current_arena, increment_current_arena, Arena, CurrentArena, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS,
+    GRID_HEIGHT, GRID_WIDTH, TILE_SIZE, TOTAL_ARENAS,
 };
-use crate::arena_camera::{move_camera_left, move_camera_right, setup_camera, toggle_camera_zoom};
+use crate::arena_camera::{move_camera, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
+use crate::battleground::BattleGround;
+use crate::class_type::ClassType;
+use crate::lights::spawn_lights;
 use crate::materials::Materials;
 
 use bevy::prelude::*;
@@ -45,10 +49,15 @@ fn main() {
         }))
         // Initialize game state
         .init_state::<GameState>()
-        .add_systems(Startup, (setup_scene, spawn_lights))
+        .add_systems(Startup, (setup_scene, spawn_lights, setup_camera).chain())
         .add_systems(
             Update,
-            (toggle_camera_zoom, move_camera_left, move_camera_right),
+            (
+                toggle_camera_zoom,
+                increment_current_arena,
+                decrement_current_arena,
+                move_camera,
+            ),
         )
         // .add_systems(
         //     Startup,
@@ -86,35 +95,52 @@ fn setup_scene(
     commands.insert_resource(Audio::new(&asset_server));
     let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
     commands.spawn(Debug);
-    setup_camera(&mut commands);
-    for arena_index in 0..TOTAL_ARENAS {
-        let debug_material = materials.add(StandardMaterial {
-            base_color: DEBUG_COLORS[arena_index as usize],
-            metallic: 0.0,
-            perceptual_roughness: 1.0,
-            ..default()
-        });
-        let offset_x = ((arena_index % 3) as f32) * ARENA_WIDTH;
-        let offset_y = -((arena_index / 3) as f32) * ARENA_HEIGHT;
 
-        commands
-            .spawn((
-                Transform::from_xyz(offset_x, offset_y, 0.0),
-                Arena(arena_index),
-                InheritedVisibility::default(),
-            ))
-            .with_children(|parent| {
-                for x in 0..GRID_WIDTH {
-                    for y in 0..GRID_HEIGHT {
-                        parent.spawn((
-                            Transform::from_xyz(x as f32 * TILE_SIZE, y as f32 * TILE_SIZE, 0.0),
-                            Mesh3d(tile_mesh.clone()),
-                            MeshMaterial3d(debug_material.clone()),
-                        ));
-                    }
-                }
-            });
-    }
+    commands
+        .spawn((
+            BattleGround,
+            Transform::default(),
+            InheritedVisibility::default(),
+            CurrentArena(1),
+        ))
+        .with_children(|battleground| {
+            for arena_index in 0..TOTAL_ARENAS {
+                let debug_material = materials.add(StandardMaterial {
+                    base_color: DEBUG_COLORS[arena_index as usize],
+                    metallic: 0.0,
+                    perceptual_roughness: 1.0,
+                    ..default()
+                });
+                let offset_x = ((arena_index % 3) as f32) * ARENA_WIDTH;
+                let offset_y = -((arena_index / 3) as f32) * ARENA_HEIGHT;
+                let class_type = ClassType::index_of(arena_index);
+                let arena_name = ClassType::index_of(arena_index).name();
+
+                battleground
+                    .spawn((
+                        Transform::from_xyz(offset_x, offset_y, 0.0),
+                        Arena(arena_index),
+                        InheritedVisibility::default(),
+                        class_type,
+                        Name::new(arena_name),
+                    ))
+                    .with_children(|arena| {
+                        for x in 0..GRID_WIDTH {
+                            for y in 0..GRID_HEIGHT {
+                                arena.spawn((
+                                    Transform::from_xyz(
+                                        x as f32 * TILE_SIZE,
+                                        y as f32 * TILE_SIZE,
+                                        0.0,
+                                    ),
+                                    Mesh3d(tile_mesh.clone()),
+                                    MeshMaterial3d(debug_material.clone()),
+                                ));
+                            }
+                        }
+                    });
+            }
+        });
 }
 //
 // fn spawn_starting_hero(

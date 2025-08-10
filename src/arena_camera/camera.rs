@@ -1,11 +1,24 @@
-use crate::arena_camera::CAMERA_CENTER;
+use crate::arena::{CurrentArena, ARENA_HEIGHT, ARENA_WIDTH};
 use bevy::prelude::*;
 
 const ZOOM: (f32, f32) = (24.0, 72.0);
+
+/// Shared function to position camera based on arena index
+pub fn position_camera_for_arena(transform: &mut Transform, arena_index: u8) {
+    let (x, y) = (8.125, 3.5);
+    let (offset_x, offset_y) = calculate_camera_position(arena_index);
+    let camera_translation = Vec3::new(x + offset_x, y - offset_y, ZOOM.0);
+    let camera_center = Vec3::new(x + offset_x, y - offset_y, 0.0);
+
+    transform.translation = camera_translation;
+    transform.look_at(camera_center, Vec3::Y);
+}
+
 /// Setup camera to center on a specific arena
-pub fn setup_camera(commands: &mut Commands) {
-    // Camera positioned 3x further back for 3x zoom out effect
-    // Original Z: 24.0, New Z: 72.0
+pub fn setup_camera(mut commands: Commands, current_arena: Single<&CurrentArena>) {
+    let arena = current_arena.into_inner();
+    let mut transform = Transform::default();
+    position_camera_for_arena(&mut transform, arena.0);
 
     commands.spawn((
         Camera3d::default(),
@@ -19,7 +32,7 @@ pub fn setup_camera(commands: &mut Commands) {
             near: 0.05,
             far: 150.0, // Increased far plane to accommodate further camera distance
         }),
-        Transform::from_xyz(8.125, 3.5, ZOOM.0).looking_at(CAMERA_CENTER, Vec3::Y),
+        transform,
     ));
 }
 
@@ -37,22 +50,20 @@ pub fn toggle_camera_zoom(
     }
     if keycode.just_pressed(KeyCode::BracketRight) {}
 }
-
-pub fn move_camera_left(
-    keycode: Res<ButtonInput<KeyCode>>,
-    camera_query: Single<&mut Transform, With<Camera>>,
-) {
-    if keycode.just_pressed(KeyCode::BracketLeft) {
-        let mut camera = camera_query.into_inner();
-        // set arenaid
-    }
+pub fn calculate_camera_position(arena_index: u8) -> (f32, f32) {
+    let arena_col = arena_index % 3;
+    let arena_row = arena_index / 3;
+    (
+        arena_col as f32 * ARENA_WIDTH,
+        arena_row as f32 * ARENA_HEIGHT,
+    )
 }
 
-pub fn move_camera_right(
-    keycode: Res<ButtonInput<KeyCode>>,
-    camera_query: Single<&mut Transform, With<Camera>>,
+pub fn move_camera(
+    current_arena: Single<&CurrentArena, Changed<CurrentArena>>,
+    camera: Single<&mut Transform, With<Camera3d>>,
 ) {
-    if keycode.just_pressed(KeyCode::BracketRight) {
-        let mut camera = camera_query.into_inner();
-    }
+    let arena = current_arena.into_inner();
+    let mut camera_transform = camera.into_inner();
+    position_camera_for_arena(&mut camera_transform, arena.0);
 }
