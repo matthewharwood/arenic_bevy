@@ -49,14 +49,14 @@ pub fn holy_nova_ability(
 
     // Spawn a VFX sphere as a child of each active character
     for character_entity in character_q.iter() {
-        let vfx_mesh = meshes.add(Sphere::new(1.0)); // unit sphere, scale controls radius
+        let vfx_mesh = meshes.add(Sphere::new(0.0625)); // unit sphere, scale controls radius
         commands.entity(character_entity).with_child((
             HolyNovaVfx::new(),
             ElapsedTime(0.0),
             Duration(0.225), // seconds
             StartRadius(4.0),
             EndRadius(32.0),
-            Transform::from_scale(Vec3::splat(4.0)), // start radius
+            Transform::from_scale(Vec3::splat(0.125 * 4.0)), // start radius
             Mesh3d(vfx_mesh),
             MeshMaterial3d(mats.yellow.clone()),
         ));
@@ -67,16 +67,20 @@ pub fn holy_nova_ability(
 pub fn update_holy_nova_vfx(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(
-        Entity,
-        &mut Transform,
-        &mut ElapsedTime,
-        &Duration,
-        &StartRadius,
-        &EndRadius,
-    ), With<HolyNovaVfx>>,
+    mut query: Query<
+        (
+            Entity,
+            &mut Transform,
+            &mut ElapsedTime,
+            &Duration,
+            &StartRadius,
+            &EndRadius,
+        ),
+        With<HolyNovaVfx>,
+    >,
 ) {
-    for (entity, mut transform, mut elapsed, duration, start_radius, end_radius) in query.iter_mut() {
+    for (entity, mut transform, mut elapsed, duration, start_radius, end_radius) in query.iter_mut()
+    {
         elapsed.0 += time.delta_secs();
         let t = (elapsed.0 / duration.0).clamp(0.0, 1.0);
 

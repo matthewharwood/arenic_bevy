@@ -42,7 +42,7 @@ pub fn toggle_camera_zoom(
 ) {
     if keycode.just_pressed(KeyCode::KeyP) {
         let mut camera = camera_query.into_inner();
-        if (camera.translation.z == ZOOM.0) {
+        if camera.translation.z == ZOOM.0 {
             camera.translation.z = ZOOM.1;
         } else {
             camera.translation.z = ZOOM.0;

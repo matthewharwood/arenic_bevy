@@ -29,7 +29,17 @@ impl AutoShot {
 pub fn move_projectiles(
     mut commands: Commands,
     time: Res<Time>,
-    mut query: Query<(Entity, &mut Transform, &mut ElapsedTime, &Duration, &Origin, &Target), With<Projectile>>,
+    mut query: Query<
+        (
+            Entity,
+            &mut Transform,
+            &mut ElapsedTime,
+            &Duration,
+            &Origin,
+            &Target,
+        ),
+        With<Projectile>,
+    >,
 ) {
     for (entity, mut transform, mut elapsed, duration, origin, target) in query.iter_mut() {
         // Update elapsed time
@@ -93,7 +103,7 @@ pub fn auto_shot_ability(
                 let distance = character_pos.distance(boss_pos);
                 let travel_time = distance / TILE_SIZE; // 1 tile per second
 
-                let projectile_radius = 2.5;
+                let projectile_radius = 0.0625;
                 let projectile_mesh = meshes.add(Sphere::new(projectile_radius));
 
                 // Spawn projectile

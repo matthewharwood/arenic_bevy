@@ -1,3 +1,4 @@
+use crate::selectors::Active;
 use bevy::prelude::*;
 
 /// Marker component identifying an arena entity in the world.
@@ -41,5 +42,23 @@ pub fn increment_current_arena(
     if keycode.just_pressed(KeyCode::BracketRight) {
         let mut current_arena = current_arena_q.into_inner();
         current_arena.0 = CurrentArena::increment(current_arena.0);
+    }
+}
+
+pub fn toggle_active_arena(
+    mut commands: Commands,
+    current_arena_q: Single<&CurrentArena, Changed<CurrentArena>>,
+    arenas: Query<(Entity, &Arena)>,
+) {
+    let current_arena = current_arena_q.into_inner();
+
+    for (entity, arena) in arenas.iter() {
+        if arena.0 == current_arena.0 {
+            // Add Active component to the current arena
+            commands.entity(entity).insert(Active);
+        } else {
+            // Remove Active component from all other arenas
+            commands.entity(entity).remove::<Active>();
+        }
     }
 }
