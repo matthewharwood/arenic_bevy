@@ -5,7 +5,7 @@ pub const GRID_WIDTH: u32 = 66;
 pub const GRID_HEIGHT: u32 = 31;
 
 /// Physical dimensions
-pub const TILE_SIZE: f32 = 19.0; // Each tile is 19 world units
+pub const TILE_SIZE: f32 = 0.25; // Each tile is 19 world units
 pub const HALF_TILE: f32 = TILE_SIZE / 2.0;
 
 /// Calculated arena dimensions

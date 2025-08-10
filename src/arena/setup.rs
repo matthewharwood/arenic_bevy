@@ -1,37 +1,38 @@
-use bevy::prelude::*;
+use super::{
+    get_local_tile_space, Arena, ArenaId, ArenaTile, GridPosition, ARENA_HEIGHT, ARENA_HEIGHT_HALF,
+    ARENA_WIDTH, ARENA_WIDTH_HALF, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, HALF_TILE,
+    HALF_WINDOW_HEIGHT, HALF_WINDOW_WIDTH, TOTAL_ARENAS,
+};
+use crate::arena_camera::CAMERA_CENTER;
 use crate::battleground::BattleGround;
 use crate::class_type::ClassType;
 use crate::selectors::Active;
-use super::{get_local_tile_space, Arena, ArenaId, ArenaTile, GridPosition, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, HALF_TILE, HALF_WINDOW_HEIGHT, HALF_WINDOW_WIDTH, TOTAL_ARENAS};
+use bevy::prelude::*;
 
 /// Calculate the world position of an arena by its ArenaId  
 pub fn get_arena_position(arena_id: ArenaId) -> Vec3 {
     let col = arena_id.col() as f32;
     let row = arena_id.row() as f32;
-    
+
     // Start from window top-left corner and offset by arena size
     let x = -HALF_WINDOW_WIDTH + (col * ARENA_WIDTH) + HALF_TILE;
     let y = HALF_WINDOW_HEIGHT - (row * ARENA_HEIGHT) - HALF_TILE;
-    
+
     Vec3::new(x, y, 0.0)
 }
 
 /// Spawn the tiles for a single arena as children of the arena entity
-pub fn spawn_arena_tiles(
-    commands: &mut Commands,
-    arena_entity: Entity,
-    tile_scene: Handle<Scene>,
-) {
+pub fn spawn_arena_tiles(commands: &mut Commands, arena_entity: Entity, tile_scene: Handle<Scene>) {
     commands.entity(arena_entity).with_children(|parent| {
-        for row in 0..GRID_WIDTH {
-            for col in 0..GRID_HEIGHT {
+        for row in 0..GRID_HEIGHT {
+            for col in 0..GRID_WIDTH {
                 let local = get_local_tile_space(row, col);
 
                 // Spawn each tile as a child
                 parent.spawn((
                     SceneRoot(tile_scene.clone()),
                     Transform::from_xyz(local.x, local.y, 0.0),
-                    GridPosition{row, col},
+                    GridPosition { row, col },
                     ArenaTile,
                 ));
             }
@@ -70,7 +71,7 @@ pub fn setup_arena_grid(
             Arena,
             arena_id,
             class_type,
-            Name::new(arena_name)
+            Name::new(arena_name),
         ));
 
         // Set the first arena (index 0) as active by default
@@ -82,37 +83,30 @@ pub fn setup_arena_grid(
 
         // Spawn the tiles for this arena
         spawn_arena_tiles(commands, arena_entity_id, tile_scene.clone());
-
-        // Arena base lighting: 3 cheap point lights as children
-        spawn_arena_base_lights(commands, arena_entity_id);
     }
 }
 
 #[derive(Component, Debug)]
 pub struct ArenaBaseLight;
 
-fn spawn_arena_base_lights(commands: &mut Commands, arena_entity: Entity) {
-    // Three subtle fill lights at logical corners, local to the arena
-    commands.entity(arena_entity).with_children(|parent| {
-        let z = 25.0;
-        let lights = [
-            (Vec3::new(-200.0, -100.0, z), Color::srgb(0.92, 0.95, 1.00)), // cool-ish
-            (Vec3::new( 200.0, -100.0, z), Color::srgb(1.00, 0.96, 0.90)), // warm-ish
-            (Vec3::new(   0.0,  140.0, z), Color::srgb(0.95, 0.95, 0.98)), // neutral
-        ];
-
-        for (pos, color) in lights {
-            parent.spawn((
-                PointLight {
-                    intensity: 220.0,
-                    range: 160.0,
-                    color,
-                    shadows_enabled: false,
-                    ..default()
-                },
-                Transform::from_translation(pos),
-                ArenaBaseLight,
-            ));
-        }
+pub fn spawn_arena_base_lights(commands: &mut Commands) {
+    commands.spawn(DirectionalLight {
+        illuminance: 10000.0,
+        color: Color::WHITE,
+        shadows_enabled: true,
+        ..default()
     });
+
+    commands.spawn((
+        SpotLight {
+            intensity: 10000000.0, // lumens
+            color: Color::srgb(1.0, 0.0, 0.0),
+            shadows_enabled: true,
+            inner_angle: 0.6,
+            outer_angle: 0.6,
+            ..default()
+        },
+        Transform::from_xyz(ARENA_WIDTH_HALF, ARENA_HEIGHT_HALF, 9.0)
+            .looking_at(CAMERA_CENTER, Vec3::Y),
+    ));
 }

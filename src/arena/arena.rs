@@ -33,7 +33,14 @@ pub struct Arena;
 pub struct ArenaTile;
 
 pub fn get_local_tile_space(row: u32, col: u32) -> Vec3 {
-    Vec3::new(row as f32 * TILE_SIZE, -(col as f32 * TILE_SIZE), 0.0)
+    use crate::arena::{ARENA_WIDTH_HALF, ARENA_HEIGHT_HALF};
+    
+    // Calculate centered position within the arena
+    // Start from arena center and offset by grid position
+    let x = -ARENA_WIDTH_HALF + (col as f32 * TILE_SIZE) + (TILE_SIZE * 0.5);
+    let y = ARENA_HEIGHT_HALF - (row as f32 * TILE_SIZE) - (TILE_SIZE * 0.5);
+    
+    Vec3::new(x, y, 0.0)
 }
 
 /// Grid position component for tiles within an arena.

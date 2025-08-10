@@ -9,7 +9,11 @@ mod character;
 mod class_type;
 mod materials;
 mod selectors;
-use crate::arena::{WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::arena::{ARENA_HEIGHT_HALF, ARENA_WIDTH_HALF};
+use crate::arena::{GRID_HEIGHT, GRID_WIDTH, TILE_SIZE, WINDOW_HEIGHT, WINDOW_WIDTH};
+use crate::arena_camera::CAMERA_CENTER;
+use crate::battleground::BattleGround;
+use arena_camera::setup_camera;
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
@@ -24,7 +28,27 @@ enum GameState {
     Game,
     Prototype,
 }
+fn spawn_lights(mut commands: Commands) {
+    commands.spawn(DirectionalLight {
+        illuminance: 10000.0,
+        color: Color::WHITE,
+        shadows_enabled: true,
+        ..default()
+    });
 
+    commands.spawn((
+        SpotLight {
+            intensity: 10000000.0, // lumens
+            color: Color::srgb(1.0, 0.0, 0.0),
+            shadows_enabled: true,
+            inner_angle: 0.6,
+            outer_angle: 0.6,
+            ..default()
+        },
+        Transform::from_xyz(ARENA_WIDTH_HALF, ARENA_HEIGHT_HALF, 9.0)
+            .looking_at(CAMERA_CENTER, Vec3::Y),
+    ));
+}
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -37,7 +61,7 @@ fn main() {
         }))
         // Initialize game state
         .init_state::<GameState>()
-        .add_systems(Startup, (setup_scene_v2))
+        .add_systems(Startup, (setup_scene_v2, spawn_lights))
         // .add_systems(
         //     Startup,
         //     (
@@ -92,66 +116,55 @@ fn setup_scene_v2(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let camera_center = Vec3::new(WINDOW_WIDTH / 2.0, WINDOW_HEIGHT / 2.0, 0.0);
-    commands.spawn((
-        Camera3d::default(),
-        Camera {
-            hdr: true,
-            ..default()
-        },
-        Projection::from(OrthographicProjection {
-            scale: 1.0,
-            scaling_mode: bevy::render::camera::ScalingMode::WindowSize,
-            ..OrthographicProjection::default_3d()
-        }),
-        Transform::from_xyz(WINDOW_WIDTH / 2.0, WINDOW_HEIGHT / 2.0, 10.0)
-            .looking_at(camera_center, Vec3::Y),
-    ));
     let white_material = materials.add(StandardMaterial {
         base_color: Color::srgb(1.0, 1.0, 1.0),
         metallic: 0.0,
         perceptual_roughness: 1.0,
         ..default()
     });
-
-    let sphere_radius = 8.0;
-    let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-    commands.spawn(DirectionalLight {
-        illuminance: 100.0,
-        color: Color::WHITE,
-        shadows_enabled: true,
+    setup_camera(&mut commands);
+    let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
+    commands
+        .spawn((
+            Transform::from_xyz(0.0, 0.0, 0.0),
+            BattleGround,
+            InheritedVisibility::default(),
+        ))
+        .with_children(|parent| {
+            for x in 0..GRID_WIDTH {
+                for y in 0..GRID_HEIGHT {
+                    parent.spawn((
+                        Transform::from_xyz(x as f32 * TILE_SIZE, y as f32 * TILE_SIZE, 0.0),
+                        Mesh3d(tile_mesh.clone()),
+                        MeshMaterial3d(white_material.clone()),
+                    ));
+                }
+            }
+        });
+    let red_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(1.0, 0.0, 0.0),
+        metallic: 0.0,
+        perceptual_roughness: 1.0,
         ..default()
     });
 
-    commands.spawn((
-        SpotLight {
-            intensity: 100_000_000.0, // lumens
-            color: Color::srgb(1.0, 0.0, 0.0),
-            shadows_enabled: true,
-            inner_angle: std::f32::consts::PI / 4.0, // 45 degrees inner cone
-            outer_angle: std::f32::consts::PI * 0.4, // 72 degrees outer cone
-            ..default()
-        },
-        Transform::from_xyz(WINDOW_WIDTH / 2.0, WINDOW_HEIGHT / 2.0, 10.0)
-            .looking_at(camera_center, Vec3::Y),
-    ));
+    // let sphere_radius = 0.125;
+    // let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
+
+    // commands.spawn((
+    //     Transform::from_translation(Vec3::new(TILE_SIZE * 15.0, TILE_SIZE * 15.0, 1.0)),
+    //     Mesh3d(sphere_mesh),
+    //     MeshMaterial3d(white_material.clone()),
+    // ));
+
+    let tile_mesh_v2 = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE * 4.0));
 
     commands.spawn((
-        Transform::from_translation(camera_center),
-        Mesh3d(sphere_mesh),
+        Transform::from_xyz(0.0, 0.0, 0.0),
+        Mesh3d(tile_mesh_v2.clone()),
         MeshMaterial3d(white_material.clone()),
     ));
-    let quad_mesh = meshes.add(Rectangle::new(WINDOW_WIDTH, WINDOW_HEIGHT));
-    commands
-        .spawn((
-            Transform::from_xyz(0.0, WINDOW_HEIGHT, 0.0),
-            InheritedVisibility::default(),
-        ))
-        .with_child((
-            Transform::from_xyz(WINDOW_WIDTH / 2.0, -WINDOW_HEIGHT / 2.0, 0.0),
-            Mesh3d(quad_mesh),
-            MeshMaterial3d(white_material.clone()),
-        ));
+    println!("tile_mesh: {:?}, {:?}", WINDOW_WIDTH, WINDOW_HEIGHT);
 }
 //
 // fn spawn_starting_hero(
