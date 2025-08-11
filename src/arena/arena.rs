@@ -1,3 +1,5 @@
+use crate::arena_camera::{position_camera_for_arena, ZoomOut, ZOOM};
+use crate::character::Character;
 use crate::selectors::Active;
 use bevy::prelude::*;
 
@@ -50,20 +52,54 @@ pub fn increment_current_arena(
     }
 }
 
-pub fn toggle_active_arena(
+pub fn current_arena_change(
     mut commands: Commands,
     current_arena_q: Single<&CurrentArena, Changed<CurrentArena>>,
-    arenas: Query<(Entity, &Arena)>,
+    camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
+    arena_q: Query<(Entity, &Arena, &Children), With<Arena>>,
+    characters_q: Query<(Entity, Option<&Active>), With<Character>>,
 ) {
     let current_arena = current_arena_q.into_inner();
+    let (camera_entity, mut camera_transform, zoom) = camera.into_inner();
+    if zoom.is_some() {
 
-    for (entity, arena) in arenas.iter() {
-        if arena.0 == current_arena.0 {
-            // Add Active component to the current arena
-            commands.entity(entity).insert(Active);
-        } else {
-            // Remove Active component from all other arenas
-            commands.entity(entity).remove::<Active>();
+        // When zoomed out, don't move camera (it stays centered on all arenas)
+        // The gizmo drawing is handled by draw_arena_border system
+    } else {
+        let current_arena_index = current_arena.0;
+        position_camera_for_arena(&mut camera_transform, current_arena_index, ZOOM.0);
+        commands.entity(camera_entity).remove::<ZoomOut>();
+
+        for (arena_entity, arena, children) in arena_q.iter() {
+            if arena.0 == current_arena_index {
+                // Check if arena has characters
+                let characters_data: Vec<(Entity, Option<&Active>)> = characters_q.iter_many(children).collect();
+                let character_entities: Vec<Entity> = characters_data.iter().map(|(entity, _)| *entity).collect();
+
+                if character_entities.is_empty() {
+                    println!("No characters in arena {}", arena.0);
+                    // No characters in this arena - handle this case
+                } else {
+                    println!(
+                        "Found {} characters in arena {}",
+                        character_entities.len(),
+                        arena.0
+                    );
+                    
+                    // Find the active character (if any)
+                    let active_character = characters_data.iter()
+                        .find(|(_, active)| active.is_some())
+                        .map(|(entity, _)| *entity);
+                    
+                    if let Some(active_entity) = active_character {
+                        println!("Found active character in arena {}: {:?}", arena.0, active_entity);
+                        // This character is already active - handle this case
+                    } else {
+                        println!("No active character in arena {}", arena.0);
+                        // No active character in this arena - check LastActiveHero or use first
+                    }
+                }
+            }
         }
     }
 }
