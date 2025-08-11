@@ -20,7 +20,9 @@ use crate::arena::{
     ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
     TILE_SIZE, TOTAL_ARENAS,
 };
-use crate::arena_camera::{move_camera, setup_camera, toggle_camera_zoom};
+use crate::arena_camera::{
+    move_camera, move_camera_on_character_arena_change, setup_camera, toggle_camera_zoom,
+};
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
 use crate::character::{Boss, Character};
@@ -80,6 +82,7 @@ fn main() {
                 move_projectiles,
                 holy_nova_ability,
                 update_holy_nova_vfx,
+                move_camera_on_character_arena_change,
             ),
         )
         .run();
@@ -216,11 +219,24 @@ fn spawn_starting_bosses(
         }
     }
 }
+
 fn active_character_movement(
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    query: Single<&mut Transform, (With<Active>, With<Character>)>,
+    active_arena: Query<&Children, (With<Arena>, With<Active>)>,
+    mut character_query: Query<&mut Transform, (With<Character>, With<Active>)>,
 ) {
-    let mut transform = query.into_inner();
+    // Get the children of the active arena
+    let Ok(arena_children) = active_arena.single() else {
+        return; // No active arena found
+    };
+
+    // Find the active character in this arena's children
+    let mut characters = character_query.iter_many_mut(arena_children);
+
+    // There should only be one active character in the active arena
+    let Some(mut transform) = characters.fetch_next() else {
+        return; // No active character in the active arena
+    };
 
     let mut movement = Vec3::ZERO;
 
@@ -259,9 +275,6 @@ fn select_active_character_optimal(
 
     let arena_children = arena_query.into_inner();
     let current_active_entity = active_character.into_inner();
-
-    // THE KEY INSIGHT: iter_many() is purpose-built for this!
-    // It takes our list of children and returns only those that match the query `_docs/tutorials/iter_many.md`
     let character_entities: Vec<Entity> = character_query.iter_many(arena_children).collect();
 
     if character_entities.is_empty() {

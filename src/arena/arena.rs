@@ -23,6 +23,11 @@ impl CurrentArena {
     pub fn decrement(value: u8) -> u8 {
         if value == 0 { 8 } else { value - 1 }
     }
+
+    /// Go to specific arena index (0-8), clamps invalid values
+    pub fn go_to(value: u8) -> u8 {
+        if value > 8 { 8 } else { value }
+    }
 }
 
 pub fn decrement_current_arena(
