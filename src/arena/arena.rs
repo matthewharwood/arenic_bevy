@@ -1,3 +1,4 @@
+use crate::arena::LastActiveHero;
 use crate::arena_camera::{position_camera_for_arena, ZoomOut, ZOOM};
 use crate::character::Character;
 use crate::selectors::Active;
@@ -56,7 +57,7 @@ pub fn current_arena_change(
     mut commands: Commands,
     current_arena_q: Single<&CurrentArena, Changed<CurrentArena>>,
     camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
-    arena_q: Query<(Entity, &Arena, &Children), With<Arena>>,
+    arena_q: Query<(Entity, &Arena, &Children, Option<&LastActiveHero>), With<Arena>>,
     characters_q: Query<(Entity, Option<&Active>), With<Character>>,
 ) {
     let current_arena = current_arena_q.into_inner();
@@ -70,33 +71,58 @@ pub fn current_arena_change(
         position_camera_for_arena(&mut camera_transform, current_arena_index, ZOOM.0);
         commands.entity(camera_entity).remove::<ZoomOut>();
 
-        for (arena_entity, arena, children) in arena_q.iter() {
+        for (arena_entity, arena, children, last_active_hero) in arena_q.iter() {
             if arena.0 == current_arena_index {
                 // Check if arena has characters
-                let characters_data: Vec<(Entity, Option<&Active>)> = characters_q.iter_many(children).collect();
-                let character_entities: Vec<Entity> = characters_data.iter().map(|(entity, _)| *entity).collect();
+                let characters_data: Vec<(Entity, Option<&Active>)> =
+                    characters_q.iter_many(children).collect();
 
-                if character_entities.is_empty() {
+                if characters_data.is_empty() {
                     println!("No characters in arena {}", arena.0);
                     // No characters in this arena - handle this case
                 } else {
                     println!(
                         "Found {} characters in arena {}",
-                        character_entities.len(),
+                        characters_data.len(),
                         arena.0
                     );
-                    
+
                     // Find the active character (if any)
-                    let active_character = characters_data.iter()
+                    let active_character = characters_data
+                        .iter()
                         .find(|(_, active)| active.is_some())
                         .map(|(entity, _)| *entity);
-                    
+
                     if let Some(active_entity) = active_character {
-                        println!("Found active character in arena {}: {:?}", arena.0, active_entity);
+                        println!(
+                            "Found active character in arena {}: {:?}",
+                            arena.0, active_entity
+                        );
                         // This character is already active - handle this case
                     } else {
                         println!("No active character in arena {}", arena.0);
-                        // No active character in this arena - check LastActiveHero or use first
+
+                        // Check if LastActiveHero has a character present
+                        if let Some(last_hero) = last_active_hero {
+                            if let Some(hero_entity) = last_hero.0 {
+                                // Check if the LastActiveHero entity still exists in this arena
+                                let hero_still_present = characters_data
+                                    .iter()
+                                    .any(|(entity, _)| *entity == hero_entity);
+
+                                if hero_still_present {
+                                    println!("Using LastActiveHero: {:?}", hero_entity);
+                                } else {
+                                    println!(
+                                        "LastActiveHero no longer present, using first character"
+                                    );
+                                }
+                            } else {
+                                println!("No LastActiveHero set, using first character");
+                            }
+                        } else {
+                            println!("No LastActiveHero component, using first character");
+                        }
                     }
                 }
             }
