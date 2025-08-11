@@ -20,9 +20,7 @@ use crate::arena::{
     ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
     TILE_SIZE, TOTAL_ARENAS,
 };
-use crate::arena_camera::{
-    move_camera, move_camera_on_character_arena_change, setup_camera, toggle_camera_zoom,
-};
+use crate::arena_camera::{draw_arena_border, move_camera, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
 use crate::character::{Boss, Character};
@@ -76,13 +74,12 @@ fn main() {
                 decrement_current_arena,
                 toggle_active_arena,
                 move_camera,
+                draw_arena_border,
                 active_character_movement,
-                select_active_character_optimal,
                 auto_shot_ability,
                 move_projectiles,
                 holy_nova_ability,
                 update_holy_nova_vfx,
-                move_camera_on_character_arena_change,
             ),
         )
         .run();
@@ -261,41 +258,41 @@ fn active_character_movement(
     }
 }
 
-fn select_active_character_optimal(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut commands: Commands,
-    arena_query: Single<&Children, (With<Active>, With<Arena>)>,
-    active_character: Single<Entity, (With<Character>, With<Active>)>,
-    character_query: Query<Entity, With<Character>>,
-    mats: Res<Materials>,
-) {
-    if !keyboard_input.just_pressed(KeyCode::Tab) {
-        return;
-    }
-
-    let arena_children = arena_query.into_inner();
-    let current_active_entity = active_character.into_inner();
-    let character_entities: Vec<Entity> = character_query.iter_many(arena_children).collect();
-
-    if character_entities.is_empty() {
-        error!("No characters in active arena!");
-        return;
-    }
-
-    let current_index = character_entities
-        .iter()
-        .position(|&e| e == current_active_entity)
-        .expect("Active character must be in active arena");
-
-    let next_index = (current_index + 1) % character_entities.len();
-    let next_active_entity = character_entities[next_index];
-
-    commands
-        .entity(current_active_entity)
-        .remove::<Active>()
-        .insert(MeshMaterial3d(mats.gray.clone()));
-    commands
-        .entity(next_active_entity)
-        .insert(Active)
-        .insert(MeshMaterial3d(mats.blue.clone()));
-}
+// fn select_active_character_optimal(
+//     keyboard_input: Res<ButtonInput<KeyCode>>,
+//     mut commands: Commands,
+//     arena_query: Single<&Children, (With<Active>, With<Arena>)>,
+//     active_character: Single<Entity, (With<Character>, With<Active>)>,
+//     character_query: Query<Entity, With<Character>>,
+//     mats: Res<Materials>,
+// ) {
+//     if !keyboard_input.just_pressed(KeyCode::Tab) {
+//         return;
+//     }
+//
+//     let arena_children = arena_query.into_inner();
+//     let current_active_entity = active_character.into_inner();
+//     let character_entities: Vec<Entity> = character_query.iter_many(arena_children).collect();
+//
+//     if character_entities.is_empty() {
+//         error!("No characters in active arena!");
+//         return;
+//     }
+//
+//     let current_index = character_entities
+//         .iter()
+//         .position(|&e| e == current_active_entity)
+//         .expect("Active character must be in active arena");
+//
+//     let next_index = (current_index + 1) % character_entities.len();
+//     let next_active_entity = character_entities[next_index];
+//
+//     commands
+//         .entity(current_active_entity)
+//         .remove::<Active>()
+//         .insert(MeshMaterial3d(mats.gray.clone()));
+//     commands
+//         .entity(next_active_entity)
+//         .insert(Active)
+//         .insert(MeshMaterial3d(mats.blue.clone()));
+// }
