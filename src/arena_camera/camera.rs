@@ -1,4 +1,4 @@
-use crate::arena::{Arena, CurrentArena, ARENA_HEIGHT, ARENA_WIDTH};
+use crate::arena::{Arena, CurrentArena, ARENA_HEIGHT, ARENA_WIDTH, TILE_SIZE};
 use crate::arena_camera::ZoomOut;
 use crate::character::Character;
 use crate::selectors::Active;
@@ -97,22 +97,25 @@ pub fn draw_arena_border(
     if camera.single().is_err() {
         return;
     }
-    
+
     let arena = current_arena.into_inner();
+
+    // Use the same calculation as position_camera_for_arena to get the exact center
+    let (x, y) = (8.125, 3.5); // Base position (center of a single arena)
     let (offset_x, offset_y) = calculate_camera_position(arena.0);
-    
-    // Calculate center position of the arena
-    let center_x = offset_x + ARENA_WIDTH / 2.0;
-    let center_y = -offset_y - ARENA_HEIGHT / 2.0;  // Y is negative for lower arenas
-    
-    // Draw 5 rectangles for thickness
+    let center = Vec3::new(x + offset_x, y - offset_y + (TILE_SIZE / 2.0), 1.0); // Same as camera looks at, with z=1 for visibility
+
+    // Draw 5 rectangles for thickness (using 3D rect in world space)
     for i in 0..5 {
-        let thickness_offset = i as f32 * 0.02; // Small offset for each layer
-        
-        // Draw rectangle using rect_2d
-        gizmos.rect_2d(
-            Isometry2d::from_translation(Vec2::new(center_x, center_y)),
-            Vec2::new(ARENA_WIDTH + thickness_offset * 2.0, ARENA_HEIGHT + thickness_offset * 2.0),
+        let thickness_offset = i as f32 * 0.05; // Larger offset for visibility
+
+        // Draw rectangle using rect (3D version) - positioned in world space
+        gizmos.rect(
+            Isometry3d::from_translation(center),
+            Vec2::new(
+                ARENA_WIDTH + thickness_offset * 2.0,
+                ARENA_HEIGHT + thickness_offset * 2.0,
+            ),
             Color::BLACK,
         );
     }
