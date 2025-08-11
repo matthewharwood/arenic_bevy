@@ -16,14 +16,14 @@ use crate::ability::{
     HolyNova,
 };
 use crate::arena::{
-    decrement_current_arena, get_local_tile_space, increment_current_arena, toggle_active_arena, Arena, CurrentArena, ARENA_HEIGHT,
-    ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
+    decrement_current_arena, get_local_tile_space, increment_current_arena, toggle_active_arena, Arena, CurrentArena, LastActiveHero,
+    ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
     TILE_SIZE, TOTAL_ARENAS,
 };
 use crate::arena_camera::{draw_arena_border, move_camera, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
-use crate::character::{Boss, Character};
+use crate::character::{active_character_selection, Boss, Character};
 use crate::class_type::ClassType;
 use crate::lights::spawn_lights;
 use crate::materials::Materials;
@@ -76,6 +76,7 @@ fn main() {
                 move_camera,
                 draw_arena_border,
                 active_character_movement,
+                active_character_selection,
                 auto_shot_ability,
                 move_projectiles,
                 holy_nova_ability,
@@ -126,6 +127,7 @@ fn setup_scene(
                         InheritedVisibility::default(),
                         class_type,
                         Name::new(arena_name),
+                        LastActiveHero(None),
                     ))
                     .with_children(|arena| {
                         for x in 0..GRID_WIDTH {
@@ -157,14 +159,23 @@ fn spawn_starting_hero(
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
     let local_position = get_local_tile_space(36.0, 15.0, 0.125);
 
-    commands.entity(arena_entity).with_child((
-        Character,
-        AutoShot::new(16.0),
-        Active,
-        Mesh3d(sphere_mesh),
-        MeshMaterial3d(mats.blue.clone()),
-        Transform::from_translation(local_position),
-    ));
+    // Spawn the character as a child and get its entity ID
+    let character_entity = commands
+        .spawn((
+            Character,
+            AutoShot::new(16.0),
+            Active,
+            Mesh3d(sphere_mesh),
+            MeshMaterial3d(mats.blue.clone()),
+            Transform::from_translation(local_position),
+            ChildOf(arena_entity),
+        ))
+        .id();
+
+    // Update the arena's LastActiveHero to point to this character
+    commands
+        .entity(arena_entity)
+        .insert(LastActiveHero(Some(character_entity)));
 }
 
 fn spawn_starting_hero_v2(
