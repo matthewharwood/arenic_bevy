@@ -16,9 +16,9 @@ use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
 use crate::arena::{
-    current_arena_change, decrement_current_arena, get_local_tile_space, increment_current_arena, Arena, CurrentArena, LastActiveHero,
-    ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
-    TILE_SIZE, TOTAL_ARENAS,
+    current_arena_change, decrement_current_arena, get_local_tile_space, increment_current_arena, move_active_character, Arena, CurrentArena,
+    LastActiveHero, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT,
+    GRID_WIDTH, TILE_SIZE, TOTAL_ARENAS,
 };
 use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
@@ -72,6 +72,7 @@ fn main() {
                 increment_current_arena,
                 decrement_current_arena,
                 current_arena_change,
+                move_active_character,
                 draw_arena_border,
                 auto_shot_ability,
                 move_projectiles,
