@@ -1,6 +1,7 @@
 use crate::arena::{CameraUpdate, LastActiveHero, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE};
 use crate::arena_camera::{position_camera_for_arena, ZoomOut, ZOOM};
 use crate::character::Character;
+use crate::materials::Materials;
 use crate::selectors::Active;
 use bevy::prelude::*;
 
@@ -68,6 +69,7 @@ pub fn arena_update(
     camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
     arena_q: Query<(Entity, &Arena, &Children, Option<&LastActiveHero>), With<Arena>>,
     characters_q: Query<(Entity, Option<&Active>), With<Character>>,
+    mats: Res<Materials>,
 ) {
     // Only run when CameraUpdate event is triggered
     if arena_refresh_events.is_empty() {
@@ -79,7 +81,10 @@ pub fn arena_update(
     if zoom.is_some() {
         for (entity, active) in characters_q.iter() {
             if active.is_some() {
-                commands.entity(entity).remove::<Active>();
+                commands
+                    .entity(entity)
+                    .insert(MeshMaterial3d(mats.gray.clone()))
+                    .remove::<Active>();
             }
         }
     } else {
@@ -97,7 +102,10 @@ pub fn arena_update(
                     println!("No characters in arena {}", arena.0);
                     for (entity, active) in characters_q.iter() {
                         if active.is_some() {
-                            commands.entity(entity).remove::<Active>();
+                            commands
+                                .entity(entity)
+                                .insert(MeshMaterial3d(mats.gray.clone()))
+                                .remove::<Active>();
                         }
                     }
                     return;
@@ -139,22 +147,34 @@ pub fn arena_update(
                             // Remove Active from all currently active characters across all arenas
                             for (entity, active) in characters_q.iter() {
                                 if active.is_some() {
-                                    commands.entity(entity).remove::<Active>();
+                                    commands
+                                        .entity(entity)
+                                        .insert(MeshMaterial3d(mats.gray.clone()))
+                                        .remove::<Active>();
                                 }
                             }
                             // Now set the new active character
-                            commands.entity(hero_entity).insert(Active);
+                            commands
+                                .entity(hero_entity)
+                                .insert(MeshMaterial3d(mats.blue.clone()))
+                                .insert(Active);
                         } else {
                             println!("Using first character");
                             let first_character = characters_data[0].0;
                             // Remove Active from all currently active characters across all arenas
                             for (entity, active) in characters_q.iter() {
                                 if active.is_some() {
-                                    commands.entity(entity).remove::<Active>();
+                                    commands
+                                        .entity(entity)
+                                        .insert(MeshMaterial3d(mats.gray.clone()))
+                                        .remove::<Active>();
                                 }
                             }
                             // Now set the new active character
-                            commands.entity(first_character).insert(Active);
+                            commands
+                                .entity(first_character)
+                                .insert(MeshMaterial3d(mats.blue.clone()))
+                                .insert(Active);
                             commands
                                 .entity(arena_entity)
                                 .insert(LastActiveHero(Some(first_character)));
