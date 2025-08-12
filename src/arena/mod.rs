@@ -1,7 +1,9 @@
 mod arena;
 mod constants;
+mod events;
 
 pub use arena::*;
+pub use events::*;
 use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity};
 pub use constants::*;
