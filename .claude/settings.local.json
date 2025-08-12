@@ -15,7 +15,8 @@
       "Bash(rm:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:bevy.org)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }
