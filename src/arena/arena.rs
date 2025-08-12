@@ -1,4 +1,4 @@
-use crate::arena::{ArenaRefresh, LastActiveHero, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE};
+use crate::arena::{CameraUpdate, LastActiveHero, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE};
 use crate::arena_camera::{position_camera_for_arena, ZoomOut, ZOOM};
 use crate::character::Character;
 use crate::selectors::Active;
@@ -36,40 +36,40 @@ impl CurrentArena {
 pub fn decrement_current_arena(
     keycode: Res<ButtonInput<KeyCode>>,
     current_arena_q: Single<&mut CurrentArena>,
-    mut arena_refresh_event: EventWriter<ArenaRefresh>,
+    mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::BracketLeft) {
         let mut current_arena = current_arena_q.into_inner();
         current_arena.0 = CurrentArena::decrement(current_arena.0);
 
         // Send event
-        arena_refresh_event.write(ArenaRefresh);
+        arena_refresh_event.write(CameraUpdate);
     }
 }
 
 pub fn increment_current_arena(
     keycode: Res<ButtonInput<KeyCode>>,
     current_arena_q: Single<&mut CurrentArena>,
-    mut arena_refresh_event: EventWriter<ArenaRefresh>,
+    mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::BracketRight) {
         let mut current_arena = current_arena_q.into_inner();
         current_arena.0 = CurrentArena::increment(current_arena.0);
 
         // Send event
-        arena_refresh_event.write(ArenaRefresh);
+        arena_refresh_event.write(CameraUpdate);
     }
 }
 
 pub fn arena_update(
     mut commands: Commands,
-    mut arena_refresh_events: EventReader<ArenaRefresh>,
+    mut arena_refresh_events: EventReader<CameraUpdate>,
     current_arena_q: Single<&CurrentArena>,
     camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
     arena_q: Query<(Entity, &Arena, &Children, Option<&LastActiveHero>), With<Arena>>,
     characters_q: Query<(Entity, Option<&Active>), With<Character>>,
 ) {
-    // Only run when ArenaRefresh event is triggered
+    // Only run when CameraUpdate event is triggered
     if arena_refresh_events.is_empty() {
         return;
     }
@@ -172,7 +172,7 @@ pub fn move_active_character(
     mut current_arena_q: Single<&mut CurrentArena>,
     mut active_character_q: Single<(Entity, &mut Transform), (With<Character>, With<Active>)>,
     arena_q: Query<(Entity, &Arena), With<Arena>>,
-    mut arena_refresh_event: EventWriter<ArenaRefresh>,
+    mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     let mut movement = Vec3::ZERO;
     if keycode.just_pressed(KeyCode::KeyW) {
@@ -233,7 +233,7 @@ pub fn move_active_character(
             }
             println!("Moved to arena {} (left)", new_arena_index);
             // Send arena refresh event
-            arena_refresh_event.write(ArenaRefresh);
+            arena_refresh_event.write(CameraUpdate);
         } else {
             println!("Cannot move left - at battleground boundary");
             return; // Prevent movement
@@ -258,7 +258,7 @@ pub fn move_active_character(
             }
             println!("Moved to arena {} (right)", new_arena_index);
             // Send arena refresh event
-            arena_refresh_event.write(ArenaRefresh);
+            arena_refresh_event.write(CameraUpdate);
         } else {
             println!("Cannot move right - at battleground boundary");
             return; // Prevent movement
@@ -283,7 +283,7 @@ pub fn move_active_character(
             }
             println!("Moved to arena {} (down)", new_arena_index);
             // Send arena refresh event
-            arena_refresh_event.write(ArenaRefresh);
+            arena_refresh_event.write(CameraUpdate);
         } else {
             println!("Cannot move down - at battleground boundary");
             return; // Prevent movement
@@ -308,7 +308,7 @@ pub fn move_active_character(
             }
             println!("Moved to arena {} (up)", new_arena_index);
             // Send arena refresh event
-            arena_refresh_event.write(ArenaRefresh);
+            arena_refresh_event.write(CameraUpdate);
         } else {
             println!("Cannot move up - at battleground boundary");
             return; // Prevent movement

@@ -1,4 +1,4 @@
-use crate::arena::{ArenaRefresh, CurrentArena, ARENA_HEIGHT, ARENA_WIDTH, TILE_SIZE};
+use crate::arena::{CameraUpdate, CurrentArena, ARENA_HEIGHT, ARENA_WIDTH, TILE_SIZE};
 use crate::arena_camera::ZoomOut;
 use bevy::prelude::*;
 
@@ -42,7 +42,7 @@ pub fn toggle_camera_zoom(
     keycode: Res<ButtonInput<KeyCode>>,
     current_arena_q: Single<&CurrentArena>,
     camera_query: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera>>,
-    mut arena_refresh_event: EventWriter<ArenaRefresh>,
+    mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::KeyP) {
         let (camera_entity, mut camera_transform, zoom_out) = camera_query.into_inner();
@@ -55,14 +55,14 @@ pub fn toggle_camera_zoom(
             commands.entity(camera_entity).remove::<ZoomOut>();
             
             // Send event
-            arena_refresh_event.write(ArenaRefresh);
+            arena_refresh_event.write(CameraUpdate);
         } else {
             // Center camera to see all 9 arenas (middle of the 3x3 grid)
             commands.entity(camera_entity).insert(ZoomOut);
             position_camera_for_arena(&mut camera_transform, 4, ZOOM.1);
             
             // Send event
-            arena_refresh_event.write(ArenaRefresh);
+            arena_refresh_event.write(CameraUpdate);
         }
     }
 }
