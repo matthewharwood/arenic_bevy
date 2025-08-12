@@ -80,6 +80,7 @@ pub fn current_arena_change(
                 if characters_data.is_empty() {
                     println!("No characters in arena {}", arena.0);
                     // No characters in this arena - handle this case
+                    return;
                 } else {
                     println!(
                         "Found {} characters in arena {}",
@@ -99,29 +100,44 @@ pub fn current_arena_change(
                             arena.0, active_entity
                         );
                         // This character is already active - handle this case
+                        return;
                     } else {
                         println!("No active character in arena {}", arena.0);
 
-                        // Check if LastActiveHero has a character present
-                        if let Some(last_hero) = last_active_hero {
-                            if let Some(hero_entity) = last_hero.0 {
-                                // Check if the LastActiveHero entity still exists in this arena
-                                let hero_still_present = characters_data
-                                    .iter()
-                                    .any(|(entity, _)| *entity == hero_entity);
+                        // Check if LastActiveHero has a character present and still exists
+                        let use_last_active_hero =
+                            last_active_hero
+                                .and_then(|hero| hero.0)
+                                .filter(|&hero_entity| {
+                                    characters_data
+                                        .iter()
+                                        .any(|(entity, _)| *entity == hero_entity)
+                                });
 
-                                if hero_still_present {
-                                    println!("Using LastActiveHero: {:?}", hero_entity);
-                                } else {
-                                    println!(
-                                        "LastActiveHero no longer present, using first character"
-                                    );
+                        if let Some(hero_entity) = use_last_active_hero {
+                            println!("Using LastActiveHero: {:?}", hero_entity);
+                            // Remove Active from all currently active characters across all arenas
+                            for (entity, active) in characters_q.iter() {
+                                if active.is_some() {
+                                    commands.entity(entity).remove::<Active>();
                                 }
-                            } else {
-                                println!("No LastActiveHero set, using first character");
                             }
+                            // Now set the new active character
+                            commands.entity(hero_entity).insert(Active);
                         } else {
-                            println!("No LastActiveHero component, using first character");
+                            println!("Using first character");
+                            let first_character = characters_data[0].0;
+                            // Remove Active from all currently active characters across all arenas
+                            for (entity, active) in characters_q.iter() {
+                                if active.is_some() {
+                                    commands.entity(entity).remove::<Active>();
+                                }
+                            }
+                            // Now set the new active character
+                            commands.entity(first_character).insert(Active);
+                            commands
+                                .entity(arena_entity)
+                                .insert(LastActiveHero(Some(first_character)));
                         }
                     }
                 }
