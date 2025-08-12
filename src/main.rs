@@ -11,19 +11,19 @@ mod class_type;
 mod materials;
 mod selectors;
 
-use crate::ability::AutoShot;
 use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
+use crate::ability::{AutoShot, HolyNova};
 use crate::arena::{
     arena_update, decrement_current_arena, get_local_tile_space, increment_current_arena, move_active_character, Arena, ArenaRefresh,
-    CurrentArena, LastActiveHero, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS,
-    GRID_HEIGHT, GRID_WIDTH, TILE_SIZE, TOTAL_ARENAS,
+    CurrentArena, LastActiveHero, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT,
+    GRID_WIDTH, TILE_SIZE, TOTAL_ARENAS,
 };
 use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
-use crate::character::{Boss, Character};
+use crate::character::{toggle_active_character, Boss, Character};
 use crate::class_type::ClassType;
 use crate::lights::spawn_lights;
 use crate::materials::Materials;
@@ -71,6 +71,7 @@ fn main() {
             Update,
             (
                 toggle_camera_zoom,
+                toggle_active_character,
                 increment_current_arena,
                 decrement_current_arena,
                 arena_update,
@@ -173,6 +174,16 @@ fn spawn_starting_hero(
                     ChildOf(arena_entity),
                 ))
                 .id();
+            let sphere_radius_v2 = 0.125;
+            let sphere_mesh_v2 = meshes.add(Sphere::new(sphere_radius_v2));
+            let local_position_v2 = get_local_tile_space(0.0, 0.0, 0.125);
+            commands.entity(arena_entity).with_child((
+                Character,
+                HolyNova,
+                Mesh3d(sphere_mesh_v2),
+                MeshMaterial3d(mats.gray.clone()),
+                Transform::from_translation(local_position_v2),
+            ));
             println!("Character entity ID: {}", character_entity);
             // Update the arena's LastActiveHero to point to this character
             commands
@@ -181,26 +192,6 @@ fn spawn_starting_hero(
         }
     }
 }
-
-// fn spawn_starting_hero_v2(
-//     mut commands: Commands,
-//     mats: Res<Materials>,
-//     mut meshes: ResMut<Assets<Mesh>>,
-//     query: Single<Entity, (With<Arena>, With<Active>)>,
-// ) {
-//     let arena_entity = query.into_inner();
-//     let sphere_radius = 0.125;
-//     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-//     let local_position = get_local_tile_space(0.0, 0.0, 0.125);
-//
-//     commands.entity(arena_entity).with_child((
-//         Character,
-//         HolyNova,
-//         Mesh3d(sphere_mesh),
-//         MeshMaterial3d(mats.gray.clone()),
-//         Transform::from_translation(local_position),
-//     ));
-// }
 
 fn spawn_starting_bosses(
     mut commands: Commands,
