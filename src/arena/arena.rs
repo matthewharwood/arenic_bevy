@@ -1,3 +1,7 @@
+use crate::arena::{CameraUpdate, LastActiveHero};
+use crate::arena_camera::{position_camera_for_arena, ZoomOut, ZOOM};
+use crate::character::Character;
+use crate::materials::Materials;
 use crate::selectors::Active;
 use bevy::prelude::*;
 
@@ -33,37 +37,151 @@ impl CurrentArena {
 pub fn decrement_current_arena(
     keycode: Res<ButtonInput<KeyCode>>,
     current_arena_q: Single<&mut CurrentArena>,
+    mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::BracketLeft) {
         let mut current_arena = current_arena_q.into_inner();
         current_arena.0 = CurrentArena::decrement(current_arena.0);
+
+        // Send event
+        arena_refresh_event.write(CameraUpdate);
     }
 }
 
 pub fn increment_current_arena(
     keycode: Res<ButtonInput<KeyCode>>,
     current_arena_q: Single<&mut CurrentArena>,
+    mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::BracketRight) {
         let mut current_arena = current_arena_q.into_inner();
         current_arena.0 = CurrentArena::increment(current_arena.0);
+
+        // Send event
+        arena_refresh_event.write(CameraUpdate);
     }
 }
 
-pub fn toggle_active_arena(
+pub fn arena_update(
     mut commands: Commands,
-    current_arena_q: Single<&CurrentArena, Changed<CurrentArena>>,
-    arenas: Query<(Entity, &Arena)>,
+    mut arena_refresh_events: EventReader<CameraUpdate>,
+    current_arena_q: Single<&CurrentArena>,
+    camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
+    arena_q: Query<(Entity, &Arena, &Children, Option<&LastActiveHero>), With<Arena>>,
+    characters_q: Query<(Entity, Option<&Active>), With<Character>>,
+    mats: Res<Materials>,
 ) {
+    // Only run when CameraUpdate event is triggered
+    if arena_refresh_events.is_empty() {
+        return;
+    }
+    arena_refresh_events.clear();
     let current_arena = current_arena_q.into_inner();
+    let (camera_entity, mut camera_transform, zoom) = camera.into_inner();
+    if zoom.is_some() {
+        for (entity, active) in characters_q.iter() {
+            if active.is_some() {
+                commands
+                    .entity(entity)
+                    .insert(MeshMaterial3d(mats.gray.clone()))
+                    .remove::<Active>();
+            }
+        }
+    } else {
+        let current_arena_index = current_arena.0;
+        position_camera_for_arena(&mut camera_transform, current_arena_index, ZOOM.0);
+        commands.entity(camera_entity).remove::<ZoomOut>();
 
-    for (entity, arena) in arenas.iter() {
-        if arena.0 == current_arena.0 {
-            // Add Active component to the current arena
-            commands.entity(entity).insert(Active);
-        } else {
-            // Remove Active component from all other arenas
-            commands.entity(entity).remove::<Active>();
+        for (arena_entity, arena, children, last_active_hero) in arena_q.iter() {
+            if arena.0 == current_arena_index {
+                // Check if arena has characters
+                let characters_data: Vec<(Entity, Option<&Active>)> =
+                    characters_q.iter_many(children).collect();
+
+                if characters_data.is_empty() {
+                    println!("No characters in arena {}", arena.0);
+                    for (entity, active) in characters_q.iter() {
+                        if active.is_some() {
+                            commands
+                                .entity(entity)
+                                .insert(MeshMaterial3d(mats.gray.clone()))
+                                .remove::<Active>();
+                        }
+                    }
+                    return;
+                } else {
+                    println!(
+                        "Found {} characters in arena {}",
+                        characters_data.len(),
+                        arena.0
+                    );
+
+                    // Find the active character (if any)
+                    let active_character = characters_data
+                        .iter()
+                        .find(|(_, active)| active.is_some())
+                        .map(|(entity, _)| *entity);
+
+                    if let Some(active_entity) = active_character {
+                        println!(
+                            "Found active character in arena {}: {:?}",
+                            arena.0, active_entity
+                        );
+                        // This character is already active - handle this case
+                        return;
+                    } else {
+                        println!("No active character in arena {}", arena.0);
+
+                        // Check if LastActiveHero has a character present and still exists
+                        let use_last_active_hero =
+                            last_active_hero
+                                .and_then(|hero| hero.0)
+                                .filter(|&hero_entity| {
+                                    characters_data
+                                        .iter()
+                                        .any(|(entity, _)| *entity == hero_entity)
+                                });
+
+                        if let Some(hero_entity) = use_last_active_hero {
+                            println!("Using LastActiveHero: {:?}", hero_entity);
+                            // Remove Active from all currently active characters across all arenas
+                            for (entity, active) in characters_q.iter() {
+                                if active.is_some() {
+                                    commands
+                                        .entity(entity)
+                                        .insert(MeshMaterial3d(mats.gray.clone()))
+                                        .remove::<Active>();
+                                }
+                            }
+                            // Now set the new active character
+                            commands
+                                .entity(hero_entity)
+                                .insert(MeshMaterial3d(mats.blue.clone()))
+                                .insert(Active);
+                        } else {
+                            println!("Using first character");
+                            let first_character = characters_data[0].0;
+                            // Remove Active from all currently active characters across all arenas
+                            for (entity, active) in characters_q.iter() {
+                                if active.is_some() {
+                                    commands
+                                        .entity(entity)
+                                        .insert(MeshMaterial3d(mats.gray.clone()))
+                                        .remove::<Active>();
+                                }
+                            }
+                            // Now set the new active character
+                            commands
+                                .entity(first_character)
+                                .insert(MeshMaterial3d(mats.blue.clone()))
+                                .insert(Active);
+                            commands
+                                .entity(arena_entity)
+                                .insert(LastActiveHero(Some(first_character)));
+                        }
+                    }
+                }
+            }
         }
     }
 }

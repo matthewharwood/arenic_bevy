@@ -12,20 +12,18 @@ mod materials;
 mod selectors;
 
 use crate::ability::{
-    auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx, AutoShot,
-    HolyNova,
+    auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
+use crate::ability::{AutoShot, HolyNova};
 use crate::arena::{
-    decrement_current_arena, get_local_tile_space, increment_current_arena, toggle_active_arena, Arena, CurrentArena, ARENA_HEIGHT,
-    ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
+    arena_update, decrement_current_arena, get_local_tile_space, increment_current_arena, Arena, CameraUpdate, CurrentArena,
+    LastActiveHero, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
     TILE_SIZE, TOTAL_ARENAS,
 };
-use crate::arena_camera::{
-    move_camera, move_camera_on_character_arena_change, setup_camera, toggle_camera_zoom,
-};
+use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
-use crate::character::{Boss, Character};
+use crate::character::{move_active_character, toggle_active_character, Boss, Character};
 use crate::class_type::ClassType;
 use crate::lights::spawn_lights;
 use crate::materials::Materials;
@@ -55,16 +53,17 @@ fn main() {
         }))
         // Initialize game state
         .init_state::<GameState>()
+        // Register custom events
+        .add_event::<CameraUpdate>()
         .add_systems(
             Startup,
             (
                 setup_scene,
                 spawn_lights,
                 setup_camera,
-                toggle_active_arena,
-                spawn_starting_hero,
-                spawn_starting_hero_v2,
                 spawn_starting_bosses,
+                spawn_starting_hero,
+                // spawn_starting_hero_v2,
             )
                 .chain(),
         )
@@ -72,17 +71,16 @@ fn main() {
             Update,
             (
                 toggle_camera_zoom,
+                toggle_active_character,
                 increment_current_arena,
                 decrement_current_arena,
-                toggle_active_arena,
-                move_camera,
-                active_character_movement,
-                select_active_character_optimal,
+                arena_update,
+                move_active_character,
+                draw_arena_border,
                 auto_shot_ability,
                 move_projectiles,
                 holy_nova_ability,
                 update_holy_nova_vfx,
-                move_camera_on_character_arena_change,
             ),
         )
         .run();
@@ -129,6 +127,7 @@ fn setup_scene(
                         InheritedVisibility::default(),
                         class_type,
                         Name::new(arena_name),
+                        LastActiveHero(None),
                     ))
                     .with_children(|arena| {
                         for x in 0..GRID_WIDTH {
@@ -153,41 +152,45 @@ fn spawn_starting_hero(
     mut commands: Commands,
     mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
-    query: Single<Entity, (With<Arena>, With<Active>)>,
+    current_arena: Single<&CurrentArena>,
+    arena_query: Query<(Entity, &Arena)>,
 ) {
-    let arena_entity = query.into_inner();
-    let sphere_radius = 0.125;
-    let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-    let local_position = get_local_tile_space(36.0, 15.0, 0.125);
+    let current_arena_index = current_arena.into_inner().0;
+    for (arena_entity, arena) in arena_query.iter() {
+        if arena.0 == current_arena_index {
+            let sphere_radius = 0.125;
+            let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
+            let local_position = get_local_tile_space(36.0, 15.0, 0.125);
 
-    commands.entity(arena_entity).with_child((
-        Character,
-        AutoShot::new(16.0),
-        Active,
-        Mesh3d(sphere_mesh),
-        MeshMaterial3d(mats.blue.clone()),
-        Transform::from_translation(local_position),
-    ));
-}
-
-fn spawn_starting_hero_v2(
-    mut commands: Commands,
-    mats: Res<Materials>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    query: Single<Entity, (With<Arena>, With<Active>)>,
-) {
-    let arena_entity = query.into_inner();
-    let sphere_radius = 0.125;
-    let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-    let local_position = get_local_tile_space(0.0, 0.0, 0.125);
-
-    commands.entity(arena_entity).with_child((
-        Character,
-        HolyNova,
-        Mesh3d(sphere_mesh),
-        MeshMaterial3d(mats.gray.clone()),
-        Transform::from_translation(local_position),
-    ));
+            // Spawn the character as a child and get its entity ID
+            let character_entity = commands
+                .spawn((
+                    Character,
+                    AutoShot::new(16.0),
+                    Active,
+                    Mesh3d(sphere_mesh),
+                    MeshMaterial3d(mats.blue.clone()),
+                    Transform::from_translation(local_position),
+                    ChildOf(arena_entity),
+                ))
+                .id();
+            let sphere_radius_v2 = 0.125;
+            let sphere_mesh_v2 = meshes.add(Sphere::new(sphere_radius_v2));
+            let local_position_v2 = get_local_tile_space(0.0, 0.0, 0.125);
+            commands.entity(arena_entity).with_child((
+                Character,
+                HolyNova,
+                Mesh3d(sphere_mesh_v2),
+                MeshMaterial3d(mats.gray.clone()),
+                Transform::from_translation(local_position_v2),
+            ));
+            println!("Character entity ID: {}", character_entity);
+            // Update the arena's LastActiveHero to point to this character
+            commands
+                .entity(arena_entity)
+                .insert(LastActiveHero(Some(character_entity)));
+        }
+    }
 }
 
 fn spawn_starting_bosses(
@@ -218,84 +221,4 @@ fn spawn_starting_bosses(
             ));
         }
     }
-}
-
-fn active_character_movement(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    active_arena: Query<&Children, (With<Arena>, With<Active>)>,
-    mut character_query: Query<&mut Transform, (With<Character>, With<Active>)>,
-) {
-    // Get the children of the active arena
-    let Ok(arena_children) = active_arena.single() else {
-        return; // No active arena found
-    };
-
-    // Find the active character in this arena's children
-    let mut characters = character_query.iter_many_mut(arena_children);
-
-    // There should only be one active character in the active arena
-    let Some(mut transform) = characters.fetch_next() else {
-        return; // No active character in the active arena
-    };
-
-    let mut movement = Vec3::ZERO;
-
-    // WASD movement - one tile at a time
-    if keyboard_input.just_pressed(KeyCode::KeyW) {
-        movement.y += TILE_SIZE; // Move up (positive Y)
-    }
-    if keyboard_input.just_pressed(KeyCode::KeyS) {
-        movement.y -= TILE_SIZE; // Move down (negative Y)
-    }
-    if keyboard_input.just_pressed(KeyCode::KeyA) {
-        movement.x -= TILE_SIZE; // Move left (negative X)
-    }
-    if keyboard_input.just_pressed(KeyCode::KeyD) {
-        movement.x += TILE_SIZE; // Move right (positive X)
-    }
-
-    // Apply movement
-    if movement != Vec3::ZERO {
-        transform.translation += movement;
-        println!("Character moved to: {:?}", transform.translation);
-    }
-}
-
-fn select_active_character_optimal(
-    keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut commands: Commands,
-    arena_query: Single<&Children, (With<Active>, With<Arena>)>,
-    active_character: Single<Entity, (With<Character>, With<Active>)>,
-    character_query: Query<Entity, With<Character>>,
-    mats: Res<Materials>,
-) {
-    if !keyboard_input.just_pressed(KeyCode::Tab) {
-        return;
-    }
-
-    let arena_children = arena_query.into_inner();
-    let current_active_entity = active_character.into_inner();
-    let character_entities: Vec<Entity> = character_query.iter_many(arena_children).collect();
-
-    if character_entities.is_empty() {
-        error!("No characters in active arena!");
-        return;
-    }
-
-    let current_index = character_entities
-        .iter()
-        .position(|&e| e == current_active_entity)
-        .expect("Active character must be in active arena");
-
-    let next_index = (current_index + 1) % character_entities.len();
-    let next_active_entity = character_entities[next_index];
-
-    commands
-        .entity(current_active_entity)
-        .remove::<Active>()
-        .insert(MeshMaterial3d(mats.gray.clone()));
-    commands
-        .entity(next_active_entity)
-        .insert(Active)
-        .insert(MeshMaterial3d(mats.blue.clone()));
 }
