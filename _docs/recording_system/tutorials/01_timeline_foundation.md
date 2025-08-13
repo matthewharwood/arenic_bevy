@@ -28,6 +28,7 @@ Create a new file `src/timeline/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
+use bevy::utils::tracing::trace;
 use std::fmt;
 
 /// A single recorded event in a timeline
@@ -357,7 +358,7 @@ impl Default for TimelineClock {
         Self {
             // PR Gate: Using bevy::time::Timer instead of f32
             timer: bevy::time::Timer::new(
-                bevy::time::Duration::from_secs(120),
+                std::time::Duration::from_secs(120),
                 bevy::time::TimerMode::Repeating,
             ),
             is_paused: false,
@@ -366,7 +367,7 @@ impl Default for TimelineClock {
 }
 
 impl TimelineClock {
-    pub fn tick(&mut self, delta: bevy::time::Duration) {
+    pub fn tick(&mut self, delta: std::time::Duration) {
         if !self.is_paused {
             // PR Gate: Using bevy::time::Timer::tick
             self.timer.tick(delta);
@@ -375,7 +376,7 @@ impl TimelineClock {
     
     /// Convenience method for ticking with seconds (useful for tests)
     pub fn tick_secs(&mut self, seconds: f32) {
-        self.tick(bevy::time::Duration::from_secs_f32(seconds));
+        self.tick(std::time::Duration::from_secs_f32(seconds));
     }
 
     pub fn reset(&mut self) {
