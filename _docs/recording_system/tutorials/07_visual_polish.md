@@ -150,7 +150,7 @@ pub fn update_timeline_progress(
     let current_time = arena_q
         .iter()
         .find(|(arena, _)| **arena == current_idx)
-        .map(|(_, clock)| clock.current.as_secs())
+        .map(|(_, clock)| clock.current().as_secs())
         .unwrap_or(0.0);
 
     let progress_percent = (current_time / 120.0 * 100.0).clamp(0.0, 100.0);

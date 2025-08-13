@@ -29,7 +29,7 @@ Create `src/recording/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{DraftTimeline, TimelineEvent, EventType, Timer, ArenaIdx, GridPos, AbilityId, TimelineClock};
+use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, ArenaIdx, GridPos, AbilityId, TimelineClock};
 use crate::character::Character;
 use crate::selectors::Active;
 
@@ -318,7 +318,7 @@ pub fn initialize_recording(
 
         // Create initial timeline event at t=0
         let initial_event = TimelineEvent {
-            timestamp: Timer::ZERO,
+            timestamp: TimeStamp::ZERO,
             event_type: EventType::Movement(grid_pos),
         };
 
@@ -474,7 +474,7 @@ pub fn check_recording_time_limit(
         return;
     };
 
-    if clock.current.as_secs() >= 119.9 {
+    if clock.current().as_secs() >= 119.9 {
         stop_events.write(StopRecording {
             reason: StopReason::TimeComplete,
         });

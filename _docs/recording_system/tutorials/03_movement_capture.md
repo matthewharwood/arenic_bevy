@@ -46,7 +46,7 @@ Create `src/recording/capture.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{DraftTimeline, TimelineEvent, EventType, AbilityId, Timer, GridPos, Target, TimelineClock, ArenaIdx};
+use crate::timeline::{DraftTimeline, TimelineEvent, EventType, AbilityId, TimeStamp, GridPos, Target, TimelineClock, ArenaIdx};
 use crate::recording::{Recording, RecordingMode, RecordingState};
 use crate::arena::CurrentArena;
 use crate::character::Character;
@@ -108,7 +108,7 @@ pub fn capture_movement_intent(
         return;
     };
 
-    let timestamp = clock.current;
+    let timestamp = clock.current();
 
     // Record the movement intent for all recording entities
     for mut timeline in recording_q.iter_mut() {
@@ -154,7 +154,7 @@ fn get_movement_direction(keyboard: &ButtonInput<KeyCode>) -> IVec2 {
 #[derive(Component)]
 pub struct LastRecordedMovement {
     pub direction: IVec2,
-    pub timestamp: Timer,
+    pub timestamp: TimeStamp,
 }
 
 /// Optimize movement recording to reduce redundant events
@@ -192,7 +192,7 @@ pub fn optimize_movement_recording(
         return;
     };
 
-    let timestamp = clock.current;
+    let timestamp = clock.current();
 
     for (entity, mut timeline, last_recorded) in recording_q.iter_mut() {
         // Check if we should record this movement
@@ -279,7 +279,7 @@ pub fn capture_ability_intent(
         return;
     };
 
-    let timestamp = clock.current;
+    let timestamp = clock.current();
 
     // Determine target if mouse is pressed
     let target = if mouse_button.pressed(MouseButton::Left) {
@@ -334,7 +334,7 @@ fn optimize_timeline(timeline: &mut DraftTimeline) {
     const MIN_TIME_BETWEEN_SAME_EVENTS: f32 = 0.1; // 100ms minimum
     
     let mut optimized = Vec::new();
-    let mut last_movement: Option<(Timer, IVec2)> = None;
+    let mut last_movement: Option<(TimeStamp, IVec2)> = None;
     
     for event in &timeline.events {
         let should_keep = match &event.event_type {
@@ -388,12 +388,12 @@ Create `src/timeline/query.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{TimelineEvent, EventType, PublishTimeline, Timer, GridPos, AbilityId};
+use crate::timeline::{TimelineEvent, EventType, PublishTimeline, TimeStamp, GridPos, AbilityId};
 
 /// Get the movement intent at a specific time
 pub fn get_movement_at_time(
     timeline: &PublishTimeline,
-    current_time: Timer,
+    current_time: TimeStamp,
 ) -> Option<GridPos> {
     // Find the most recent movement event before current time
     timeline.events
@@ -409,8 +409,8 @@ pub fn get_movement_at_time(
 /// Get all ability events that should trigger at current time
 pub fn get_abilities_at_time(
     timeline: &PublishTimeline,
-    current_time: Timer,
-    last_checked: Timer,
+    current_time: TimeStamp,
+    last_checked: TimeStamp,
 ) -> Vec<(AbilityId, Option<Target>)> {
     timeline.events
         .iter()
@@ -425,7 +425,7 @@ pub fn get_abilities_at_time(
 /// Check if character should be dead at current time
 pub fn is_dead_at_time(
     timeline: &PublishTimeline,
-    current_time: Timer,
+    current_time: TimeStamp,
 ) -> bool {
     timeline.events
         .iter()
@@ -583,14 +583,14 @@ mod tests {
         // Add many redundant movement events in same direction
         for i in 0..10 {
             timeline.add_event(TimelineEvent {
-                timestamp: Timer::new(i as f32 * 0.01), // Very frequent
+                timestamp: TimeStamp::new(i as f32 * 0.01), // Very frequent
                 event_type: EventType::Movement(GridPos::new(1, 0)), // Same direction
             });
         }
 
         // Add some ability events
         timeline.add_event(TimelineEvent {
-            timestamp: Timer::new(0.5),
+            timestamp: TimeStamp::new(0.5),
             event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
         });
 
@@ -610,30 +610,30 @@ mod tests {
 
         // Add movement events
         draft.add_event(TimelineEvent {
-            timestamp: Timer::new(0.0),
+            timestamp: TimeStamp::new(0.0),
             event_type: EventType::Movement(GridPos::new(0, 1)),
         });
 
         draft.add_event(TimelineEvent {
-            timestamp: Timer::new(5.0),
+            timestamp: TimeStamp::new(5.0),
             event_type: EventType::Movement(GridPos::new(1, 0)),
         });
 
         draft.add_event(TimelineEvent {
-            timestamp: Timer::new(10.0),
+            timestamp: TimeStamp::new(10.0),
             event_type: EventType::Movement(GridPos::new(0, -1)),
         });
 
         let timeline = PublishTimeline::from_draft(&draft);
 
         // Test getting movement at various times
-        let move_at_0 = get_movement_at_time(&timeline, Timer::new(0.0));
+        let move_at_0 = get_movement_at_time(&timeline, TimeStamp::new(0.0));
         assert_eq!(move_at_0, Some(GridPos::new(0, 1)));
 
-        let move_at_7 = get_movement_at_time(&timeline, Timer::new(7.0));
+        let move_at_7 = get_movement_at_time(&timeline, TimeStamp::new(7.0));
         assert_eq!(move_at_7, Some(GridPos::new(1, 0)));
 
-        let move_at_15 = get_movement_at_time(&timeline, Timer::new(15.0));
+        let move_at_15 = get_movement_at_time(&timeline, TimeStamp::new(15.0));
         assert_eq!(move_at_15, Some(GridPos::new(0, -1)));
     }
 
@@ -642,12 +642,12 @@ mod tests {
         let mut draft = DraftTimeline::new();
 
         draft.add_event(TimelineEvent {
-            timestamp: Timer::new(5.0),
+            timestamp: TimeStamp::new(5.0),
             event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
         });
 
         draft.add_event(TimelineEvent {
-            timestamp: Timer::new(10.0),
+            timestamp: TimeStamp::new(10.0),
             event_type: EventType::Ability(
                 AbilityId::HEAL,
                 Some(Target::Position(GridPos::new(5, 5)))
@@ -659,8 +659,8 @@ mod tests {
         // Test ability detection in time range
         let abilities = get_abilities_at_time(
             &timeline,
-            Timer::new(10.0),
-            Timer::new(0.0)
+            TimeStamp::new(10.0),
+            TimeStamp::new(0.0)
         );
         
         assert_eq!(abilities.len(), 2);
@@ -690,17 +690,17 @@ mod tests {
         
         // Add events out of order (add_event should sort them)
         timeline.add_event(TimelineEvent {
-            timestamp: Timer::new(10.0),
+            timestamp: TimeStamp::new(10.0),
             event_type: EventType::Movement(GridPos::new(1, 0)),
         });
         
         timeline.add_event(TimelineEvent {
-            timestamp: Timer::new(5.0),
+            timestamp: TimeStamp::new(5.0),
             event_type: EventType::Movement(GridPos::new(0, 1)),
         });
         
         timeline.add_event(TimelineEvent {
-            timestamp: Timer::new(15.0),
+            timestamp: TimeStamp::new(15.0),
             event_type: EventType::Death,
         });
         

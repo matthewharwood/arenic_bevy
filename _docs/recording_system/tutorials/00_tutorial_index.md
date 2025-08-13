@@ -18,7 +18,7 @@
 
 After Jon's production-focused review, these patterns have been refined:
 
-- **Type-Safe Newtypes**: `Timer`, `ArenaIdx`, `GridPos` with From/Display traits
+- **Type-Safe Newtypes**: `TimeStamp`, `ArenaIdx`, `GridPos` with From/Display traits
 - **Arc<[T]> for Published Data**: Immutable timelines with zero-cost cloning
 - **Intent Recording Only**: Record WASD keys, never Transform changes
 - **Event-Driven Transitions**: `RecordingTransition`, `DialogTransition` for traceability
@@ -359,5 +359,30 @@ Test ability replay across the ~119.98s → 0.02s boundary:
 4. Check no duplicate or missed triggers
 
 This tests the most complex edge case in the system.
+
+### Wrap-Around Range Implementation
+The `PublishTimeline::events_in_range` method now fully supports wrap-around ranges:
+
+**Key Design Decisions:**
+- **Automatic Detection**: When `start > end`, the method automatically handles wrap-around
+- **Zero-Alloc**: Uses iterator chaining to avoid allocations
+- **Seamless Playback**: Events at 118s→2s return chronologically ordered results
+- **Binary Search**: Maintains O(log n) efficiency for both normal and wrapped ranges
+
+**Example Usage:**
+```rust
+// Normal range (5s to 10s)
+let events = timeline.events_in_range(TimeStamp::new(5.0), TimeStamp::new(10.0));
+
+// Wrap-around range (118s through wrap to 2s)
+let wrap_events = timeline.events_in_range(TimeStamp::new(118.0), TimeStamp::new(2.0));
+// Returns events: [118.0..120.0) concatenated with [0.0..2.0)
+```
+
+**Why This Matters:**
+1. **Seamless Loop Boundaries**: No dead zones or glitches at the 120s wrap point
+2. **Continuous Gameplay**: Players experience smooth transitions across loops
+3. **Deterministic Replay**: Abilities trigger correctly regardless of wrap timing
+4. **Production Ready**: Handles all edge cases including exact boundaries
 
 Happy recording!

@@ -29,7 +29,7 @@ Create `src/playback/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{PublishTimeline, TimelinePosition, EventType, AbilityId, Timer, TimelineClock, ArenaIdx};
+use crate::timeline::{PublishTimeline, TimelinePosition, EventType, AbilityId, TimeStamp, TimelineClock, ArenaIdx};
 use crate::recording::Ghost;
 use crate::character::Character;
 
@@ -40,18 +40,18 @@ pub struct Replaying;
 /// Tracks which abilities have been triggered this frame
 #[derive(Component, Default)]
 pub struct TriggeredAbilities {
-    pub abilities: Vec<(Timer, AbilityId)>, // (timestamp, ability)
-    pub previous_position: Option<Timer>, // Track previous position for range checks
+    pub abilities: Vec<(TimeStamp, AbilityId)>, // (timestamp, ability)
+    pub previous_position: Option<TimeStamp>, // Track previous position for range checks
 }
 
 impl TriggeredAbilities {
-    pub fn has_triggered(&self, timestamp: Timer, ability: AbilityId) -> bool {
+    pub fn has_triggered(&self, timestamp: TimeStamp, ability: AbilityId) -> bool {
         self.abilities.iter().any(|(t, a)| {
             *t == timestamp && *a == ability
         })
     }
 
-    pub fn add_triggered(&mut self, timestamp: Timer, ability: AbilityId) {
+    pub fn add_triggered(&mut self, timestamp: TimeStamp, ability: AbilityId) {
         self.abilities.push((timestamp, ability));
 
         // Keep only recent triggers (last 1 second)
@@ -128,7 +128,7 @@ pub fn commit_recording_to_timeline(
                 .insert(published)
                 .insert(Ghost)
                 .insert(Replaying)
-                .insert(TimelinePosition(Timer::ZERO))
+                .insert(TimelinePosition(TimeStamp::ZERO))
                 .insert(TriggeredAbilities::default())
                 .insert(GhostVisuals::default())
                 .insert(GhostArena(*arena_idx)); // Track which arena this ghost belongs to
@@ -180,7 +180,7 @@ pub fn playback_ghost_movement(
             continue;
         };
         
-        let current_time = clock.current;
+        let current_time = clock.current();
         
         // Update timeline position to match ghost's arena clock
         position.0 = current_time;
@@ -216,11 +216,11 @@ pub fn loop_ghost_timelines(
             continue;
         };
         
-        let current_time = clock.current;
+        let current_time = clock.current();
         
         // Handle wrap-around: if clock wrapped (went from high to low)
         if current_time.as_secs() < 1.0 && position.0.as_secs() > 119.0 {
-            position.0 = Timer::ZERO;
+            position.0 = TimeStamp::ZERO;
             info!("Ghost timeline in {} looped", ghost_arena.0);
         }
     }
@@ -239,7 +239,7 @@ use crate::timeline::interpolation::abilities_in_window;
 pub struct GhostAbilityTrigger {
     pub ghost: Entity,
     pub ability: AbilityId,
-    pub timestamp: Timer,
+    pub timestamp: TimeStamp,
 }
 
 /// Replay ghost abilities from timeline with deterministic range checking
@@ -254,17 +254,11 @@ pub fn playback_ghost_abilities(
         let current_time = position.0;
         let prev_time = triggered.previous_position.unwrap_or(current_time);
         
-        // Deterministic ability replay: Check events in range [prev, curr]
-        // Handle wrap-around at 120s boundary
-        let abilities = if prev_time > current_time {
-            // Wrapped case: Split into [prev..120] and [0..curr]
-            timeline.events_in_range(prev_time, Timer::MAX)
-                .chain(timeline.events_in_range(Timer::ZERO, current_time))
-        } else {
-            // Normal case: check [prev..curr]  
-            timeline.events_in_range(prev_time, current_time)
-                .chain(std::iter::empty())  // Keep same type
-        };
+        // Use the wrap-aware events_in_range method
+        // The PublishTimeline::events_in_range now handles wrap-around internally
+        // When prev_time > current_time, it automatically returns events from
+        // [prev_time..120) concatenated with [0..current_time)
+        let abilities = timeline.events_in_range(prev_time, current_time);
         
         // Zero-alloc: Process abilities directly from iterator
         for event in abilities {
@@ -516,17 +510,17 @@ mod tests {
         let mut triggered = TriggeredAbilities::default();
 
         // Add some triggers
-        triggered.add_triggered(Timer::new(5.0), AbilityId::AUTO_SHOT);
-        triggered.add_triggered(Timer::new(5.0), AbilityId::HOLY_NOVA);
-        triggered.add_triggered(Timer::new(10.0), AbilityId::AUTO_SHOT);
+        triggered.add_triggered(TimeStamp::new(5.0), AbilityId::AUTO_SHOT);
+        triggered.add_triggered(TimeStamp::new(5.0), AbilityId::HOLY_NOVA);
+        triggered.add_triggered(TimeStamp::new(10.0), AbilityId::AUTO_SHOT);
 
         // Check if triggered
-        assert!(triggered.has_triggered(Timer::new(5.0), AbilityId::AUTO_SHOT));
-        assert!(triggered.has_triggered(Timer::new(5.0), AbilityId::HOLY_NOVA));
-        assert!(!triggered.has_triggered(Timer::new(5.0), AbilityId::HEAL));
+        assert!(triggered.has_triggered(TimeStamp::new(5.0), AbilityId::AUTO_SHOT));
+        assert!(triggered.has_triggered(TimeStamp::new(5.0), AbilityId::HOLY_NOVA));
+        assert!(!triggered.has_triggered(TimeStamp::new(5.0), AbilityId::HEAL));
 
         // Old triggers should be cleaned up
-        triggered.add_triggered(Timer::new(11.1), AbilityId::HEAL);
+        triggered.add_triggered(TimeStamp::new(11.1), AbilityId::HEAL);
         assert_eq!(triggered.abilities.len(), 2); // 10.0 and 11.1 remain
     }
 
@@ -539,14 +533,14 @@ mod tests {
 
     #[test]
     fn test_timeline_position_sync() {
-        let mut position = TimelinePosition(Timer::new(10.0));
+        let mut position = TimelinePosition(TimeStamp::new(10.0));
         let clock = TimelineClock {
-            current: Timer::new(25.0),
+            current: TimeStamp::new(25.0),
             is_paused: false,
         };
 
         position.sync_with_clock(&clock);
-        assert_eq!(position.0, Timer::new(25.0));
+        assert_eq!(position.0, TimeStamp::new(25.0));
     }
 
     // PR Gate: Test proving off-screen ghosts advance independently
@@ -558,11 +552,11 @@ mod tests {
         
         // Create different clocks for each arena
         let clock_0 = TimelineClock {
-            current: Timer::new(10.0),
+            current: TimeStamp::new(10.0),
             is_paused: false,
         };
         let clock_5 = TimelineClock {
-            current: Timer::new(45.0),
+            current: TimeStamp::new(45.0),
             is_paused: false,
         };
         
@@ -573,6 +567,69 @@ mod tests {
         
         // Each ghost will use its own arena's clock during playback
         // This ensures off-screen ghosts advance independently
+    }
+    
+    #[test]
+    fn test_ability_replay_wrap_around() {
+        use crate::timeline::{DraftTimeline, TimelineEvent, EventType};
+        
+        // Create a timeline with abilities near the wrap boundary
+        let mut draft = DraftTimeline::new();
+        
+        // Add ability at 119.5 seconds
+        draft.add_event(TimelineEvent {
+            timestamp: TimeStamp::new(119.5),
+            event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
+        });
+        
+        // Add ability at 119.8 seconds
+        draft.add_event(TimelineEvent {
+            timestamp: TimeStamp::new(119.8),
+            event_type: EventType::Ability(AbilityId::HOLY_NOVA, None),
+        });
+        
+        // Add ability after wrap at 0.1 seconds
+        draft.add_event(TimelineEvent {
+            timestamp: TimeStamp::new(0.1),
+            event_type: EventType::Ability(AbilityId::POISON_SHOT, None),
+        });
+        
+        // Add ability at 0.5 seconds
+        draft.add_event(TimelineEvent {
+            timestamp: TimeStamp::new(0.5),
+            event_type: EventType::Ability(AbilityId::HEAL, None),
+        });
+        
+        let published = PublishTimeline::from_draft(&draft);
+        
+        // Test wrap-around range captures abilities correctly
+        let abilities: Vec<_> = published.events_in_range(
+            TimeStamp::new(119.4), 
+            TimeStamp::new(0.6)
+        ).collect();
+        
+        // Should get all 4 abilities
+        assert_eq!(abilities.len(), 4);
+        
+        // Verify order is preserved across wrap
+        if let EventType::Ability(id, _) = &abilities[0].event_type {
+            assert_eq!(*id, AbilityId::AUTO_SHOT);
+        }
+        if let EventType::Ability(id, _) = &abilities[1].event_type {
+            assert_eq!(*id, AbilityId::HOLY_NOVA);
+        }
+        if let EventType::Ability(id, _) = &abilities[2].event_type {
+            assert_eq!(*id, AbilityId::POISON_SHOT);
+        }
+        if let EventType::Ability(id, _) = &abilities[3].event_type {
+            assert_eq!(*id, AbilityId::HEAL);
+        }
+        
+        // Test that triggered abilities tracking prevents duplicates
+        let mut triggered = TriggeredAbilities::default();
+        triggered.add_triggered(TimeStamp::new(119.5), AbilityId::AUTO_SHOT);
+        assert!(triggered.has_triggered(TimeStamp::new(119.5), AbilityId::AUTO_SHOT));
+        assert!(!triggered.has_triggered(TimeStamp::new(0.1), AbilityId::POISON_SHOT));
     }
 }
 ```
@@ -623,7 +680,7 @@ With playback working, we can now:
 - PlaybackSet with strict ordering for deterministic execution
 - Zero-alloc iteration using timeline helper methods
 - Arc<[TimelineEvent]> leveraging for efficient cloning
-- Timer newtype for type-safe time handling
+- TimeStamp newtype for type-safe time handling
 - Movement intent playback instead of position interpolation
 
 ### What We Intentionally Simplified:

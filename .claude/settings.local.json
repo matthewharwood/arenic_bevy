@@ -27,7 +27,8 @@
       "Bash(do)",
       "Bash(sed:*)",
       "Bash(done)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }

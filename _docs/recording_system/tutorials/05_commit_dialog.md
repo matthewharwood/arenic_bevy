@@ -702,28 +702,30 @@ mod tests {
     fn test_timeline_pause_during_dialog() {
         // Create a timeline clock
         let mut clock = TimelineClock {
-            current: Timer::new(50.0),
+            current: TimeStamp::new(50.0),
             is_paused: false,
         };
         
         // Simulate dialog pause
         clock.is_paused = true;
-        let time_before_pause = clock.current;
+        let time_before_pause = clock.current();
         
         // Simulate time passing while paused (would normally tick)
         // But since paused, clock should not advance
         assert!(clock.is_paused);
-        assert_eq!(clock.current, time_before_pause);
+        assert_eq!(clock.current(), time_before_pause);
         
         // Resume after dialog
         clock.is_paused = false;
         
         // Now clock can advance again
-        clock.current = Timer::new(51.0);
-        assert_ne!(clock.current, time_before_pause);
+        // Simulate clock advancing after resume
+        // (In real code, this would be done by the tick method)
+        let new_time = TimeStamp::new(51.0);
+        assert_ne!(new_time, time_before_pause);
         
         info!("Clock correctly paused during dialog: {} -> {}", 
-              time_before_pause.as_secs(), clock.current.as_secs());
+              time_before_pause.as_secs(), new_time.as_secs());
     }
 }
 ```
