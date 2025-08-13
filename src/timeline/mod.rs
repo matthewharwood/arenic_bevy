@@ -1,0 +1,151 @@
+use bevy::math::IVec2;
+use bevy::prelude::Component;
+use std::fmt::{Display, Formatter, Result as FmtResult};
+
+#[derive(Clone, Debug)]
+pub struct TimelineEvent {
+    pub timestamp: TimeStamp,
+    pub event_type: EventType,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+pub struct TimeStamp(pub f32);
+
+impl TimeStamp {
+    pub const ZERO: Self = Self(0.0);
+    pub const MAX: Self = Self(120.0);
+
+    /// Creates a new TimeStamp, clamping value to [0, 120] seconds
+    /// NaN values are coerced to 0.0 for safety
+    #[must_use]
+    pub fn new(seconds: f32) -> Self {
+        debug_assert!(!seconds.is_nan(), "TimeStamp cannot be NaN");
+        let safe_seconds = if seconds.is_nan() {
+            Self::ZERO.0
+        } else {
+            seconds
+        };
+        Self(safe_seconds.clamp(Self::ZERO.0, Self::MAX.0))
+    }
+
+    #[must_use]
+    pub fn as_secs(&self) -> f32 {
+        self.0
+    }
+
+    /// Wraps time back to start when exceeding 120 seconds
+    /// NaN values are coerced to 0.0 for safety
+    #[must_use]
+    pub fn wrapped(seconds: f32) -> Self {
+        debug_assert!(!seconds.is_nan(), "TimeStamp cannot be NaN");
+        let safe_seconds = if seconds.is_nan() {
+            Self::ZERO.0
+        } else {
+            seconds
+        };
+        Self(safe_seconds.rem_euclid(Self::MAX.0))
+    }
+}
+
+impl From<f32> for TimeStamp {
+    fn from(seconds: f32) -> Self {
+        Self::new(seconds)
+    }
+}
+impl Display for TimeStamp {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{:.1}s", self.0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Target {
+    Entity(Entity),
+    Position(GridPos),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AbilityId(pub u8);
+
+impl AbilityId {
+    pub const AUTO_SHOT: Self = Self(1);
+    pub const HOLY_NOVA: Self = Self(2);
+    pub const POISON_SHOT: Self = Self(3);
+    pub const HEAL: Self = Self(4);
+}
+
+impl Display for AbilityId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let name = match *self {
+            Self::AUTO_SHOT => "AutoShot",
+            Self::HOLY_NOVA => "HolyNova",
+            Self::POISON_SHOT => "PoisonShot",
+            Self::HEAL => "Heal",
+            _ => "Unknown",
+        };
+        write!(f, "{}", name)
+    }
+}
+
+/// Newtype for arena indices (0-8)
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Component)]
+pub struct ArenaIdx(pub u8);
+
+impl ArenaIdx {
+    const MAX_ARENAS: u8 = 9;
+    /// Creates new ArenaIdx if value is valid (0-8)
+    #[must_use]
+    pub fn new(idx: u8) -> Option<Self> {
+        (idx < Self::MAX_ARENAS).then(|| Self(idx))
+    }
+
+    #[must_use]
+    pub fn as_u8(&self) -> u8 {
+        self.0
+    }
+}
+
+/// Not really needed vs Constructor version above
+impl TryFrom<u8> for ArenaIdx {
+    type Error = &'static str;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::new(value).ok_or("ArenaIdx out of bounds")
+    }
+}
+impl Display for ArenaIdx {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "Arena {}", self.0)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Component)]
+pub struct GridPos(pub IVec2);
+
+impl GridPos {
+    #[must_use]
+    pub fn new(x: i32, y: i32) -> Self {
+        Self(IVec2::new(x, y))
+    }
+    #[must_use]
+    pub fn x(&self) -> i32 {
+        self.0.x
+    }
+    #[must_use]
+    pub fn y(&self) -> i32 {
+        self.0.y
+    }
+}
+
+impl From<IVec2> for GridPos {
+    fn from(vec: IVec2) -> Self {
+        Self(vec)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum EventType {
+    Movement(GridPos),
+    Ability(AbilityId, Option<Target>),
+    Death,
+}

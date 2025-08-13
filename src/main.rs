@@ -10,6 +10,7 @@ mod character;
 mod class_type;
 mod materials;
 mod selectors;
+mod timeline;
 
 use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,

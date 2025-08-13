@@ -28,7 +28,7 @@ Create a new file `src/timeline/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
-use bevy::utils::tracing::trace;
+use bevy::log::trace;
 use std::fmt;
 
 /// A single recorded event in a timeline
@@ -63,8 +63,8 @@ impl TimeStamp {
     #[must_use]
     pub fn new(seconds: f32) -> Self {
         debug_assert!(!seconds.is_nan(), "TimeStamp cannot be NaN");
-        let safe_seconds = if seconds.is_nan() { 0.0 } else { seconds };
-        Self(safe_seconds.clamp(0.0, 120.0))
+        let safe_seconds = if seconds.is_nan() { Self::ZERO.0 } else { seconds };
+        Self(safe_seconds.clamp(Self::ZERO.0, Self::MAX.0))
     }
 
     #[must_use]
@@ -77,11 +77,12 @@ impl TimeStamp {
     #[must_use]
     pub fn wrapped(seconds: f32) -> Self {
         debug_assert!(!seconds.is_nan(), "TimeStamp cannot be NaN");
-        let safe_seconds = if seconds.is_nan() { 0.0 } else { seconds };
-        Self(safe_seconds.rem_euclid(120.0))
+        let safe_seconds = if seconds.is_nan() { Self::ZERO.0 } else { seconds };
+        Self(safe_seconds.rem_euclid(Self::MAX.0))
     }
 }
 
+// From trait kept only for Bevy interop - use TimeStamp::new() in examples
 impl From<f32> for TimeStamp {
     fn from(seconds: f32) -> Self {
         Self::new(seconds)
@@ -188,6 +189,7 @@ impl GridPos {
     }
 }
 
+// From traits kept for Bevy interop - use GridPos::new() in examples
 impl From<IVec2> for GridPos {
     fn from(vec: IVec2) -> Self {
         Self(vec)
@@ -544,7 +546,7 @@ mod tests {
     fn test_draft_timeline_adds_events_sorted() {
         let mut timeline = DraftTimeline::new();
 
-        // Add events out of order
+        // Add events out of order - using explicit constructors
         timeline.add_event(TimelineEvent {
             timestamp: TimeStamp::new(5.0),
             event_type: EventType::Movement(GridPos::new(1, 0)),
@@ -581,8 +583,8 @@ mod tests {
     #[test]
     fn test_timestamp_wrap_around_edge_cases() {
         // Test exact boundary
-        let timestamp = TimeStamp::wrapped(120.0);
-        assert_eq!(timestamp.as_secs(), 0.0);
+        let timestamp = TimeStamp::wrapped(TimeStamp::MAX.0);
+        assert_eq!(timestamp.as_secs(), TimeStamp::ZERO.0);
         
         // Test multiple wraps
         let timestamp = TimeStamp::wrapped(365.0); // 365 = 3*120 + 5
@@ -674,29 +676,30 @@ mod tests {
     }
     
     #[test]
-    fn test_type_conversions() {
-        // Test TimeStamp conversions
-        let timestamp: TimeStamp = 42.5.into();
+    fn test_explicit_constructors() {
+        // Test TimeStamp::new() as primary constructor
+        let timestamp = TimeStamp::new(42.5);
         assert_eq!(timestamp.as_secs(), 42.5);
         assert_eq!(timestamp.to_string(), "42.5s");
         
         // Test TimeStamp::ZERO constant
-        assert_eq!(TimeStamp::ZERO.as_secs(), 0.0);
+        assert_eq!(TimeStamp::ZERO.as_secs(), TimeStamp::ZERO.0);
         
-        // Test ArenaIdx conversions
-        let idx = ArenaIdx::try_from(3).unwrap();
+        // Test ArenaIdx::new() as primary constructor
+        let idx = ArenaIdx::new(3).unwrap();
         assert_eq!(idx.as_u8(), 3);
         assert_eq!(idx.to_string(), "Arena 3");
         
-        let err = ArenaIdx::try_from(10);
-        assert!(err.is_err());
+        let err = ArenaIdx::new(10);
+        assert!(err.is_none());
         
-        // Test GridPos conversions
-        let pos = GridPos::from(IVec2::new(5, -3));
+        // Test GridPos::new() as primary constructor
+        let pos = GridPos::new(5, -3);
         assert_eq!(pos.x(), 5);
         assert_eq!(pos.y(), -3);
         assert_eq!(pos.to_string(), "(5, -3)");
         
+        // From traits still work for Bevy interop
         let vec: IVec2 = pos.into();
         assert_eq!(vec, IVec2::new(5, -3));
     }
@@ -719,8 +722,8 @@ cargo run
 
 You should see:
 
-- TimelineClock counting from 0.0 to 120.0 for the current arena
-- TimelineClock looping back to 0.0 after reaching 120.0
+- TimelineClock counting from TimeStamp::ZERO to TimeStamp::MAX for the current arena  
+- TimelineClock looping back to TimeStamp::ZERO after reaching TimeStamp::MAX
 - No crashes or panics
 
 ## Next Steps
@@ -736,7 +739,7 @@ With the timeline foundation in place, we can now:
 1. **Type-Safe Newtypes**: TimeStamp, ArenaIdx, GridPos provide compile-time safety
 2. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
 3. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
-4. **From/Display Traits**: Clean conversions and formatting for all types
+4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), ArenaIdx::new() as primary API
 5. **Binary Search**: Efficient O(log n) operations on sorted timelines
 
 ## Production Notes
@@ -757,6 +760,7 @@ With the timeline foundation in place, we can now:
 ### Why These Patterns Matter:
 
 - **Newtypes**: Catch unit errors at compile time (can't mix TimeStamp with f32)
+- **Explicit Constructors**: TimeStamp::new() makes the common case obvious and discoverable
 - **Intent Recording**: Deterministic replay regardless of physics/interpolation
 - **Arc<[T]>**: Share timeline across systems without cloning the data
 - **Binary Search**: Fast lookups for playback position queries

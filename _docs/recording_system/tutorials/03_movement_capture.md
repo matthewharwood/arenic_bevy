@@ -95,7 +95,7 @@ pub fn capture_movement_intent(
         return;
     }
 
-    // Convert current_arena to ArenaIdx
+    // Use explicit ArenaIdx::new() constructor
     let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
         return;
     };
@@ -112,10 +112,10 @@ pub fn capture_movement_intent(
 
     // Record the movement intent for all recording entities
     for mut timeline in recording_q.iter_mut() {
-        // Create movement intent event
+        // Create movement intent event using explicit constructor
         let event = TimelineEvent {
             timestamp,
-            event_type: EventType::Movement(GridPos::from(movement_dir)),
+            event_type: EventType::Movement(GridPos::new(movement_dir.x, movement_dir.y)),
         };
 
         // Add to timeline (will be sorted automatically)
@@ -179,7 +179,7 @@ pub fn optimize_movement_recording(
 
     let movement_dir = get_movement_direction(&keyboard);
 
-    // Convert current_arena to ArenaIdx
+    // Use explicit ArenaIdx::new() constructor
     let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
         return;
     };
@@ -222,7 +222,7 @@ pub fn optimize_movement_recording(
         if should_record && movement_dir != IVec2::ZERO {
             let event = TimelineEvent {
                 timestamp,
-                event_type: EventType::Movement(GridPos::from(movement_dir)),
+                event_type: EventType::Movement(GridPos::new(movement_dir.x, movement_dir.y)),
             };
             timeline.add_event(event);
         }
@@ -266,7 +266,7 @@ pub fn capture_ability_intent(
         return;
     };
 
-    // Convert current_arena to ArenaIdx
+    // Use explicit ArenaIdx::new() constructor
     let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
         return;
     };
@@ -339,7 +339,7 @@ fn optimize_timeline(timeline: &mut DraftTimeline) {
     for event in &timeline.events {
         let should_keep = match &event.event_type {
             EventType::Movement(pos) => {
-                let grid_vec: IVec2 = (*pos).into();
+                let grid_vec = IVec2::new(pos.x(), pos.y());
                 
                 if let Some((last_time, last_dir)) = last_movement {
                     // Keep if direction changed or enough time passed
@@ -569,11 +569,11 @@ mod tests {
 
     #[test]
     fn test_movement_direction_conversion() {
-        // Test that movement directions are properly converted
-        assert_eq!(GridPos::from(IVec2::new(1, 0)).x(), 1);
-        assert_eq!(GridPos::from(IVec2::new(0, 1)).y(), 1);
-        assert_eq!(GridPos::from(IVec2::new(-1, 0)).x(), -1);
-        assert_eq!(GridPos::from(IVec2::new(0, -1)).y(), -1);
+        // Test that movement directions use explicit constructors
+        assert_eq!(GridPos::new(1, 0).x(), 1);
+        assert_eq!(GridPos::new(0, 1).y(), 1);
+        assert_eq!(GridPos::new(-1, 0).x(), -1);
+        assert_eq!(GridPos::new(0, -1).y(), -1);
     }
 
     #[test]
@@ -610,7 +610,7 @@ mod tests {
 
         // Add movement events
         draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(0.0),
+            timestamp: TimeStamp::ZERO,
             event_type: EventType::Movement(GridPos::new(0, 1)),
         });
 
@@ -627,7 +627,7 @@ mod tests {
         let timeline = PublishTimeline::from_draft(&draft);
 
         // Test getting movement at various times
-        let move_at_0 = get_movement_at_time(&timeline, TimeStamp::new(0.0));
+        let move_at_0 = get_movement_at_time(&timeline, TimeStamp::ZERO);
         assert_eq!(move_at_0, Some(GridPos::new(0, 1)));
 
         let move_at_7 = get_movement_at_time(&timeline, TimeStamp::new(7.0));
@@ -660,7 +660,7 @@ mod tests {
         let abilities = get_abilities_at_time(
             &timeline,
             TimeStamp::new(10.0),
-            TimeStamp::new(0.0)
+            TimeStamp::ZERO
         );
         
         assert_eq!(abilities.len(), 2);
@@ -756,7 +756,7 @@ With intent capture complete, we can now:
 1. **Record Intent, Not Results**: Capture WASD keys, not Transform positions
 2. **Const Keymaps**: All inputs defined in one place for maintainability
 3. **Timeline Optimization**: Remove redundant events while preserving important changes
-4. **Let-Else Pattern**: Clean early returns throughout the code
+4. **Explicit Constructors**: GridPos::new(), ArenaIdx::new() as primary API
 5. **Type Safety**: GridPos and ArenaIdx prevent invalid data
 
 ## Production Notes

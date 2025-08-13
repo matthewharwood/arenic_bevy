@@ -214,7 +214,7 @@ pub fn detect_recording_input(
                 return;
             };
 
-            // Convert current_arena.0 to ArenaIdx properly
+            // Use explicit ArenaIdx::new() constructor
             let Some(arena_idx) = ArenaIdx::new(current_arena.0) else {
                 warn!("Invalid arena index: {}", current_arena.0);
                 return;
@@ -461,7 +461,7 @@ pub fn check_recording_time_limit(
         return;
     }
 
-    // Convert current_arena to ArenaIdx
+    // Use explicit ArenaIdx::new() constructor
     let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
         return;
     };
@@ -474,7 +474,7 @@ pub fn check_recording_time_limit(
         return;
     };
 
-    if clock.current().as_secs() >= 119.9 {
+    if clock.current().as_secs() >= TimeStamp::MAX.0 - 0.1 {
         stop_events.write(StopRecording {
             reason: StopReason::TimeComplete,
         });
@@ -674,11 +674,11 @@ mod tests {
         app.add_event::<RecordingTransition>();
         app.add_systems(Update, process_recording_transitions);
         
-        // Send transition event
+        // Send transition event - using explicit constructor
         app.world_mut().send_event(RecordingTransition {
             from: RecordingMode::Idle,
             to: RecordingMode::Countdown,
-            reason: TransitionReason::StartRecording(Entity::PLACEHOLDER),
+            reason: TransitionReason::StartRequest(Entity::PLACEHOLDER),
         });
         
         // Process the event
@@ -756,7 +756,7 @@ With the event-driven recording state machine complete, we can now:
 1. **Event-Driven Transitions**: All state changes go through RecordingTransition events
 2. **Let-Else Pattern**: Cleaner early returns with proper error handling
 3. **Const Keymaps**: Centralized key definitions prevent magic values
-4. **Type Safety**: ArenaIdx instead of raw u8 throughout
+4. **Explicit Constructors**: ArenaIdx::new() instead of raw u8 conversion
 5. **Transition Tracing**: Every state change is logged with reason
 
 ## Production Notes
@@ -778,7 +778,7 @@ With the event-driven recording state machine complete, we can now:
 
 - **Event Transitions**: Debug any state issue by examining event history
 - **Let-Else**: Reduces cognitive load when reading system code
-- **Type Safety**: ArenaIdx prevents invalid arena references at compile time
+- **Explicit Constructors**: ArenaIdx::new() makes the common case obvious and validates input
 - **Const Keymaps**: Change controls in one place, not scattered throughout
 
 This state machine ensures recording happens in a controlled, traceable manner. The event-driven transitions allow other

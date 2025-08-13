@@ -116,11 +116,15 @@ pub fn playback_arena_ghosts(
     arena_q: Query<(&Arena, &TimelineClock)>,
 ) {
     // Process current arena at full fidelity
+    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+        return;
+    };
+    
     if let Some((_, clock)) = arena_q.iter()
-        .find(|(arena, _)| arena.0 == current_arena.0)
+        .find(|(arena, _)| **arena == current_idx)
     {
         let current_time = clock.current();
-        let current_arena_ghosts = registry.get_arena_ghosts(current_arena.0);
+        let current_arena_ghosts = registry.get_arena_ghosts(current_idx);
 
         // PR Gate: Use iter_many_mut for efficient batch processing (cache locality)
         // NO individual get_mut() calls in loops - this is critical for performance
@@ -139,7 +143,7 @@ pub fn playback_arena_ghosts(
 
     // Process other arenas at reduced fidelity
     for (arena, clock) in arena_q.iter() {
-        if arena.0 != current_arena.0 {
+        if *arena != current_idx {
             let current_time = clock.current();
 
             // Update every 10th frame for distant arenas
@@ -282,8 +286,11 @@ pub fn check_ghost_limits(
     current_arena: Res<CurrentArena>,
 ) {
     let total = registry.total_ghost_count();
+    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+        return;
+    };
     let current_arena_count = registry
-        .get_arena_ghosts(current_arena.0)
+        .get_arena_ghosts(current_idx)
         .len();
 
     if total >= limits.max_total_ghosts {
@@ -304,7 +311,7 @@ pub fn check_ghost_limits(
     if current_arena_count >= limits.max_ghosts_per_arena {
         error!(
             "Arena {} has maximum ghosts: {}/{}", 
-            current_arena.0,
+            current_idx.as_u8(),
             current_arena_count,
             limits.max_ghosts_per_arena
         );
@@ -340,15 +347,17 @@ pub fn update_ghost_lod(
     ghost_q: Query<(Entity, &Parent), With<Ghost>>,
     arena_q: Query<&Arena>,
 ) {
-    let current_idx = current_arena.0;
+    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+        return;
+    };
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
             let arena_idx = arena.0;
 
             // Calculate "distance" between arenas
-            let row_diff = (arena_idx / 3).abs_diff(current_idx / 3);
-            let col_diff = (arena_idx % 3).abs_diff(current_idx % 3);
+            let row_diff = (arena_idx / 3).abs_diff(current_idx.as_u8() / 3);
+            let col_diff = (arena_idx % 3).abs_diff(current_idx.as_u8() % 3);
             let distance = row_diff + col_diff;
 
             let lod_level = match distance {
@@ -691,7 +700,7 @@ With multi-arena support complete, we can now:
 1. **Arena Registry**: Efficient tracking of ghosts per arena
 2. **LOD System**: Reduced fidelity for distant arenas saves performance
 3. **Batch Processing**: Group operations by arena for cache efficiency
-4. **Independent Timers**: Each arena maintains its own 2-minute cycle
+4. **Explicit Constructors**: ArenaIdx::new() validation in multi-arena logic
 5. **Resource Limits**: Prevent performance degradation from too many ghosts
 
 Multi-arena support is crucial for the full game experience. By optimizing updates based on arena distance and batching

@@ -266,7 +266,7 @@ pub fn loop_ghost_timelines(
         let current_time = clock.current();
         
         // Handle wrap-around: if clock wrapped (went from high to low)
-        if current_time.as_secs() < 1.0 && position.0.as_secs() > 119.0 {
+        if current_time.as_secs() < 1.0 && position.0.as_secs() > TimeStamp::MAX.0 - 1.0 {
             position.0 = TimeStamp::ZERO;
             info!("Ghost timeline in {} looped", ghost_arena.0);
         }
@@ -582,33 +582,32 @@ mod tests {
     fn test_timeline_position_sync() {
         let mut position = TimelinePosition(TimeStamp::new(10.0));
         let clock = TimelineClock {
-            current: TimeStamp::new(25.0),
+            timer: bevy::time::Timer::new(
+                std::time::Duration::from_secs(120),
+                bevy::time::TimerMode::Repeating,
+            ),
             is_paused: false,
         };
 
         position.sync_with_clock(&clock);
-        assert_eq!(position.0, TimeStamp::new(25.0));
+        assert_eq!(position.0, clock.current());
     }
 
     // PR Gate: Test proving off-screen ghosts advance independently
     #[test]
     fn test_ghost_arena_independence() {
-        // Create two ghosts with different arenas
+        // Create two ghosts with different arenas using explicit constructors
         let ghost_arena_0 = GhostArena(ArenaIdx::new(0).unwrap());
         let ghost_arena_5 = GhostArena(ArenaIdx::new(5).unwrap());
         
         // Create different clocks for each arena
-        let clock_0 = TimelineClock {
-            current: TimeStamp::new(10.0),
-            is_paused: false,
-        };
-        let clock_5 = TimelineClock {
-            current: TimeStamp::new(45.0),
-            is_paused: false,
-        };
+        let mut clock_0 = TimelineClock::default();
+        clock_0.tick_secs(10.0);
+        let mut clock_5 = TimelineClock::default();
+        clock_5.tick_secs(45.0);
         
         // Verify ghosts track different times based on their arena
-        assert_ne!(clock_0.current, clock_5.current);
+        assert_ne!(clock_0.current().as_secs(), clock_5.current().as_secs());
         assert_eq!(ghost_arena_0.0, ArenaIdx::new(0).unwrap());
         assert_eq!(ghost_arena_5.0, ArenaIdx::new(5).unwrap());
         
@@ -717,7 +716,7 @@ With playback working, we can now:
 1. **Timeline Replay**: Interpolation creates smooth movement from keyframes
 2. **Ability Triggers**: Deterministic range-based detection using [prev, curr] slices prevents duplicate triggers
 3. **Visual Distinction**: Ghosts have transparency and glow effects
-4. **Input Blocking**: Ghosts cannot be controlled directly
+4. **Explicit Constructors**: TimeStamp::new(), ArenaIdx::new() throughout playback code
 5. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
 
 ## Production Notes

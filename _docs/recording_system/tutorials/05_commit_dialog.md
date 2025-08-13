@@ -54,7 +54,7 @@ impl Default for DialogState {
 pub enum DialogType {
     /// Mid-recording interruption
     MidRecording { reason: StopReason },
-    /// Recording completed (120 seconds)
+    /// Recording completed (TimeStamp::MAX seconds)
     EndRecording,
     /// Retry existing ghost
     RetryGhost { ghost_entity: Entity },
@@ -238,7 +238,7 @@ fn spawn_dialog_entities(
                             font_size: 24.0,
                             ..default()
                         },
-                        TextColor(WHITE.into()),
+                        TextColor(Color::from(WHITE)),
                     ));
 
                     // Description text
@@ -456,10 +456,15 @@ pub fn process_dialog_choices(
             }
             DialogChoice::Retry => {
                 if let Some(entity) = event.recording_entity {
-                    // Start new recording
+                    // Use explicit ArenaIdx::new() constructor for retry
+                    let Some(arena_idx) = ArenaIdx::new(current_arena.0) else {
+                        warn!("Invalid arena index for retry: {}", current_arena.0);
+                        return;
+                    };
+                    
                     start_events.write(StartRecording {
                         character: entity,
-                        arena: current_arena.0,
+                        arena: arena_idx,
                     });
                     info!("Retrying recording");
                 }
@@ -749,7 +754,7 @@ Test sequence:
 1. Press R to start recording
 2. Press R again during recording - MidRecording dialog appears
 3. Press 1 (Commit), 2 (Clear), or 3 (Cancel) to make choice
-4. Start another recording and wait 120 seconds - EndRecording dialog
+4. Start another recording and wait TimeStamp::MAX seconds - EndRecording dialog
 5. Try controlling a ghost - RetryGhost dialog should appear
 
 ## Next Steps
@@ -765,7 +770,7 @@ With dialogs complete, we can now:
 1. **Modal UI**: Dialogs pause all gameplay for important decisions
 2. **Context-Aware**: Different dialog types for different situations
 3. **Keyboard Support**: Quick keyboard shortcuts for efficiency
-4. **State Preservation**: Recording state maintained through dialogs
+4. **Explicit Constructors**: ArenaIdx::new() validation in retry logic
 5. **Clean Transitions**: Proper cleanup when dialogs close
 
 The dialog system provides crucial player control over the recording process. By pausing all timelines during dialogs,

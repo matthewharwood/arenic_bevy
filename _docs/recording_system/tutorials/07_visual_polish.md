@@ -142,7 +142,7 @@ pub fn update_timeline_progress(
     current_arena: Res<CurrentArena>,
     mut progress_q: Query<&mut Node, With<TimelineProgressBar>>,
 ) {
-    // Convert current_arena to ArenaIdx
+    // Use explicit ArenaIdx::new() constructor
     let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
         return;
     };
@@ -153,7 +153,7 @@ pub fn update_timeline_progress(
         .map(|(_, clock)| clock.current().as_secs())
         .unwrap_or(0.0);
 
-    let progress_percent = (current_time / 120.0 * 100.0).clamp(0.0, 100.0);
+    let progress_percent = (current_time / TimeStamp::MAX.0 * 100.0).clamp(0.0, 100.0);
 
     for mut node in progress_q.iter_mut() {
         node.width = Val::Percent(progress_percent);
@@ -529,7 +529,7 @@ pub fn flash_on_recording_start(
         let flash_material = materials.add(StandardMaterial {
             base_color: Color::srgba(1.0, 1.0, 1.0, 0.5),
             alpha_mode: AlphaMode::Blend,
-            emissive: WHITE.into() * 2.0,
+            emissive: Color::from(WHITE) * 2.0,
             ..default()
         });
 
@@ -602,7 +602,7 @@ pub fn setup_arena_status_ui(mut commands: Commands) {
                     font_size: 18.0,
                     ..default()
                 },
-                TextColor(WHITE.into()),
+                TextColor(Color::from(WHITE)),
             ));
 
             // Arena grid (3x3)
@@ -634,7 +634,7 @@ pub fn setup_arena_status_ui(mut commands: Commands) {
                                             font_size: 14.0,
                                             ..default()
                                         },
-                                        TextColor(WHITE.into()),
+                                        TextColor(Color::from(WHITE)),
                                     ));
                                 });
                         }
@@ -657,7 +657,11 @@ pub fn update_arena_status_display(
         let ghost_count = stats.ghost_counts.get(&arena_idx).unwrap_or(&0);
         let recording_count = stats.recording_counts.get(&arena_idx).unwrap_or(&0);
 
-        let color = if arena_idx == current_arena.0 {
+        let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+            return;
+        };
+        
+        let color = if arena_idx == current_idx.as_u8() {
             Color::srgb(0.2, 0.5, 0.2) // Green for current
         } else if *recording_count > 0 {
             Color::srgb(0.5, 0.2, 0.2) // Red for recording
@@ -897,7 +901,7 @@ With visual polish complete, we can now:
 1. **Clear State Communication**: Visual indicators for all states
 2. **Immediate Feedback**: Flash effects and audio for actions
 3. **Persistent Information**: UI panels for ongoing status
-4. **Visual Hierarchy**: Different effects for different importance levels
+4. **Explicit Constructors**: ArenaIdx::new() validation in UI display logic
 5. **Performance Conscious**: Trail effects with automatic cleanup
 
 Visual feedback transforms the recording system from functional to delightful. Clear indicators help players understand

@@ -378,12 +378,17 @@ pub fn adjust_ghost_update_frequency(
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
+            // Use explicit ArenaIdx::new() constructor for comparison
+            let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+                continue;
+            };
+            
             // Calculate update frequency based on arena distance
-            let frequency = if arena.0 == current_arena.0 {
+            let frequency = if arena.0 == current_idx.as_u8() {
                 60.0 // Full speed for current arena
             } else {
-                let row_diff = (arena.0 / 3).abs_diff(current_arena.0 / 3);
-                let col_diff = (arena.0 % 3).abs_diff(current_arena.0 % 3);
+                let row_diff = (arena.0 / 3).abs_diff(current_idx.as_u8() / 3);
+                let col_diff = (arena.0 % 3).abs_diff(current_idx.as_u8() % 3);
                 let distance = row_diff + col_diff;
 
                 match distance {
@@ -417,7 +422,10 @@ pub fn frequency_limited_ghost_update(
     let current_time = time.elapsed_secs();
 
     // Process current arena ghosts first (high priority)
-    let current_ghosts = registry.get_arena_ghosts(current_arena.0);
+    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+        return;
+    };
+    let current_ghosts = registry.get_arena_ghosts(current_idx);
     if !current_ghosts.is_empty() {
         // Use iter_many_mut for current arena ghosts
         for (mut transform, mut frequency, position, timeline) in
@@ -435,7 +443,7 @@ pub fn frequency_limited_ghost_update(
 
     // Process other arenas (can be done less frequently)
     for (arena_idx, ghost_entities) in &registry.ghosts_by_arena {
-        if *arena_idx != current_arena.0 && !ghost_entities.is_empty() {
+        if *arena_idx != current_idx && !ghost_entities.is_empty() {
             // Use iter_many_mut for batch processing
             for (mut transform, mut frequency, position, timeline) in
                 ghost_q.iter_many_mut(ghost_entities.iter().copied())
@@ -761,7 +769,7 @@ pub fn spawn_stress_test_ghosts(
             Ghost,
             Replaying,
             test_timeline.clone(),
-            TimelinePosition(0.0),
+            TimelinePosition(TimeStamp::ZERO),
             UpdateFrequency::new(30.0),
             Mesh3d(mesh.clone()),
             MeshMaterial3d(material.clone()),
@@ -844,7 +852,7 @@ With optimization complete, we can now:
 1. **Timeline Compression**: 5-10x memory reduction with delta encoding
 2. **Spatial Indexing**: O(1) lookups for nearby ghosts
 3. **Update Frequencies**: Distant ghosts update less frequently
-4. **Batch Processing**: Better cache usage with grouped updates
+4. **Explicit Constructors**: ArenaIdx::new() validation in performance-critical paths
 5. **Auto-Quality**: Dynamic adjustment based on performance
 
 These optimizations ensure the game remains playable even with hundreds of ghosts. The key is balancing visual fidelity
