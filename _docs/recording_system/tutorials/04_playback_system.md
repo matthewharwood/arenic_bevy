@@ -131,6 +131,7 @@ pub fn commit_recording_to_timeline(
                 .insert(TimelinePosition(TimeStamp::ZERO))
                 .insert(TriggeredAbilities::default())
                 .insert(GhostVisuals::default())
+                .insert(GhostMovementState::default())
                 .insert(GhostArena(*arena_idx)); // Track which arena this ghost belongs to
         }
     }
@@ -161,16 +162,35 @@ Add to `src/playback/mod.rs`:
 ```rust
 use crate::timeline::interpolation::get_movement_intent_at;
 
-/// Replay ghost movement from published timelines
+/// Component to track previous movement state for interpolation
+#[derive(Component)]
+pub struct GhostMovementState {
+    pub previous_position: Vec3,
+    pub target_position: Vec3,
+    pub previous_timestamp: TimeStamp,
+    pub target_timestamp: TimeStamp,
+}
+
+impl Default for GhostMovementState {
+    fn default() -> Self {
+        Self {
+            previous_position: Vec3::ZERO,
+            target_position: Vec3::ZERO,
+            previous_timestamp: TimeStamp::ZERO,
+            target_timestamp: TimeStamp::ZERO,
+        }
+    }
+}
+
+/// Replay ghost movement from published timelines with deterministic interpolation
 pub fn playback_ghost_movement(
     mut ghost_q: Query<
-        (&PublishTimeline, &mut TimelinePosition, &mut Transform, &GhostArena),
+        (&PublishTimeline, &mut TimelinePosition, &mut Transform, &GhostArena, &mut GhostMovementState),
         (With<Ghost>, With<Replaying>)
     >,
     arena_q: Query<(&ArenaIdx, &TimelineClock)>,
-    time: Res<Time>,
 ) {
-    for (timeline, mut position, mut transform, ghost_arena) in ghost_q.iter_mut() {
+    for (timeline, mut position, mut transform, ghost_arena, mut movement_state) in ghost_q.iter_mut() {
         // PR Gate: Each ghost resolves time via Parent → ArenaIdx → TimelineClock
         // Each ghost uses its parent arena's clock, NOT CurrentArena
         let Some((_, clock)) = arena_q
@@ -185,18 +205,45 @@ pub fn playback_ghost_movement(
         // Update timeline position to match ghost's arena clock
         position.0 = current_time;
 
-        // Get movement intent and apply it
+        // Get movement intent at current timestamp
         if let Some(move_intent) = get_movement_intent_at(timeline, current_time) {
-            // Apply movement based on intent (same as player movement)
-            let move_speed = 200.0; // Units per second
-            let move_delta = Vec3::new(move_intent.x, move_intent.y, 0.0) * move_speed * time.delta_secs();
-            transform.translation += move_delta;
+            // Convert grid position to world position (deterministic)
+            let target_world_pos = Vec3::new(
+                move_intent.x() as f32 * 1.0,  // Grid unit size
+                move_intent.y() as f32 * 1.0,
+                0.0
+            );
+
+            // Check if we have a new target position
+            if target_world_pos != movement_state.target_position {
+                // Update movement state with new target
+                movement_state.previous_position = transform.translation;
+                movement_state.target_position = target_world_pos;
+                movement_state.previous_timestamp = current_time;
+                // Find the next movement event to know when we should reach the target
+                movement_state.target_timestamp = timeline.next_event_after(current_time)
+                    .map(|e| e.timestamp)
+                    .unwrap_or(TimeStamp::new(current_time.as_secs() + 1.0));
+            }
+
+            // Calculate interpolation factor (0.0 to 1.0) based on timestamps
+            let time_range = movement_state.target_timestamp.as_secs() - movement_state.previous_timestamp.as_secs();
+            let time_elapsed = current_time.as_secs() - movement_state.previous_timestamp.as_secs();
+            let t = if time_range > 0.0 {
+                (time_elapsed / time_range).clamp(0.0, 1.0)
+            } else {
+                1.0  // Instant movement if timestamps are the same
+            };
+
+            // Interpolate position (deterministic, frame-rate independent)
+            transform.translation = movement_state.previous_position.lerp(movement_state.target_position, t);
 
             trace!(
-                "Ghost in {} at {:.2}s: intent {:?}", 
+                "Ghost in {} at {:.2}s: interpolating to {:?} (t={:.2})", 
                 ghost_arena.0,
                 current_time.as_secs(), 
-                move_intent
+                move_intent,
+                t
             );
         }
     }

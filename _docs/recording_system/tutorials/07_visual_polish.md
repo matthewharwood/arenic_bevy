@@ -30,7 +30,7 @@ Create `src/visual_feedback/mod.rs`:
 ```rust
 use bevy::prelude::*;
 use bevy::color::palettes::css::WHITE;
-use std::collections::VecDeque;
+use std::collections::{VecDeque, HashMap};
 use crate::recording::{RecordingState, RecordingMode, RecordingCountdown};
 use crate::timeline::{ArenaIdx, TimelineClock};
 use crate::arena::CurrentArena;
@@ -195,6 +195,8 @@ pub struct GhostTrail {
     pub max_length: usize,
     // APPROVED: Store material handle to reuse, not recreate
     pub trail_material: Option<Handle<StandardMaterial>>,
+    // Store mesh handle to reuse
+    pub trail_mesh: Option<Handle<Mesh>>,
 }
 
 impl Default for GhostTrail {
@@ -203,7 +205,38 @@ impl Default for GhostTrail {
             positions: VecDeque::with_capacity(20),
             max_length: 20,
             trail_material: None,
+            trail_mesh: None,
         }
+    }
+}
+
+/// Resource to cache trail materials by color
+#[derive(Resource, Default)]
+pub struct TrailMaterialCache {
+    materials: HashMap<u32, Handle<StandardMaterial>>,
+}
+
+impl TrailMaterialCache {
+    /// Get or create a material for the given color
+    pub fn get_or_create(
+        &mut self,
+        color: Srgba,
+        materials: &mut Assets<StandardMaterial>,
+    ) -> Handle<StandardMaterial> {
+        // Create a simple hash of the color for caching
+        let color_key = ((color.red * 255.0) as u32) << 24
+            | ((color.green * 255.0) as u32) << 16
+            | ((color.blue * 255.0) as u32) << 8
+            | ((color.alpha * 255.0) as u32);
+        
+        self.materials.entry(color_key).or_insert_with(|| {
+            materials.add(StandardMaterial {
+                base_color: Color::from(color),
+                alpha_mode: AlphaMode::Blend,
+                emissive: Color::from(color) * 0.1,
+                ..default()
+            })
+        }).clone()
     }
 }
 
@@ -261,10 +294,33 @@ pub fn init_ghost_trail_materials(
     }
 }
 
+/// Maximum number of trail segments per ghost
+const MAX_TRAIL_SEGMENTS: usize = 20;
+
+/// Resource for shared trail mesh
+#[derive(Resource)]
+pub struct TrailMeshCache {
+    pub segment_mesh: Handle<Mesh>,
+}
+
+impl TrailMeshCache {
+    pub fn new(meshes: &mut Assets<Mesh>) -> Self {
+        // Create a standard capsule mesh that we'll scale for different segments
+        Self {
+            segment_mesh: meshes.add(Capsule3d {
+                radius: 0.02,
+                half_length: 0.5,  // Standard size, we'll scale it
+                ..default()
+            }),
+        }
+    }
+}
+
 /// Render ghost trail segments
 pub fn render_ghost_trails(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
+    trail_mesh_cache: Res<TrailMeshCache>,
+    mut material_cache: ResMut<TrailMaterialCache>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ghost_q: Query<(Entity, &mut GhostTrail, &GhostVisuals)>,
     mut trail_q: Query<(Entity, &mut TrailSegment, &mut Transform, &Handle<StandardMaterial>)>,
@@ -288,28 +344,38 @@ pub fn render_ghost_trails(
         }
     }
 
-    // Create new trail segments (reusing material handles)
+    // Count existing trail segments per ghost to enforce MAX_TRAIL_SEGMENTS
+    let mut segment_counts: HashMap<Entity, usize> = HashMap::new();
+    for (_, segment, _, _) in trail_q.iter() {
+        *segment_counts.entry(segment.ghost_entity).or_insert(0) += 1;
+    }
+
+    // Create new trail segments (reusing mesh and material handles)
     for (ghost_entity, mut trail, visuals) in ghost_q.iter_mut() {
-        // Ensure we have a material handle
-        if trail.trail_material.is_none() {
-            // Author tints as Srgba, convert to Color at assignment
-            let material = materials.add(StandardMaterial {
-                base_color: Color::from(visuals.tint.with_alpha(0.3)),
-                alpha_mode: AlphaMode::Blend,
-                emissive: Color::from(visuals.tint) * 0.1,
-                ..default()
-            });
-            trail.trail_material = Some(material);
+        // Get current segment count for this ghost
+        let current_segments = segment_counts.get(&ghost_entity).copied().unwrap_or(0);
+        
+        // Skip if we've reached the maximum
+        if current_segments >= MAX_TRAIL_SEGMENTS {
+            continue;
         }
 
-        let trail_material = trail.trail_material.clone().unwrap();
+        // Get or create cached material for this ghost's color
+        let trail_material = material_cache.get_or_create(visuals.tint, &mut materials);
 
         // Tutorial Note: Converting VecDeque to Vec here is intentional for simplicity.
         // The lead suggested using VecDeque::as_slices() to avoid allocation,
         // but for <20 trail points, the allocation is negligible and this code
         // is much clearer for learners. Focus on visual polish, not micro-optimization.
         let positions: Vec<_> = trail.positions.iter().cloned().collect();
+        
+        let mut segments_created = 0;
         for window in positions.windows(2) {
+            // Stop if we've hit the max segments
+            if current_segments + segments_created >= MAX_TRAIL_SEGMENTS {
+                break;
+            }
+            
             if let [start, end] = window {
                 let age = current_time - start.1;
                 let alpha = (1.0 - age / 2.0).max(0.0);
@@ -319,25 +385,24 @@ pub fn render_ghost_trails(
                     continue;
                 }
 
-                // Create trail segment mesh (meshes are lightweight)
-                let segment_mesh = meshes.add(Capsule3d {
-                    radius: 0.02,
-                    half_length: start.0.distance(end.0) / 2.0,
-                    ..default()
-                });
+                let distance = start.0.distance(end.0);
+                let midpoint = start.0.lerp(end.0, 0.5);
 
-                // PR Gate: Reuse material handle, don't create new materials
-                // Spawn segment with REUSED material
+                // PR Gate: Reuse cached mesh handle and scale it
+                // Spawn segment with REUSED mesh and material
                 commands.spawn((
-                    Mesh3d(segment_mesh),
+                    Mesh3d(trail_mesh_cache.segment_mesh.clone()),
                     MeshMaterial3d(trail_material.clone()),
-                    Transform::from_translation(start.0.lerp(end.0, 0.5))
-                        .looking_at(end.0, Vec3::Y),
+                    Transform::from_translation(midpoint)
+                        .looking_at(end.0, Vec3::Y)
+                        .with_scale(Vec3::new(1.0, distance, 1.0)),  // Scale to match segment length
                     TrailSegment {
                         ghost_entity,
                         age,
                     },
                 ));
+                
+                segments_created += 1;
             }
         }
     }
@@ -683,6 +748,12 @@ pub struct VisualFeedbackPlugin;
 impl Plugin for VisualFeedbackPlugin {
     fn build(&self, app: &mut App) {
         app
+            // Initialize resources
+            .init_resource::<TrailMaterialCache>()
+            .add_systems(Startup, |mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>| {
+                commands.insert_resource(TrailMeshCache::new(&mut meshes));
+            })
+            
             // Setup systems
             .add_systems(Startup, (
                 setup_recording_ui,

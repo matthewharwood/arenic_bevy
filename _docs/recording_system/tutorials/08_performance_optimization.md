@@ -331,11 +331,8 @@ use crate::playback::Ghost;
 Add to `src/optimization/mod.rs`:
 
 ```rust
-// PR Gate: Resource for global pause state
-#[derive(Resource, Default)]
-pub struct GlobalTimelinePause {
-    pub is_paused: bool,
-}
+// Import GlobalTimelinePause from Tutorial 01 where it's originally defined
+use crate::timeline::GlobalTimelinePause;
 
 /// Component to control update frequency
 #[derive(Component)]
