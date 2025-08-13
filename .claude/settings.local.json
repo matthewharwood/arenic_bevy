@@ -16,7 +16,17 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:bevy.org)",
       "Bash(grep:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(git log:*)",
+      "WebSearch",
+      "WebFetch(domain:www.polarsignals.com)",
+      "WebFetch(domain:markaicode.com)",
+      "WebFetch(domain:*)",
+      "WebFetch(domain:stackoverflow.com)",
+      "Bash(for:*)",
+      "Bash(do)",
+      "Bash(sed:*)",
+      "Bash(done)"
     ],
     "deny": []
   }

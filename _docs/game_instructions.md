@@ -56,24 +56,103 @@ Build a guild powerful enough to simultaneously manage 8 different arenas, each 
 
 ## The Record & Replay System (Core Mechanic)
 
-### Recording Process
-1. **Initiate Recording**: Press R while controlling a character
-2. **3-Second Countdown**: Brief preparation period before recording starts
-3. **2-Minute Window**: Record all movements and ability usage
-4. **Finalize**: Press F to lock in the recording as a permanent "ghost"
-5. **Reset Option**: Cancel recording to discard and try again
+The recording system allows you to capture 2-minute sequences of character actions that replay as autonomous "ghosts" every arena cycle. This core mechanic enables you to build up complex, coordinated strategies across multiple characters and arenas.
 
-### Ghost Behavior
-- **Automatic Replay**: Ghosts repeat their recorded actions every 2-minute cycle
-- **Persistent Activity**: Ghosts continue operating even when you're managing other arenas
-- **Perfect Reproduction**: Every movement, ability cast, and timing is exactly reproduced
-- **Death Persistence**: If a ghost dies at 1:30 in recording, it will die at 1:30 in every replay
+### How Recording Works
 
-### Strategic Recording Tips
-- **Plan Full Sequences**: Think through the entire 2-minute strategy before recording
-- **Coordinate Timing**: Align multiple ghosts' actions for maximum effectiveness
-- **Leave Buffer Time**: End recordings with safe positioning for the next cycle
-- **Test Interactions**: Ensure ghost abilities complement rather than interfere with each other
+**Starting a Recording**
+- Press R while controlling any non-ghost character to begin recording
+- A 3-second countdown prepares you before capture starts
+- The arena timer resets to 0:00 when recording begins
+- All your movements (WASD) and abilities (1-4 keys) are captured as intent
+
+**During Recording**
+- You have exactly 120 seconds to record your strategy
+- A red "RECORDING" indicator shows your current state
+- The timeline progress bar shows how much time remains
+- Recording captures your input intent, not character position - ensuring perfect replay regardless of physics changes
+
+**Ending a Recording**
+- Recording automatically stops at the 2-minute mark
+- Press R again to manually interrupt recording early
+- A dialog appears with three options:
+  - **Commit**: Save as a permanent ghost that replays every cycle
+  - **Clear**: Discard the recording and return to normal play
+  - **Cancel/Retry**: Continue recording or start fresh
+
+### Ghost Playback System
+
+**Autonomous Replay**
+- Ghosts automatically replay their recorded timeline every 2-minute arena cycle
+- Each arena maintains its own independent timer (0:00 to 2:00)
+- Ghosts in off-screen arenas continue advancing their timelines
+- When the timer loops back to 0:00, ghosts seamlessly restart
+
+**Visual Indicators**
+- Ghosts appear with blue tint and transparency effects
+- Ghost trails show recent movement paths
+- Character indicators above heads show state (green=active, red=recording, blue=ghost)
+- Cannot directly control ghosts - they follow their recorded timeline
+
+**Timeline Accuracy**
+- Recording stores movement intent (WASD keys) not positions
+- Abilities trigger at exact recorded timestamps
+- Death events are captured and replayed
+- Perfect deterministic replay every cycle
+
+### Multi-Arena Coordination
+
+**Independent Timers**
+- Each of the 9 arenas has its own 2-minute cycle timer
+- Ghosts use their parent arena's clock for playback
+- Switching arenas ([ ]) doesn't affect other arena timers
+- All timelines pause during dialog choices
+
+**Cross-Arena Strategy**
+- Record complementary ghosts across multiple arenas
+- Use the arena status panel to track ghost counts per arena
+- Maximum of 40 ghosts per arena, 320 total across all arenas
+- Performance automatically adjusts update rates for distant arenas
+
+### Recording Best Practices
+
+**Planning Your Recording**
+- Think through the full 2-minute sequence before starting
+- Consider boss attack patterns and timing windows
+- Position yourself safely at the end for smooth looping
+- Test ability combinations before committing
+
+**Optimization Tips**
+- Recordings automatically compress to save memory
+- Redundant movement events are filtered out
+- Only significant position changes create keyframes
+- Ability events are always preserved at full fidelity
+
+**Common Patterns**
+- **Tank Loop**: Record a warrior continuously taunting and blocking
+- **Healer Rotation**: Set up heal timings to match damage spikes
+- **DPS Burst**: Align multiple damage dealers for boss vulnerability phases
+- **Resource Gathering**: Create forager ghosts to maintain mushroom gardens
+
+### Advanced Recording Features
+
+**State Management**
+- Recording state machine tracks: Idle → Countdown → Recording → Dialog
+- All state transitions logged for debugging
+- Global pause during dialogs ensures no missed actions
+- Event-driven architecture for reliable state changes
+
+**Performance Scaling**
+- Ghosts in current arena update at 60 FPS
+- Adjacent arena ghosts update at 30 FPS
+- Distant arena ghosts update at 10-15 FPS
+- Automatic quality adjustment when performance drops
+
+**Technical Details**
+- Timeline events stored as intent (2 bytes) vs transform (48 bytes)
+- Binary search for efficient timeline lookups
+- Zero-allocation helpers for event queries
+- Arc<[T]> for cheap timeline sharing between systems
 
 ---
 
@@ -139,6 +218,27 @@ Each class brings unique tactical advantages and 4 specialized abilities:
 - **Boss Positioning**: Each arena contains one major boss matching its class theme
 - **Multi-Arena Management**: All 9 arenas run independently with separate timers
 - **Scaling Difficulty**: Normal → Heroic → Mythic progression tiers
+
+### Arena Navigation & Camera System
+- **Arena Selection**: Use [ and ] keys to cycle through arenas (0-8, wraps around)
+- **Camera Zoom**: Press P to toggle between single arena view and all-arenas overview
+- **Visual Indicators**: Current arena highlighted with black border when zoomed out
+- **Smart Focus**: Camera automatically positions on current arena when zooming in
+- **Character Memory**: Each arena remembers its last active hero for seamless transitions
+
+### Character Management Systems
+- **Active Character Toggle**: Tab cycles through heroes in current arena (requires 2+ heroes)
+- **Cross-Arena Movement**: WASD movement seamlessly transitions heroes between adjacent arenas
+- **Arena Boundaries**: Movement past edges teleports character to opposite side of adjacent arena
+- **Re-parenting System**: Characters automatically become children of their current arena entity
+- **State Preservation**: Heroes maintain active/inactive status when switching arenas
+
+### Arena Update Logic
+- **Event-Driven Updates**: Arena state refreshes on camera changes or arena transitions
+- **Zoom-Out Behavior**: All characters deactivated (gray) for overview visibility
+- **Zoom-In Behavior**: Restores last active hero or activates first available character
+- **Empty Arena Handling**: Gracefully handles arenas with no characters present
+- **Material System**: Blue material for active heroes, gray for inactive ones
 
 ### Boss Mechanics
 - **2-Minute Cycles**: Bosses operate on the same timing as your recordings
