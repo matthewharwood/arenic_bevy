@@ -262,55 +262,26 @@ impl PublishTimeline {
         }
     }
 
-    /// Zero-alloc helper: Get events within a time range with wrap-around support
+    /// Zero-alloc helper: Get events within a time range
     /// PR Gate: Added #[must_use] to timeline slice functions
     /// 
-    /// Supports wrap-around ranges where start > end (e.g., 118.0 → 2.0)
-    /// This is essential for seamless playback across the 120s boundary
+    /// Returns events where start <= timestamp < end
+    /// NOTE: Wrap-around handling (e.g., 118.0 → 2.0) is covered in Tutorial 04
     /// 
     /// # Examples
     /// ```
     /// // Normal range
     /// let events: Vec<_> = timeline.events_in_range(TimeStamp::new(5.0), TimeStamp::new(10.0)).collect();
-    /// 
-    /// // Wrap-around range (118s through wrap to 2s)
-    /// let events: Vec<_> = timeline.events_in_range(TimeStamp::new(118.0), TimeStamp::new(2.0)).collect();
     /// ```
     #[must_use]
     pub fn events_in_range(&self, start: TimeStamp, end: TimeStamp) -> impl Iterator<Item=&TimelineEvent> + '_ {
-        // Detect wrap-around case: start > end means we cross the 120s boundary
-        if start > end {
-            // Wrap case: return events from [start..120) and [0..end)
-            let start_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap())
-                .unwrap_or_else(|i| i);
-            
-            // Find events up to 120s (or end of array)
-            let wrap_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&TimeStamp::MAX).unwrap())
-                .unwrap_or_else(|i| i);
-            
-            // Find events from 0s
-            let zero_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&TimeStamp::ZERO).unwrap())
-                .unwrap_or_else(|i| i);
-            
-            let end_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap())
-                .unwrap_or_else(|i| i);
-            
-            // Chain two slices: [start..120) and [0..end)
-            // Using chain() for zero-alloc iteration
-            self.events[start_idx..wrap_idx].iter()
-                .chain(self.events[zero_idx..end_idx].iter())
-        } else {
-            // Normal case: simple range query (no wrap-around handling)
-            // This is a straight slice - wrap-around logic is handled above
-            let start_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap())
-                .unwrap_or_else(|i| i);
-            let end_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap())
-                .unwrap_or_else(|i| i);
-            
-            // Single slice, chain with empty for consistent return type
-            self.events[start_idx..end_idx].iter()
-                .chain(std::iter::empty())
-        }
+        // Simple range query - wrap-around handling comes in Tutorial 04
+        let start_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap())
+            .unwrap_or_else(|i| i);
+        let end_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap())
+            .unwrap_or_else(|i| i);
+        
+        self.events[start_idx..end_idx].iter()
     }
 
     /// Zero-alloc helper: Find next event after timestamp
@@ -353,8 +324,8 @@ pub mod interpolation {
         None
     }
     
-    /// Get abilities within a time window with wrap-around support
-    /// Uses the wrap-aware events_in_range internally
+    /// Get abilities within a time window
+    /// Uses events_in_range internally
     #[must_use]
     pub fn abilities_in_window(
         timeline: &PublishTimeline, 
@@ -551,7 +522,7 @@ battleground
 .spawn((
 Transform::from_xyz(offset_x, offset_y, 0.0),
 ArenaIdx::new(arena_index).unwrap(),
-TimelineClock::default (), // Add this line
+TimelineClock::default(), // Add this line
 // InheritedVisibility is automatically added via required components
 class_type,
 Name::new(arena_name),
@@ -656,84 +627,6 @@ mod tests {
         assert_eq!(events.len(), 2); // Should get events at 6.0, 8.0
         assert_eq!(events[0].timestamp, TimeStamp::new(6.0));
         assert_eq!(events[1].timestamp, TimeStamp::new(8.0));
-    }
-    
-    #[test]
-    fn test_events_in_range_wrap_around() {
-        let mut draft = DraftTimeline::new();
-        
-        // Add events near the wrap boundary
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(118.0),
-            event_type: EventType::Movement(GridPos::new(0, 1)),
-        });
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(119.0),
-            event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
-        });
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(119.5),
-            event_type: EventType::Movement(GridPos::new(1, 1)),
-        });
-        // Events after wrap
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(0.5),
-            event_type: EventType::Movement(GridPos::new(2, 1)),
-        });
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(1.0),
-            event_type: EventType::Ability(AbilityId::HOLY_NOVA, None),
-        });
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(2.0),
-            event_type: EventType::Movement(GridPos::new(3, 1)),
-        });
-        
-        let published = PublishTimeline::from_draft(&draft);
-        
-        // Test wrap-around range: 118.0 through wrap to 2.0
-        let events: Vec<_> = published.events_in_range(TimeStamp::new(118.0), TimeStamp::new(2.0)).collect();
-        
-        // Should get events at 118, 119, 119.5, 0.5, 1.0 (not 2.0 as it's exclusive end)
-        assert_eq!(events.len(), 5);
-        assert_eq!(events[0].timestamp, TimeStamp::new(118.0));
-        assert_eq!(events[1].timestamp, TimeStamp::new(119.0));
-        assert_eq!(events[2].timestamp, TimeStamp::new(119.5));
-        assert_eq!(events[3].timestamp, TimeStamp::new(0.5));
-        assert_eq!(events[4].timestamp, TimeStamp::new(1.0));
-        
-        // Test wrap-around with no events in wrapped section
-        let events: Vec<_> = published.events_in_range(TimeStamp::new(119.8), TimeStamp::new(0.2)).collect();
-        assert_eq!(events.len(), 0);
-        
-        // Test wrap-around capturing all wrap events
-        let events: Vec<_> = published.events_in_range(TimeStamp::new(117.0), TimeStamp::new(3.0)).collect();
-        assert_eq!(events.len(), 6); // All events
-    }
-    
-    #[test]
-    fn test_events_in_range_edge_cases() {
-        let mut draft = DraftTimeline::new();
-        
-        // Add events at exact boundaries
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(0.0),
-            event_type: EventType::Movement(GridPos::new(0, 0)),
-        });
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(120.0), // Will be clamped to 120.0
-            event_type: EventType::Movement(GridPos::new(1, 0)),
-        });
-        
-        let published = PublishTimeline::from_draft(&draft);
-        
-        // Test exact boundary wrap
-        let events: Vec<_> = published.events_in_range(TimeStamp::new(119.0), TimeStamp::new(1.0)).collect();
-        assert_eq!(events.len(), 2); // Should get both boundary events
-        
-        // Test empty wrap range
-        let events: Vec<_> = published.events_in_range(TimeStamp::new(50.0), TimeStamp::new(50.0)).collect();
-        assert_eq!(events.len(), 0);
     }
     
     #[test]
