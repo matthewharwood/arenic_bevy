@@ -1,8 +1,10 @@
 use bevy::math::IVec2;
 use bevy::prelude::{Component, Entity};
+use bevy::time::{Timer, TimerMode};
 use std::convert::identity;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
+use std::time::Duration;
 
 #[derive(Clone, Debug)]
 pub struct TimelineEvent {
@@ -230,14 +232,14 @@ impl PublishTimeline {
     /// Returns the most recent movement event before or at the timestamp
     ///
     /// Uses partition_point which directly finds where the predicate changes from true to false,
-    /// making the logic clearer than binary_search_by with its Ok/Err handling
+    /// clarifying the logic than binary_search_by with its Ok/Err handling
     #[must_use]
     pub fn get_movement_intent_at(&self, timestamp: TimeStamp) -> Option<GridPos> {
-        // partition_point finds first index where timestamp > t, so we work backwards from there
+        // partition_point finds the first index where timestamp > t, so we work backwards from there
         // This is more idiomatic than binary_search_by for finding boundaries in sorted sequences
         let mut i = self.events.partition_point(|e| e.timestamp <= timestamp);
         while i > 0 {
-            i -= 1; // Move to last index with ts ≤ timestamp
+            i -= 1; // Move to the last index with ts ≤ timestamp
             if let EventType::Movement(pos) = self.events[i].event_type {
                 return Some(pos);
             }
@@ -258,3 +260,43 @@ impl PublishTimeline {
     }
 }
 
+/// Clock Component for 2-minute arena cycles
+#[derive(Component)]
+pub struct TimelineClock {
+    pub timer: Timer,
+    pub is_paused: bool,
+}
+
+impl Default for TimelineClock {
+    fn default() -> Self {
+        Self {
+            timer: Timer::new(Duration::from_secs(120), TimerMode::Repeating),
+            is_paused: false,
+        }
+    }
+}
+impl TimelineClock {
+    pub fn tick(&mut self, delta: Duration) {
+        if !self.is_paused {
+            self.timer.tick(delta);
+        }
+    }
+    pub fn tick_secs(&mut self, seconds: f32) {
+        self.tick(Duration::from_secs_f32(seconds));
+    }
+    pub fn reset(&mut self) {
+        self.timer.reset();
+    }
+    pub fn pause(&mut self) {
+        self.is_paused = true;
+    }
+    pub fn resume(&mut self) {
+        self.is_paused = false;
+    }
+    pub fn elapsed_secs(&self) -> f32 {
+        self.timer.elapsed_secs()
+    }
+    pub fn current(&self) -> TimeStamp {
+        TimeStamp::wrapped(self.timer.elapsed_secs())
+    }
+}
