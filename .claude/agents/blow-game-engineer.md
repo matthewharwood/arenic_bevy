@@ -149,7 +149,10 @@ Rendered/Used (via Change Detection)
 
 ### E) Scheduling & Order
 
-* **SystemSet templates**: e.g., `PlaybackSet: SyncTime → ReplayMovement → ReplayAbilities → Visuals`.
+* **SystemSet templates**: Group systems into logical phases with clear dependencies. Common patterns:
+    * `Read → Process → Write` (for data transformation)
+    * `Collect → Validate → Apply` (for user input)
+    * `Calculate → Resolve → Present` (for game state) Name sets by what they accomplish, not how.
 * **Run conditions**: prefer `.run_if(...)` (e.g., not paused) over early returns.
 * **<50-line systems**; chain/label explicitly; sets named by behavior.
 

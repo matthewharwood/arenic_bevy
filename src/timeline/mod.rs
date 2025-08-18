@@ -300,3 +300,11 @@ impl TimelineClock {
         TimeStamp::wrapped(self.timer.elapsed_secs())
     }
 }
+
+pub struct TimelinePosition(pub TimeStamp);
+
+impl TimelinePosition {
+    pub fn sync_with_clock(&mut self, clock: &TimelineClock) {
+        self.0 = clock.current();
+    }
+}
