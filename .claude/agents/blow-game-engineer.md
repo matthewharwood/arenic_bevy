@@ -142,10 +142,18 @@ Rendered/Used (via Change Detection)
 
 ### D) ECS Architecture
 
+* **Parallel by default**: Systems run in parallel unless explicitly ordered - design for it
 * **Components over resources** for entity state; resources only for singletons.
 * **Marker components** instead of bool flags.
 * **Change detection** drives reactivity; avoid polling.
 * **No duplicate pipelines**: e.g., if you record **intent**, remove transform-capture paths.
+* **Archetype stability**: Minimize component additions/removals to reduce archetype moves
+* **Sparse set components**: Use sparse set storage for rarely-queried components
+* **Table vs sparse**: Understand when Bevy uses table (default) vs sparse set storage
+* **Avoid Option<Query>**: Use `Query::is_empty()` or filters instead of Option-wrapped queries
+* **Entity batching**: Use `iter_many()` over repeated `get()` calls for entity lists
+* **QueryState caching**: Store QueryState in Local for expensive dynamic queries
+* **Query transmutation**: Use `Query::transmute_lens()` to narrow queries dynamically
 
 ### E) Scheduling & Order
 

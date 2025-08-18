@@ -29,6 +29,7 @@ Create `src/visual_feedback/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
+use bevy::time::Virtual;
 use bevy::color::palettes::css::WHITE;
 use std::collections::{VecDeque, HashMap};
 use crate::recording::{RecordingState, RecordingMode, RecordingCountdown};
@@ -324,13 +325,13 @@ pub fn render_ghost_trails(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut ghost_q: Query<(Entity, &mut GhostTrail, &GhostVisuals)>,
     mut trail_q: Query<(Entity, &mut TrailSegment, &mut Transform, &Handle<StandardMaterial>)>,
-    time: Res<Time>,
+    virtual_time: Res<Time<Virtual>>,
 ) {
-    let current_time = time.elapsed_secs();
+    let current_time = virtual_time.elapsed_secs();
 
     // Update existing trail segments
     for (entity, mut segment, mut transform, material_handle) in trail_q.iter_mut() {
-        segment.age += time.delta_secs();
+        segment.age += virtual_time.delta_secs();
         let alpha = (1.0 - segment.age).max(0.0);
 
         // PR Gate: Mutate existing material instead of creating new ones
@@ -552,10 +553,10 @@ struct FlashEffect {
 pub fn update_flash_effects(
     mut commands: Commands,
     mut flash_q: Query<(Entity, &mut FlashEffect, &mut Transform)>,
-    time: Res<Time>,
+    virtual_time: Res<Time<Virtual>>,
 ) {
     for (entity, mut flash, mut transform) in flash_q.iter_mut() {
-        flash.lifetime -= time.delta_secs();
+        flash.lifetime -= virtual_time.delta_secs();
 
         if flash.lifetime <= 0.0 {
             commands.entity(entity).despawn();

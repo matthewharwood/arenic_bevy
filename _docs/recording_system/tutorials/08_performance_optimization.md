@@ -29,6 +29,7 @@ Create `src/optimization/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
+use bevy::time::Virtual;
 use crate::timeline::{TimelineEvent, EventType, PublishTimeline, DraftTimeline};
 
 /// Settings for timeline compression
@@ -701,9 +702,9 @@ impl Plugin for OptimizationPlugin {
 
             // Systems - Batch processing
             .add_systems(Update, batch_process_ghosts
-                .run_if(|time: Res<Time>, pause: Res<GlobalTimelinePause>| {
+                .run_if(|virtual_time: Res<Time<Virtual>>, pause: Res<GlobalTimelinePause>| {
                     // PR Gate: Don't run batch processing when paused
-                    !pause.is_paused && time.delta_secs() as u32 % 2 == 0
+                    !pause.is_paused && virtual_time.delta_secs() as u32 % 2 == 0
                 })
             )
 

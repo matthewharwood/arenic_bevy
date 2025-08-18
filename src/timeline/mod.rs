@@ -1,6 +1,9 @@
+use crate::arena::CurrentArena;
+use bevy::ecs::change_detection::DetectChanges;
+use bevy::log::trace;
 use bevy::math::IVec2;
-use bevy::prelude::{Component, Entity};
-use bevy::time::{Timer, TimerMode};
+use bevy::prelude::*;
+use bevy::time::{Time, Timer, TimerMode, Virtual};
 use std::convert::identity;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
@@ -306,5 +309,98 @@ pub struct TimelinePosition(pub TimeStamp);
 impl TimelinePosition {
     pub fn sync_with_clock(&mut self, clock: &TimelineClock) {
         self.0 = clock.current();
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PauseReason {
+    DialogOpen,
+    SystemMenu,
+    LoadingTransition,
+}
+#[derive(Resource, Default)]
+pub struct GlobalTimelinePause {
+    pub is_paused: bool,
+    pub pause_reason: Option<PauseReason>,
+}
+
+impl GlobalTimelinePause {
+    pub fn pause(&mut self, reason: PauseReason) {
+        self.is_paused = true;
+        self.pause_reason = Some(reason);
+    }
+
+    pub fn resume(&mut self) {
+        self.is_paused = false;
+        self.pause_reason = None;
+    }
+}
+
+pub fn update_timeline_clocks(
+    // Use Time<Virtual> which automatically handles pause states
+    virtual_time: Res<Time<Virtual>>,
+    mut arena_q: Query<(&ArenaIdx, &mut TimelineClock)>,
+) {
+    // Virtual time's delta is already pause-aware - no need to check GlobalTimelinePause
+    let delta = virtual_time.delta();
+
+    for (_arena, mut clock) in arena_q.iter_mut() {
+        clock.tick(delta);
+    }
+}
+/// Control virtual time based on the GlobalTimelinePause state
+pub fn control_virtual_time_pause(
+    global_pause: Res<GlobalTimelinePause>,
+    mut virtual_time: ResMut<Time<Virtual>>,
+) {
+    // Only update when pause state changes to avoid unnecessary mutations
+    if global_pause.is_changed() {
+        if global_pause.is_paused {
+            virtual_time.pause();
+            trace!("Virtual time paused: {:?}", global_pause.pause_reason);
+        } else {
+            virtual_time.unpause();
+            trace!("Virtual time resumed");
+        }
+    }
+}
+
+/// System to display current clock values (for debugging)
+pub fn debug_timeline_clocks(
+    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    current_arena_q: Query<&CurrentArena>,
+) {
+    // Get the current arena entity
+    let Ok(current_arena) = current_arena_q.single() else {
+        return;
+    };
+
+    // Use let-else for early return pattern - more idiomatic Rust
+    let Some((arena, clock)) = arena_q
+        .iter()
+        .find(|(arena, _)| arena.as_u8() == current_arena.0)
+    else {
+        return;
+    };
+
+    // PR Gate: Using trace! for per-frame logs instead of info!
+    if (clock.elapsed_secs() % 1.0) < 0.02 {
+        trace!("{}: {:.1}s", arena, clock.elapsed_secs());
+    }
+}
+
+pub struct TimelinePlugin;
+
+impl Plugin for TimelinePlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<GlobalTimelinePause>().add_systems(
+            Update,
+            (
+                control_virtual_time_pause,
+                update_timeline_clocks,
+                debug_timeline_clocks,
+            )
+                .chain(),
+        );
     }
 }

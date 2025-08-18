@@ -30,6 +30,7 @@ use crate::lights::spawn_lights;
 use crate::materials::Materials;
 use crate::selectors::Active;
 
+use crate::timeline::{TimelineClock, TimelinePlugin};
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
@@ -84,6 +85,7 @@ fn main() {
                 update_holy_nova_vfx,
             ),
         )
+        .add_plugins(TimelinePlugin)
         .run();
 }
 
@@ -126,6 +128,7 @@ fn setup_scene(
                         Transform::from_xyz(offset_x, offset_y, 0.0),
                         Arena(arena_index),
                         InheritedVisibility::default(),
+                        TimelineClock::default(),
                         class_type,
                         Name::new(arena_name),
                         LastActiveHero(None),

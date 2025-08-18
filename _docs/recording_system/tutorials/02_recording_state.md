@@ -29,6 +29,7 @@ Create `src/recording/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
+use bevy::time::Virtual;
 use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, ArenaIdx, GridPos, AbilityId, TimelineClock};
 use crate::character::Character;
 use crate::selectors::Active;
@@ -372,7 +373,7 @@ Add to `src/recording/mod.rs`:
 /// Update recording countdown and transition to recording mode
 pub fn update_recording_countdown(
     mut commands: Commands,
-    time: Res<Time>,
+    virtual_time: Res<Time<Virtual>>,
     recording_state: Res<RecordingState>,
     mut countdown_q: Query<(Entity, &mut RecordingCountdown)>,
     mut transition_events: EventWriter<RecordingTransition>,
@@ -382,7 +383,7 @@ pub fn update_recording_countdown(
         return;
     }
 
-    let delta = time.delta_secs();
+    let delta = virtual_time.delta_secs();
 
     for (entity, mut countdown) in countdown_q.iter_mut() {
         let prev_display = countdown.get_display_number();
@@ -760,6 +761,7 @@ With the event-driven recording state machine complete, we can now:
 3. **Const Keymaps**: Centralized key definitions prevent magic values
 4. **Explicit Constructors**: ArenaIdx::new() instead of raw u8 conversion
 5. **Transition Tracing**: Every state change is logged with reason
+6. **Virtual Time**: Uses Time<Virtual> for pause-safe countdown timers
 
 ## Production Notes
 

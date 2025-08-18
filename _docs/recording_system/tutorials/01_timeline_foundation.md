@@ -28,7 +28,9 @@ Create a new file `src/timeline/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
+use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
+use bevy::time::Virtual;
 use std::fmt;
 use std::convert::identity;
 
@@ -352,12 +354,13 @@ Add to `src/timeline/mod.rs`:
 
 ```rust
 /// Clock for 2-minute arena cycles
-/// PR Gate: Using TimeStamp + Duration (wrapped in TimeStamp newtype) for type safety
+/// PR Gate: Using bevy::time::Timer for proper time handling
+/// Virtual time integration ensures pause-safe operation
 #[derive(Component)]
 pub struct TimelineClock {
-    /// PR Gate: bevy::time::Timer used internally for proper time handling
+    /// Internal timer that processes virtual time deltas
     pub timer: bevy::time::Timer,
-    pub is_paused: bool,
+    pub is_paused: bool,  // Local pause state (separate from global)
 }
 
 impl Default for TimelineClock {
@@ -376,7 +379,6 @@ impl Default for TimelineClock {
 impl TimelineClock {
     pub fn tick(&mut self, delta: std::time::Duration) {
         if !self.is_paused {
-            // PR Gate: Using bevy::time::Timer::tick
             self.timer.tick(delta);
         }
     }
@@ -389,19 +391,10 @@ impl TimelineClock {
     pub fn reset(&mut self) {
         self.timer.reset();
     }
-
-    pub fn pause(&mut self) {
-        self.is_paused = true;
-    }
-
-    pub fn resume(&mut self) {
-        self.is_paused = false;
-    }
     
     pub fn elapsed_secs(&self) -> f32 {
         self.timer.elapsed_secs()
     }
-    
     
     pub fn current(&self) -> TimeStamp {
         TimeStamp::wrapped(self.timer.elapsed_secs())
@@ -450,30 +443,48 @@ impl GlobalTimelinePause {
     }
 }
 
-/// System to update all arena clocks
-/// PR Gate: Respecting GlobalTimelinePause for all timeline operations
+/// System to update all arena clocks using virtual time
+/// Virtual time automatically handles pause states - no time jumps!
 pub fn update_timeline_clocks(
-    time: Res<Time>,
-    global_pause: Res<GlobalTimelinePause>,
+    // Use Time<Virtual> which pauses/resumes without time jumps
+    virtual_time: Res<Time<Virtual>>,
     mut arena_q: Query<(&ArenaIdx, &mut TimelineClock)>,
 ) {
-    // PR Gate: Respecting GlobalTimelinePause
-    if global_pause.is_paused {
-        return;
-    }
-    
-    let delta = time.delta();
+    // Virtual time's delta is already pause-aware
+    let delta = virtual_time.delta();
 
     for (_arena, mut clock) in arena_q.iter_mut() {
         clock.tick(delta);
     }
 }
 
+/// Control virtual time based on GlobalTimelinePause state
+pub fn control_virtual_time_pause(
+    global_pause: Res<GlobalTimelinePause>,
+    mut virtual_time: ResMut<Time<Virtual>>,
+) {
+    // Only update when pause state changes
+    if global_pause.is_changed() {
+        if global_pause.is_paused {
+            virtual_time.pause();
+            trace!("Virtual time paused: {:?}", global_pause.pause_reason);
+        } else {
+            virtual_time.unpause();
+            trace!("Virtual time resumed");
+        }
+    }
+}
+
 /// System to display current clock values (for debugging)
 pub fn debug_timeline_clocks(
     arena_q: Query<(&ArenaIdx, &TimelineClock)>,
-    current_arena: Res<CurrentArena>,
+    current_arena_q: Query<&CurrentArena>,  // CurrentArena is a Component, not Resource
 ) {
+    // Get the current arena entity
+    let Ok(current_arena) = current_arena_q.single() else {
+        return;
+    };
+    
     // Use let-else for early return pattern - more idiomatic Rust
     let Some((arena, clock)) = arena_q
         .iter()
@@ -503,9 +514,11 @@ impl Plugin for TimelinePlugin {
         app
             .init_resource::<GlobalTimelinePause>()
             .add_systems(Update, (
+                // Control virtual time pause state BEFORE updating clocks
+                control_virtual_time_pause,
                 update_timeline_clocks,
                 debug_timeline_clocks,
-            ).chain());
+            ).chain());  // chain() ensures sequential execution
     }
 }
 ```
@@ -749,6 +762,7 @@ With the timeline foundation in place, we can now:
 6. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
 7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
 8. **partition_point over binary_search_by**: More idiomatic boundary finding with clearer intent and simpler logic
+9. **Virtual Time for Pause Safety**: Time<Virtual> prevents time jumps when pausing/unpausing
 
 ## Production Notes
 

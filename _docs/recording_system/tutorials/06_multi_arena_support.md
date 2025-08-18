@@ -28,6 +28,7 @@ Create `src/multi_arena/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
+use bevy::time::Virtual;
 use bevy::utils::HashMap;  // Use Bevy's HashMap for better performance
 use crate::timeline::{ArenaIdx, TimelineClock, PublishTimeline, TimelinePosition, TimeStamp};
 use crate::arena::CurrentArena;
@@ -223,17 +224,17 @@ pub enum TimerSyncMode {
 
 /// Update arena timers based on sync mode
 pub fn update_arena_timers_with_sync(
-    time: Res<Time>,
+    virtual_time: Res<Time<Virtual>>,
     sync: Res<ArenaTimerSync>,
     mut arena_q: Query<(&Arena, &mut TimelineClock)>,
 ) {
-    let delta = time.delta_secs();
+    let delta = virtual_time.delta_secs();
 
     match sync.mode {
         TimerSyncMode::Independent => {
             // Each arena updates independently
             for (_, mut clock) in arena_q.iter_mut() {
-                clock.tick(delta);
+                clock.tick_secs(delta);
             }
         }
         TimerSyncMode::Synchronized => {
