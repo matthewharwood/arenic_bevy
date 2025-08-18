@@ -309,12 +309,7 @@ impl PublishTimeline {
     pub fn slice(&self, start: usize, end: usize) -> &[TimelineEvent] {
         &self.events[start.min(self.events.len())..end.min(self.events.len())]
     }
-}
 
-/// Interpolation helpers for timeline playback
-pub mod interpolation {
-    use super::*;
-    
     /// Get movement intent at a specific timestamp using partition_point for optimal boundary finding
     /// Returns the most recent movement event before or at the timestamp
     /// 
@@ -324,13 +319,13 @@ pub mod interpolation {
     /// - **More Idiomatic**: Specifically designed for finding boundaries in sorted sequences
     /// - **Same Performance**: O(log n) complexity but cleaner implementation
     #[must_use]
-    pub fn get_movement_intent_at(timeline: &PublishTimeline, timestamp: TimeStamp) -> Option<GridPos> {
+    pub fn get_movement_intent_at(&self, timestamp: TimeStamp) -> Option<GridPos> {
         // partition_point finds first index where timestamp > target, so work backwards from there
         // This directly gives us the boundary we want without complex Ok/Err handling
-        let mut i = timeline.events.partition_point(|e| e.timestamp <= timestamp);
+        let mut i = self.events.partition_point(|e| e.timestamp <= timestamp);
         while i > 0 {
             i -= 1; // Move to last index with ts ≤ timestamp
-            if let EventType::Movement(pos) = timeline.events[i].event_type {
+            if let EventType::Movement(pos) = self.events[i].event_type {
                 return Some(pos);
             }
         }
@@ -338,14 +333,14 @@ pub mod interpolation {
     }
     
     /// Get abilities within a time window
-    /// Uses events_in_range internally
+    /// Returns an iterator over events that contain abilities within the specified range
     #[must_use]
     pub fn abilities_in_window(
-        timeline: &PublishTimeline, 
+        &self,
         start: TimeStamp, 
         end: TimeStamp
     ) -> impl Iterator<Item=&TimelineEvent> + '_ {
-        timeline.events_in_range(start, end)
+        self.events_in_range(start, end)
             .filter(|e| matches!(e.event_type, EventType::Ability(_, _)))
     }
 }

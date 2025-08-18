@@ -164,7 +164,7 @@ pub fn clear_recording_timeline(
 Add to `src/playback/mod.rs`:
 
 ```rust
-use crate::timeline::interpolation::get_movement_intent_at;  // Uses partition_point for cleaner boundary finding
+// No need to import - get_movement_intent_at is now a method on PublishTimeline
 
 /// Component to track previous movement state for interpolation
 #[derive(Component)]
@@ -210,7 +210,7 @@ pub fn playback_ghost_movement(
         position.0 = current_time;
 
         // Get movement intent at current timestamp
-        if let Some(move_intent) = get_movement_intent_at(timeline, current_time) {
+        if let Some(move_intent) = timeline.get_movement_intent_at(current_time) {
             // Convert grid position to world position (deterministic)
             let target_world_pos = Vec3::new(
                 move_intent.x() as f32 * 1.0,  // Grid unit size
@@ -283,7 +283,7 @@ pub fn loop_ghost_timelines(
 Add to `src/playback/mod.rs`:
 
 ```rust
-use crate::timeline::interpolation::abilities_in_window;
+// No need to import - abilities_in_window is now a method on PublishTimeline
 
 /// Event sent when a ghost triggers an ability
 #[derive(Event)]

@@ -232,18 +232,29 @@ impl PublishTimeline {
     /// Uses partition_point which directly finds where the predicate changes from true to false,
     /// making the logic clearer than binary_search_by with its Ok/Err handling
     #[must_use]
-    pub fn get_movement_intent_at(tl: &PublishTimeline, t: TimeStamp) -> Option<GridPos> {
+    pub fn get_movement_intent_at(&self, timestamp: TimeStamp) -> Option<GridPos> {
         // partition_point finds first index where timestamp > t, so we work backwards from there
         // This is more idiomatic than binary_search_by for finding boundaries in sorted sequences
-        let mut i = tl.events.partition_point(|e| e.timestamp <= t);
+        let mut i = self.events.partition_point(|e| e.timestamp <= timestamp);
         while i > 0 {
-            i -= 1; // Move to last index with ts ≤ t
-            if let EventType::Movement(pos) = tl.events[i].event_type {
+            i -= 1; // Move to last index with ts ≤ timestamp
+            if let EventType::Movement(pos) = self.events[i].event_type {
                 return Some(pos);
             }
         }
         None
     }
+
+    /// Get abilities within a time window
+    /// Returns an iterator over events that contain abilities within the specified range
+    #[must_use]
+    pub fn abilities_in_window(
+        &self,
+        start: TimeStamp,
+        end: TimeStamp,
+    ) -> impl Iterator<Item = &TimelineEvent> + '_ {
+        self.events_in_range(start, end)
+            .filter(|e| matches!(e.event_type, EventType::Ability(_, _)))
+    }
 }
 
-pub mod interpolation {}
