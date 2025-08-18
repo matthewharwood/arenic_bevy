@@ -46,7 +46,7 @@ Create `src/recording/capture.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{DraftTimeline, TimelineEvent, EventType, AbilityId, TimeStamp, GridPos, Target, TimelineClock, ArenaIdx};
+use crate::timeline::{DraftTimeline, TimelineEvent, EventType, AbilityId, TimeStamp, GridPos, Target, TimelineClock, Arena};
 use crate::recording::{Recording, RecordingMode, RecordingState};
 use crate::arena::CurrentArena;
 use crate::character::Character;
@@ -73,7 +73,7 @@ pub fn capture_movement_intent(
     recording_state: Res<RecordingState>,
     current_arena: Res<CurrentArena>,
     mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
 ) {
     // Tutorial Note: We use a simple early return check here for clarity.
     // The lead suggested .run_if(not_paused) but for juniors learning,
@@ -95,8 +95,8 @@ pub fn capture_movement_intent(
         return;
     }
 
-    // Use explicit ArenaIdx::new() constructor
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    // Use explicit Arena::new() constructor
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
 
@@ -164,7 +164,7 @@ pub fn optimize_movement_recording(
     recording_state: Res<RecordingState>,
     current_arena: Res<CurrentArena>,
     mut recording_q: Query<(Entity, &mut DraftTimeline, Option<&mut LastRecordedMovement>), With<Recording>>,
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
     mut commands: Commands,
 ) {
     // PR Gate: Respecting GlobalTimelinePause
@@ -179,8 +179,8 @@ pub fn optimize_movement_recording(
 
     let movement_dir = get_movement_direction(&keyboard);
 
-    // Use explicit ArenaIdx::new() constructor
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    // Use explicit Arena::new() constructor
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
 
@@ -242,7 +242,7 @@ pub fn capture_ability_intent(
     recording_state: Res<RecordingState>,
     current_arena: Res<CurrentArena>,
     mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
     mouse_button: Res<ButtonInput<MouseButton>>,
     cursor_ray: Option<Res<CursorRay>>,
 ) {
@@ -266,8 +266,8 @@ pub fn capture_ability_intent(
         return;
     };
 
-    // Use explicit ArenaIdx::new() constructor
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    // Use explicit Arena::new() constructor
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
 
@@ -756,8 +756,8 @@ With intent capture complete, we can now:
 1. **Record Intent, Not Results**: Capture WASD keys, not Transform positions
 2. **Const Keymaps**: All inputs defined in one place for maintainability
 3. **Timeline Optimization**: Remove redundant events while preserving important changes
-4. **Explicit Constructors**: GridPos::new(), ArenaIdx::new() as primary API
-5. **Type Safety**: GridPos and ArenaIdx prevent invalid data
+4. **Explicit Constructors**: GridPos::new(), Arena::new() as primary API
+5. **Type Safety**: GridPos and Arena prevent invalid data
 
 ## Production Notes
 

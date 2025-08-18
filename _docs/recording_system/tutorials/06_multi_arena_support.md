@@ -30,7 +30,7 @@ Create `src/multi_arena/mod.rs`:
 use bevy::prelude::*;
 use bevy::time::Virtual;
 use bevy::utils::HashMap;  // Use Bevy's HashMap for better performance
-use crate::timeline::{ArenaIdx, TimelineClock, PublishTimeline, TimelinePosition, TimeStamp};
+use crate::timeline::{Arena, TimelineClock, PublishTimeline, TimelinePosition, TimeStamp};
 use crate::arena::CurrentArena;
 use crate::playback::{Ghost, Replaying};
 use crate::character::Character;
@@ -39,24 +39,24 @@ use crate::character::Character;
 #[derive(Resource, Default)]
 pub struct ArenaGhostRegistry {
     /// Map from arena index to list of ghost entities
-    pub ghosts_by_arena: HashMap<ArenaIdx, Vec<Entity>>,
+    pub ghosts_by_arena: HashMap<Arena, Vec<Entity>>,
 }
 
 impl ArenaGhostRegistry {
-    pub fn register_ghost(&mut self, arena: ArenaIdx, ghost: Entity) {
+    pub fn register_ghost(&mut self, arena: Arena, ghost: Entity) {
         self.ghosts_by_arena
             .entry(arena)
             .or_insert_with(Vec::new)
             .push(ghost);
     }
 
-    pub fn unregister_ghost(&mut self, arena: ArenaIdx, ghost: Entity) {
+    pub fn unregister_ghost(&mut self, arena: Arena, ghost: Entity) {
         if let Some(ghosts) = self.ghosts_by_arena.get_mut(&arena) {
             ghosts.retain(|&e| e != ghost);
         }
     }
 
-    pub fn get_arena_ghosts(&self, arena: ArenaIdx) -> &[Entity] {
+    pub fn get_arena_ghosts(&self, arena: Arena) -> &[Entity] {
         self.ghosts_by_arena
             .get(&arena)
             .map(|v| v.as_slice())
@@ -70,13 +70,13 @@ impl ArenaGhostRegistry {
 
 /// Component to track which arena a ghost belongs to
 #[derive(Component)]
-pub struct GhostArena(pub ArenaIdx);
+pub struct GhostArena(pub Arena);
 
 /// System to register new ghosts in the registry
 pub fn register_new_ghosts(
     mut registry: ResMut<ArenaGhostRegistry>,
     new_ghosts: Query<(Entity, &Parent), Added<Ghost>>,
-    arena_q: Query<&ArenaIdx>,
+    arena_q: Query<&Arena>,
 ) {
     for (ghost_entity, parent) in new_ghosts.iter() {
         // Find which arena this ghost belongs to
@@ -117,7 +117,7 @@ pub fn playback_arena_ghosts(
     arena_q: Query<(&Arena, &TimelineClock)>,
 ) {
     // Process current arena at full fidelity
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
     
@@ -287,7 +287,7 @@ pub fn check_ghost_limits(
     current_arena: Res<CurrentArena>,
 ) {
     let total = registry.total_ghost_count();
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
     let current_arena_count = registry
@@ -348,7 +348,7 @@ pub fn update_ghost_lod(
     ghost_q: Query<(Entity, &Parent), With<Ghost>>,
     arena_q: Query<&Arena>,
 ) {
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
 
@@ -701,7 +701,7 @@ With multi-arena support complete, we can now:
 1. **Arena Registry**: Efficient tracking of ghosts per arena
 2. **LOD System**: Reduced fidelity for distant arenas saves performance
 3. **Batch Processing**: Group operations by arena for cache efficiency
-4. **Explicit Constructors**: ArenaIdx::new() validation in multi-arena logic
+4. **Explicit Constructors**: Arena::new() validation in multi-arena logic
 5. **Resource Limits**: Prevent performance degradation from too many ghosts
 
 Multi-arena support is crucial for the full game experience. By optimizing updates based on arena distance and batching

@@ -4,11 +4,40 @@ use crate::character::Character;
 use crate::materials::Materials;
 use crate::selectors::Active;
 use bevy::prelude::*;
+use std::fmt::{Display, Formatter, Result as FmtResult};
 
-/// Marker component identifying an arena entity in the world.
-/// Each arena entity should have this component along with ArenaId.
-#[derive(Component, Debug)]
+/// Newtype for arena indices (0-8)
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Arena(pub u8);
+
+impl Arena {
+    const MAX_ARENAS: u8 = 9;
+    
+    /// Creates new Arena if value is valid (0-8)
+    #[must_use]
+    pub fn new(idx: u8) -> Option<Self> {
+        (idx < Self::MAX_ARENAS).then(|| Self(idx))
+    }
+
+    #[must_use]
+    pub fn as_u8(&self) -> u8 {
+        self.0
+    }
+}
+
+impl TryFrom<u8> for Arena {
+    type Error = &'static str;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        Self::new(value).ok_or("Arena out of bounds")
+    }
+}
+
+impl Display for Arena {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "Arena {}", self.0)
+    }
+}
 
 /// Marker component for arena tile entities.
 #[derive(Component, Debug)]

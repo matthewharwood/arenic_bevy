@@ -456,8 +456,8 @@ pub fn process_dialog_choices(
             }
             DialogChoice::Retry => {
                 if let Some(entity) = event.recording_entity {
-                    // Use explicit ArenaIdx::new() constructor for retry
-                    let Some(arena_idx) = ArenaIdx::new(current_arena.0) else {
+                    // Use explicit Arena::new() constructor for retry
+                    let Some(arena_idx) = Arena::new(current_arena.0) else {
                         warn!("Invalid arena index for retry: {}", current_arena.0);
                         return;
                     };
@@ -770,7 +770,7 @@ With dialogs complete, we can now:
 1. **Modal UI**: Dialogs pause all gameplay for important decisions
 2. **Context-Aware**: Different dialog types for different situations
 3. **Keyboard Support**: Quick keyboard shortcuts for efficiency
-4. **Explicit Constructors**: ArenaIdx::new() validation in retry logic
+4. **Explicit Constructors**: Arena::new() validation in retry logic
 5. **Clean Transitions**: Proper cleanup when dialogs close
 
 The dialog system provides crucial player control over the recording process. By pausing all timelines during dialogs,

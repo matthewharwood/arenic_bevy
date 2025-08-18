@@ -18,7 +18,7 @@
 
 After Jon's production-focused review, these patterns have been refined:
 
-- **Type-Safe Newtypes**: `TimeStamp`, `ArenaIdx`, `GridPos` with From/Display traits
+- **Type-Safe Newtypes**: `TimeStamp`, `Arena`, `GridPos` with From/Display traits
 - **Arc<[T]> for Published Data**: Immutable timelines with zero-cost cloning
 - **Intent Recording Only**: Record WASD keys, never Transform changes
 - **Event-Driven Transitions**: `RecordingTransition`, `DialogTransition` for traceability

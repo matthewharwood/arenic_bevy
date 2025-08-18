@@ -33,7 +33,7 @@ use bevy::time::Virtual;
 use bevy::color::palettes::css::WHITE;
 use std::collections::{VecDeque, HashMap};
 use crate::recording::{RecordingState, RecordingMode, RecordingCountdown};
-use crate::timeline::{ArenaIdx, TimelineClock};
+use crate::timeline::{Arena, TimelineClock};
 use crate::arena::CurrentArena;
 
 /// Component for recording indicator UI
@@ -139,12 +139,12 @@ pub fn update_recording_state_text(
 /// Update timeline progress bar
 /// APPROVED: Timeline bar reads TimelineClock not Time
 pub fn update_timeline_progress(
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
     current_arena: Res<CurrentArena>,
     mut progress_q: Query<&mut Node, With<TimelineProgressBar>>,
 ) {
-    // Use explicit ArenaIdx::new() constructor
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    // Use explicit Arena::new() constructor
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
     
@@ -658,7 +658,7 @@ pub fn update_arena_status_display(
         let ghost_count = stats.ghost_counts.get(&arena_idx).unwrap_or(&0);
         let recording_count = stats.recording_counts.get(&arena_idx).unwrap_or(&0);
 
-        let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+        let Some(current_idx) = Arena::new(current_arena.0) else {
             return;
         };
         
@@ -902,7 +902,7 @@ With visual polish complete, we can now:
 1. **Clear State Communication**: Visual indicators for all states
 2. **Immediate Feedback**: Flash effects and audio for actions
 3. **Persistent Information**: UI panels for ongoing status
-4. **Explicit Constructors**: ArenaIdx::new() validation in UI display logic
+4. **Explicit Constructors**: Arena::new() validation in UI display logic
 5. **Performance Conscious**: Trail effects with automatic cleanup
 
 Visual feedback transforms the recording system from functional to delightful. Clear indicators help players understand

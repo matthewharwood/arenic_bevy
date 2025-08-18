@@ -118,7 +118,7 @@ Rendered/Used (via Change Detection)
 
 ### B) Naming & Types
 
-* **Newtypes for primitives** (type safety): e.g., `ArenaIdx(u8)`, `GridPos(IVec2)`, `AbilityId(u8)`.
+* **Newtypes for primitives** (type safety): e.g., `Arena(u8)`, `GridPos(IVec2)`, `AbilityId(u8)`.
 * **No stringly logic**: use enums for reasons/status; add `#[non_exhaustive]` where you expect growth.
 * **Ergonomic read-only types**: for timeline-like storage, add `Deref<Target=[…]>`, `len()`, `is_empty()`, and
   `#[must_use]` helpers.

@@ -1,4 +1,4 @@
-use crate::arena::CurrentArena;
+use crate::arena::{Arena, CurrentArena};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
 use bevy::math::IVec2;
@@ -94,37 +94,6 @@ impl Display for AbilityId {
     }
 }
 
-/// Newtype for arena indices (0-8)
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Component)]
-pub struct ArenaIdx(pub u8);
-
-impl ArenaIdx {
-    const MAX_ARENAS: u8 = 9;
-    /// Creates new ArenaIdx if value is valid (0-8)
-    #[must_use]
-    pub fn new(idx: u8) -> Option<Self> {
-        (idx < Self::MAX_ARENAS).then(|| Self(idx))
-    }
-
-    #[must_use]
-    pub fn as_u8(&self) -> u8 {
-        self.0
-    }
-}
-
-/// Not really needed vs. a Constructor version above
-impl TryFrom<u8> for ArenaIdx {
-    type Error = &'static str;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Self::new(value).ok_or("ArenaIdx out of bounds")
-    }
-}
-impl Display for ArenaIdx {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "Arena {}", self.0)
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
 pub struct GridPos(pub IVec2);
@@ -339,7 +308,7 @@ impl GlobalTimelinePause {
 pub fn update_timeline_clocks(
     // Use Time<Virtual> which automatically handles pause states
     virtual_time: Res<Time<Virtual>>,
-    mut arena_q: Query<(&ArenaIdx, &mut TimelineClock)>,
+    mut arena_q: Query<(&Arena, &mut TimelineClock)>,
 ) {
     // Virtual time's delta is already pause-aware - no need to check GlobalTimelinePause
     let delta = virtual_time.delta();
@@ -367,7 +336,7 @@ pub fn control_virtual_time_pause(
 
 /// System to display current clock values (for debugging)
 pub fn debug_timeline_clocks(
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
     current_arena_q: Query<&CurrentArena>,
 ) {
     // Get the current arena entity

@@ -142,10 +142,10 @@ impl fmt::Display for AbilityId {
 
 /// Newtype for arena indices (0-8)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Component)]
-pub struct ArenaIdx(pub u8);
+pub struct Arena(pub u8);
 
-impl ArenaIdx {
-    /// Creates new ArenaIdx if value is valid (0-8)
+impl Arena {
+    /// Creates new Arena if value is valid (0-8)
     #[must_use]
     pub fn new(idx: u8) -> Option<Self> {
         (idx < 9).then(|| Self(idx))
@@ -157,7 +157,7 @@ impl ArenaIdx {
     }
 }
 
-impl TryFrom<u8> for ArenaIdx {
+impl TryFrom<u8> for Arena {
     type Error = &'static str;
     
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -165,7 +165,7 @@ impl TryFrom<u8> for ArenaIdx {
     }
 }
 
-impl fmt::Display for ArenaIdx {
+impl fmt::Display for Arena {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Arena {}", self.0)
     }
@@ -448,7 +448,7 @@ impl GlobalTimelinePause {
 pub fn update_timeline_clocks(
     // Use Time<Virtual> which pauses/resumes without time jumps
     virtual_time: Res<Time<Virtual>>,
-    mut arena_q: Query<(&ArenaIdx, &mut TimelineClock)>,
+    mut arena_q: Query<(&Arena, &mut TimelineClock)>,
 ) {
     // Virtual time's delta is already pause-aware
     let delta = virtual_time.delta();
@@ -477,7 +477,7 @@ pub fn control_virtual_time_pause(
 
 /// System to display current clock values (for debugging)
 pub fn debug_timeline_clocks(
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
     current_arena_q: Query<&CurrentArena>,  // CurrentArena is a Component, not Resource
 ) {
     // Get the current arena entity
@@ -542,7 +542,7 @@ Also update arena spawning in `setup_scene` to include timer:
 battleground
 .spawn((
 Transform::from_xyz(offset_x, offset_y, 0.0),
-ArenaIdx::new(arena_index).unwrap(),
+Arena::new(arena_index).unwrap(),
 TimelineClock::default(), // Add this line
 // InheritedVisibility is automatically added via required components
 class_type,
@@ -703,12 +703,12 @@ mod tests {
         // Test TimeStamp::ZERO constant
         assert_eq!(TimeStamp::ZERO.as_secs(), TimeStamp::ZERO.0);
         
-        // Test ArenaIdx::new() as primary constructor
-        let idx = ArenaIdx::new(3).unwrap();
+        // Test Arena::new() as primary constructor
+        let idx = Arena::new(3).unwrap();
         assert_eq!(idx.as_u8(), 3);
         assert_eq!(idx.to_string(), "Arena 3");
         
-        let err = ArenaIdx::new(10);
+        let err = Arena::new(10);
         assert!(err.is_none());
         
         // Test GridPos::new() as primary constructor
@@ -754,10 +754,10 @@ With the timeline foundation in place, we can now:
 
 ## Key Takeaways
 
-1. **Type-Safe Newtypes**: TimeStamp, ArenaIdx, GridPos provide compile-time safety
+1. **Type-Safe Newtypes**: TimeStamp, Arena, GridPos provide compile-time safety
 2. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
 3. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
-4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), ArenaIdx::new() as primary API
+4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), Arena::new() as primary API
 5. **Binary Search**: Efficient O(log n) operations on sorted timelines
 6. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
 7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent

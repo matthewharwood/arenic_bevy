@@ -30,7 +30,7 @@ Create `src/recording/mod.rs`:
 ```rust
 use bevy::prelude::*;
 use bevy::time::Virtual;
-use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, ArenaIdx, GridPos, AbilityId, TimelineClock};
+use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, Arena, GridPos, AbilityId, TimelineClock};
 use crate::character::Character;
 use crate::selectors::Active;
 
@@ -142,7 +142,7 @@ Add to `src/recording/mod.rs`:
 #[derive(Event)]
 pub struct StartRecording {
     pub character: Entity,
-    pub arena: ArenaIdx,
+    pub arena: Arena,
 }
 
 /// Event to stop recording (user interruption)
@@ -174,7 +174,7 @@ pub struct ClearRecording {
 /// Event to reset arena timeline to start
 #[derive(Event)]
 pub struct ResetArenaTimeline {
-    pub arena: ArenaIdx,
+    pub arena: Arena,
 }
 ```
 
@@ -215,8 +215,8 @@ pub fn detect_recording_input(
                 return;
             };
 
-            // Use explicit ArenaIdx::new() constructor
-            let Some(arena_idx) = ArenaIdx::new(current_arena.0) else {
+            // Use explicit Arena::new() constructor
+            let Some(arena_idx) = Arena::new(current_arena.0) else {
                 warn!("Invalid arena index: {}", current_arena.0);
                 return;
             };
@@ -348,10 +348,10 @@ pub fn initialize_recording(
 /// Reset arena timeline when requested
 pub fn reset_arena_timeline(
     mut reset_events: EventReader<ResetArenaTimeline>,
-    mut arena_q: Query<(&ArenaIdx, &mut TimelineClock)>,
+    mut arena_q: Query<(&Arena, &mut TimelineClock)>,
 ) {
     for event in reset_events.read() {
-        // Use iterator find with proper ArenaIdx comparison
+        // Use iterator find with proper Arena comparison
         let Some((_, mut clock)) = arena_q
             .iter_mut()
             .find(|(idx, _)| **idx == event.arena)
@@ -454,7 +454,7 @@ Add to `src/recording/mod.rs`:
 /// Check if recording time limit reached
 pub fn check_recording_time_limit(
     recording_state: Res<RecordingState>,
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
     current_arena: Res<CurrentArena>,
     mut stop_events: EventWriter<StopRecording>,
 ) {
@@ -463,8 +463,8 @@ pub fn check_recording_time_limit(
         return;
     }
 
-    // Use explicit ArenaIdx::new() constructor
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    // Use explicit Arena::new() constructor
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
 
@@ -759,7 +759,7 @@ With the event-driven recording state machine complete, we can now:
 1. **Event-Driven Transitions**: All state changes go through RecordingTransition events
 2. **Let-Else Pattern**: Cleaner early returns with proper error handling
 3. **Const Keymaps**: Centralized key definitions prevent magic values
-4. **Explicit Constructors**: ArenaIdx::new() instead of raw u8 conversion
+4. **Explicit Constructors**: Arena::new() instead of raw u8 conversion
 5. **Transition Tracing**: Every state change is logged with reason
 6. **Virtual Time**: Uses Time<Virtual> for pause-safe countdown timers
 
@@ -782,7 +782,7 @@ With the event-driven recording state machine complete, we can now:
 
 - **Event Transitions**: Debug any state issue by examining event history
 - **Let-Else**: Reduces cognitive load when reading system code
-- **Explicit Constructors**: ArenaIdx::new() makes the common case obvious and validates input
+- **Explicit Constructors**: Arena::new() makes the common case obvious and validates input
 - **Const Keymaps**: Change controls in one place, not scattered throughout
 
 This state machine ensures recording happens in a controlled, traceable manner. The event-driven transitions allow other

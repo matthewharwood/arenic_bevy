@@ -29,7 +29,7 @@ Create `src/playback/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{PublishTimeline, TimelinePosition, EventType, AbilityId, TimeStamp, TimelineClock, ArenaIdx};
+use crate::timeline::{PublishTimeline, TimelinePosition, EventType, AbilityId, TimeStamp, TimelineClock, Arena};
 use crate::recording::Ghost;
 use crate::character::Character;
 
@@ -65,7 +65,7 @@ pub struct GhostSource(pub Entity);
 
 /// Each ghost tracks its own arena for independent clocks
 #[derive(Component)]
-pub struct GhostArena(pub ArenaIdx);
+pub struct GhostArena(pub Arena);
 
 /// Visual properties for ghosts
 #[derive(Component)]
@@ -99,7 +99,7 @@ pub fn commit_recording_to_timeline(
     mut commands: Commands,
     mut commit_events: EventReader<CommitRecording>,
     draft_q: Query<(Entity, &DraftTimeline, &Parent), With<Recording>>,
-    arena_q: Query<&ArenaIdx>,
+    arena_q: Query<&Arena>,
 ) {
     for event in commit_events.read() {
         if let Ok((entity, draft, parent)) = draft_q.get(event.character) {
@@ -192,10 +192,10 @@ pub fn playback_ghost_movement(
         (&PublishTimeline, &mut TimelinePosition, &mut Transform, &GhostArena, &mut GhostMovementState),
         (With<Ghost>, With<Replaying>)
     >,
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
 ) {
     for (timeline, mut position, mut transform, ghost_arena, mut movement_state) in ghost_q.iter_mut() {
-        // PR Gate: Each ghost resolves time via Parent → ArenaIdx → TimelineClock
+        // PR Gate: Each ghost resolves time via Parent → Arena → TimelineClock
         // Each ghost uses its parent arena's clock, NOT CurrentArena
         let Some((_, clock)) = arena_q
             .iter()
@@ -256,7 +256,7 @@ pub fn playback_ghost_movement(
 /// Handle ghost timeline looping with wrap-around
 pub fn loop_ghost_timelines(
     mut ghost_q: Query<(&mut TimelinePosition, &GhostArena), With<Ghost>>,
-    arena_q: Query<(&ArenaIdx, &TimelineClock)>,
+    arena_q: Query<(&Arena, &TimelineClock)>,
 ) {
     for (mut position, ghost_arena) in ghost_q.iter_mut() {
         // PR Gate: Each ghost checks its own arena's clock independently
@@ -601,8 +601,8 @@ mod tests {
     #[test]
     fn test_ghost_arena_independence() {
         // Create two ghosts with different arenas using explicit constructors
-        let ghost_arena_0 = GhostArena(ArenaIdx::new(0).unwrap());
-        let ghost_arena_5 = GhostArena(ArenaIdx::new(5).unwrap());
+        let ghost_arena_0 = GhostArena(Arena::new(0).unwrap());
+        let ghost_arena_5 = GhostArena(Arena::new(5).unwrap());
         
         // Create different clocks for each arena
         let mut clock_0 = TimelineClock::default();
@@ -612,8 +612,8 @@ mod tests {
         
         // Verify ghosts track different times based on their arena
         assert_ne!(clock_0.current().as_secs(), clock_5.current().as_secs());
-        assert_eq!(ghost_arena_0.0, ArenaIdx::new(0).unwrap());
-        assert_eq!(ghost_arena_5.0, ArenaIdx::new(5).unwrap());
+        assert_eq!(ghost_arena_0.0, Arena::new(0).unwrap());
+        assert_eq!(ghost_arena_5.0, Arena::new(5).unwrap());
         
         // Each ghost will use its own arena's clock during playback
         // This ensures off-screen ghosts advance independently
@@ -720,7 +720,7 @@ With playback working, we can now:
 1. **Timeline Replay**: Interpolation creates smooth movement from keyframes
 2. **Ability Triggers**: Deterministic range-based detection using [prev, curr] slices prevents duplicate triggers
 3. **Visual Distinction**: Ghosts have transparency and glow effects
-4. **Explicit Constructors**: TimeStamp::new(), ArenaIdx::new() throughout playback code
+4. **Explicit Constructors**: TimeStamp::new(), Arena::new() throughout playback code
 5. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
 6. **Improved Timeline Queries**: get_movement_intent_at now uses partition_point for cleaner boundary finding
 

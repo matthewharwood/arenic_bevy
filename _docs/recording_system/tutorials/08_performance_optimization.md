@@ -386,8 +386,8 @@ pub fn adjust_ghost_update_frequency(
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
-            // Use explicit ArenaIdx::new() constructor for comparison
-            let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+            // Use explicit Arena::new() constructor for comparison
+            let Some(current_idx) = Arena::new(current_arena.0) else {
                 continue;
             };
             
@@ -430,7 +430,7 @@ pub fn frequency_limited_ghost_update(
     let current_time = time.elapsed_secs();
 
     // Process current arena ghosts first (high priority)
-    let Some(current_idx) = ArenaIdx::new(current_arena.0) else {
+    let Some(current_idx) = Arena::new(current_arena.0) else {
         return;
     };
     let current_ghosts = registry.get_arena_ghosts(current_idx);
@@ -860,7 +860,7 @@ With optimization complete, we can now:
 1. **Timeline Compression**: 5-10x memory reduction with delta encoding
 2. **Spatial Indexing**: O(1) lookups for nearby ghosts
 3. **Update Frequencies**: Distant ghosts update less frequently
-4. **Explicit Constructors**: ArenaIdx::new() validation in performance-critical paths
+4. **Explicit Constructors**: Arena::new() validation in performance-critical paths
 5. **Auto-Quality**: Dynamic adjustment based on performance
 6. **Zero-Copy Compression**: CompressedTimeline::from_draft(draft) and decompress(self) consume for optimal performance
 
