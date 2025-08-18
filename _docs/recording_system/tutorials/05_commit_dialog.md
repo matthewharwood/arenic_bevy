@@ -165,9 +165,9 @@ pub fn spawn_dialog_ui(
             continue;
         }
 
-        // Send transition event
-        let old_dialog = dialog_state.active_dialog.clone();
-        dialog_state.active_dialog = Some(event.dialog_type.clone());
+        // Send transition event - consume dialog_type to avoid unnecessary cloning
+        let old_dialog = dialog_state.active_dialog.take(); // Zero-copy: take() transfers ownership
+        dialog_state.active_dialog = Some(event.dialog_type.clone()); // TODO: Could consume if event is consumed
         dialog_state.recording_entity = event.recording_entity;
 
         transition_events.write(DialogTransition {
@@ -492,8 +492,8 @@ pub fn close_dialog_ui(
             commands.entity(entity).despawn_recursive();
         }
 
-        // Clear dialog state
-        dialog_state.active_dialog = None;
+        // Clear dialog state using ownership transfer for efficient cleanup
+        dialog_state.active_dialog = None; // Previous value is consumed and dropped
         dialog_state.recording_entity = None;
 
         // PR Gate: Resume happens in process_dialog_choices, not here

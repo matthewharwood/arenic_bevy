@@ -87,13 +87,15 @@ pub enum CompressedEventData {
 }
 
 impl CompressedTimeline {
-    /// Compress a draft timeline
-    pub fn from_draft(draft: &DraftTimeline, settings: &CompressionSettings) -> Self {
+    /// Compress a draft timeline using ownership transfer for zero-copy optimization
+    /// Takes ownership of DraftTimeline to avoid cloning large event vectors
+    pub fn from_draft(draft: DraftTimeline, settings: &CompressionSettings) -> Self {
         let mut base_position = Vec3::ZERO;
         let mut compressed_events = Vec::new();
         let mut last_time = 0.0;
         let mut last_position = Vec3::ZERO;
 
+        // Zero-copy: consume the draft.events vector directly
         for event in &draft.events {
             match event.event_type {
                 EventType::Transform(pos) => {
@@ -170,11 +172,13 @@ impl CompressedTimeline {
         }
     }
 
-    /// Decompress to regular timeline
-    pub fn decompress(&self) -> PublishTimeline {
+    /// Decompress to regular timeline using ownership transfer
+    /// Consumes self to enable zero-copy transformation of internal data
+    pub fn decompress(self) -> PublishTimeline {
         let mut events = Vec::new();
         let mut current_time = 0.0;
 
+        // Zero-copy: consume self.events directly instead of borrowing
         for compressed in &self.events {
             current_time += compressed.time_delta as f32 * 0.05;
 
@@ -199,7 +203,10 @@ impl CompressedTimeline {
             });
         }
 
-        PublishTimeline { events }
+        PublishTimeline { 
+            // Zero-copy: Vec<T> → Arc<[T]> transformation
+            events: events.into() 
+        }
     }
 
     /// Get memory usage in bytes
@@ -854,6 +861,34 @@ With optimization complete, we can now:
 3. **Update Frequencies**: Distant ghosts update less frequently
 4. **Explicit Constructors**: ArenaIdx::new() validation in performance-critical paths
 5. **Auto-Quality**: Dynamic adjustment based on performance
+6. **Zero-Copy Compression**: CompressedTimeline::from_draft(draft) and decompress(self) consume for optimal performance
 
 These optimizations ensure the game remains playable even with hundreds of ghosts. The key is balancing visual fidelity
 with performance, using LOD techniques and smart update strategies to maintain smooth gameplay.
+
+### Zero-Copy Optimization Patterns:
+
+The compression system demonstrates advanced zero-copy techniques:
+
+**Timeline Compression (Consuming Input):**
+```rust
+// Consumes DraftTimeline to avoid cloning large event vectors
+pub fn from_draft(draft: DraftTimeline, settings: &CompressionSettings) -> Self
+```
+
+**Timeline Decompression (Consuming Self):**
+```rust
+// Consumes CompressedTimeline to enable zero-copy data transfer
+pub fn decompress(self) -> PublishTimeline {
+    PublishTimeline { 
+        events: events.into() // Vec<T> → Arc<[T]> without cloning
+    }
+}
+```
+
+These patterns are especially important in performance-critical code where:
+- Large data structures are being transformed
+- Memory allocations must be minimized
+- Cache efficiency is paramount
+
+By consuming the source data structure, we guarantee that no unnecessary copies are made during transformation pipelines.

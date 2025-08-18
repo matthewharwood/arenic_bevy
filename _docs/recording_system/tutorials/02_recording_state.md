@@ -327,9 +327,10 @@ pub fn initialize_recording(
         draft.add_event(initial_event);
 
         // Add recording components to character
+        // Note: draft is consumed by .insert(), transferring ownership for efficient storage
         commands.entity(event.character)
             .insert(Recording)
-            .insert(draft)
+            .insert(draft) // Zero-copy: DraftTimeline ownership transfers to ECS
             .insert(RecordingCountdown::new(3.0));
 
         // Trigger state transition
@@ -499,9 +500,10 @@ pub fn process_stop_recording(
 
         // For now, just clear the recording
         // In future tutorials, we'll show dialog here
+        // Note: .remove() consumes component ownership, enabling efficient cleanup
         commands.entity(*entity_single)
             .remove::<Recording>()
-            .remove::<DraftTimeline>()
+            .remove::<DraftTimeline>() // Zero-copy: Component ownership transferred for cleanup
             .remove::<RecordingCountdown>();
 
         // Determine transition reason

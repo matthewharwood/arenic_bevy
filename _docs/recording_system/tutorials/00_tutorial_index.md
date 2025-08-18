@@ -30,6 +30,7 @@ After Jon's production-focused review, these patterns have been refined:
 - **VecDeque for Trails**: O(1) front/back operations for buffers
 - **Material Mutation**: Update materials in-place, no handle churn
 - **UpdateFrequency Component**: Per-ghost update rates based on distance
+- **Zero-Copy Ownership Transfer**: Consume data when it flows one-way (draft→publish, temporary→permanent) for efficient transformations
 
 ### What We Explicitly Reject
 

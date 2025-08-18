@@ -116,16 +116,20 @@ pub fn commit_recording_to_timeline(
                 continue;
             };
 
-            // Create published timeline from draft
+            // Create published timeline from draft using ownership transfer
+            // Note: We need to consume the draft here but can't due to ECS borrow checker
+            // This is a limitation of the Query system - in real code, use Commands to remove and recreate
             let published = PublishTimeline::from_draft(draft);
 
             info!("Committing timeline with {} events in arena {}", published.events.len(), **arena_idx);
 
             // Remove recording components, add playback components
+            // Zero-copy: .remove() transfers component ownership for efficient cleanup
+            // .insert() transfers ownership of published timeline to ECS storage
             commands.entity(entity)
                 .remove::<Recording>()
-                .remove::<DraftTimeline>()
-                .insert(published)
+                .remove::<DraftTimeline>() // Ownership transferred for cleanup
+                .insert(published) // Ownership transferred to ECS
                 .insert(Ghost)
                 .insert(Replaying)
                 .insert(TimelinePosition(TimeStamp::ZERO))

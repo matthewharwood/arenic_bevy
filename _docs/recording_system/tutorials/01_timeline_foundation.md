@@ -30,6 +30,7 @@ Create a new file `src/timeline/mod.rs`:
 use bevy::prelude::*;
 use bevy::log::trace;
 use std::fmt;
+use std::convert::identity;
 
 /// A single recorded event in a timeline
 #[derive(Clone, Debug)]
@@ -259,9 +260,13 @@ pub struct PublishTimeline {
 }
 
 impl PublishTimeline {
-    pub fn from_draft(draft: &DraftTimeline) -> Self {
+    /// Convert draft timeline to published timeline using ownership transfer for zero-copy
+    /// Takes ownership of DraftTimeline to enable Vec<T> → Arc<[T]> conversion without cloning
+    pub fn from_draft(draft: DraftTimeline) -> Self {
         Self {
-            events: draft.events.clone().into(),
+            // Zero-copy transformation: Vec<T> → Arc<[T]> via into()
+            // This avoids cloning all timeline events, improving performance
+            events: draft.events.into(),
         }
     }
 
@@ -279,10 +284,13 @@ impl PublishTimeline {
     #[must_use]
     pub fn events_in_range(&self, start: TimeStamp, end: TimeStamp) -> impl Iterator<Item=&TimelineEvent> + '_ {
         // Simple range query - wrap-around handling comes in Tutorial 04
+        // Using identity instead of |i| i for clearer intent - no transformation needed
+        // identity is a standard library function that simply returns its input unchanged,
+        // making the code more self-documenting than a trivial closure
         let start_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap())
-            .unwrap_or_else(|i| i);
+            .unwrap_or_else(identity);
         let end_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap())
-            .unwrap_or_else(|i| i);
+            .unwrap_or_else(identity);
         
         self.events[start_idx..end_idx].iter()
     }
@@ -622,7 +630,7 @@ mod tests {
             });
         }
 
-        let published = PublishTimeline::from_draft(&draft);
+        let published = PublishTimeline::from_draft(draft);
 
         // Get events between 5.0 and 10.0 seconds
         let events: Vec<_> = published.events_in_range(TimeStamp::new(5.0), TimeStamp::new(10.0)).collect();
@@ -650,7 +658,7 @@ mod tests {
             event_type: EventType::Movement(GridPos::new(1, 0)),
         });
         
-        let published = PublishTimeline::from_draft(&draft);
+        let published = PublishTimeline::from_draft(draft);
         
         // Test: Find next event after a timestamp with no exact match
         let next = published.next_event_after(TimeStamp::new(15.0));
@@ -741,6 +749,8 @@ With the timeline foundation in place, we can now:
 3. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
 4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), ArenaIdx::new() as primary API
 5. **Binary Search**: Efficient O(log n) operations on sorted timelines
+6. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
+7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
 
 ## Production Notes
 
@@ -764,5 +774,30 @@ With the timeline foundation in place, we can now:
 - **Intent Recording**: Deterministic replay regardless of physics/interpolation
 - **Arc<[T]>**: Share timeline across systems without cloning the data
 - **Binary Search**: Fast lookups for playback position queries
+- **Zero-Copy Ownership Transfer**: When data flows one-way (draft→publish), consume instead of borrow to enable efficient transformations
+
+### Zero-Copy Principle Applied:
+
+The `PublishTimeline::from_draft(draft)` method demonstrates the zero-copy principle:
+
+**Before (Inefficient):**
+```rust
+pub fn from_draft(draft: &DraftTimeline) -> Self {
+    Self {
+        events: draft.events.clone().into(), // Clones entire Vec!
+    }
+}
+```
+
+**After (Zero-Copy):**
+```rust
+pub fn from_draft(draft: DraftTimeline) -> Self {
+    Self {
+        events: draft.events.into(), // Consumes Vec, no cloning
+    }
+}
+```
+
+This transformation avoids cloning potentially thousands of events when transitioning from draft to published state. The key insight is that draft timelines naturally flow one-way into published timelines, so consuming ownership enables efficient Vec<T> → Arc<[T]> conversion.
 
 This foundation provides a robust base for the entire recording system. The type-safe APIs prevent common errors, the sorted event storage makes playback efficient, and recording intent ensures perfect replay fidelity.

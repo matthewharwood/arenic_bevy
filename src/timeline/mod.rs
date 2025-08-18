@@ -1,6 +1,9 @@
 use bevy::math::IVec2;
 use bevy::prelude::Component;
+use bevy::tasks::futures_lite::StreamExt;
+use std::convert::identity;
 use std::fmt::{Display, Formatter, Result as FmtResult};
+use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct TimelineEvent {
@@ -8,7 +11,7 @@ pub struct TimelineEvent {
     pub event_type: EventType,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, Default)]
 pub struct TimeStamp(pub f32);
 
 impl TimeStamp {
@@ -143,9 +146,95 @@ impl From<IVec2> for GridPos {
     }
 }
 
+impl From<GridPos> for IVec2 {
+    fn from(pos: GridPos) -> Self {
+        pos.0
+    }
+}
+
+impl Display for GridPos {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "({}, {})", self.0.x, self.0.y)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum EventType {
     Movement(GridPos),
     Ability(AbilityId, Option<Target>),
     Death,
+}
+
+/// Component for entities that can be recorded
+#[derive(Component)]
+pub struct Recordable;
+
+/// Temporary timeline buffer during recording
+#[derive(Component, Default)]
+pub struct DraftTimeline {
+    pub events: Vec<TimelineEvent>,
+    pub max_duration: TimeStamp,
+}
+
+impl DraftTimeline {
+    pub fn new() -> Self {
+        Self {
+            events: Vec::new(),
+            max_duration: TimeStamp::MAX,
+        }
+    }
+
+    pub fn add_event(&mut self, event: TimelineEvent) {
+        match self
+            .events
+            .binary_search_by(|e| e.timestamp.partial_cmp(&event.timestamp).unwrap())
+        {
+            Ok(pos) | Err(pos) => self.events.insert(pos, event),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.events.clear();
+    }
+}
+
+pub struct PublishTimeline {
+    pub events: Arc<[TimelineEvent]>,
+}
+
+impl PublishTimeline {
+    pub fn from_draft(draft: DraftTimeline) -> Self {
+        Self {
+            events: draft.events.into(),
+        }
+    }
+    #[must_use]
+    pub fn events_in_range(
+        &self,
+        start: TimeStamp,
+        end: TimeStamp,
+    ) -> impl Iterator<Item = &TimelineEvent> + '_ {
+        // Simple range query - wrap-around handling comes in Tutorial 04
+        let start_idx = self
+            .events
+            .binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap())
+            .unwrap_or_else(identity);
+        let end_idx = self
+            .events
+            .binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap())
+            .unwrap_or_else(identity);
+
+        self.events[start_idx..end_idx].iter()
+    }
+    #[must_use]
+    pub fn get_movement_intent_at(tl: &PublishTimeline, t: TimeStamp) -> Option<GridPos> {
+        let mut i = tl.events.partition_point(|e| e.timestamp <= t);
+        while i > 0 {
+            i -= 1; // last index with ts ≤ t
+            if let EventType::Movement(pos) = tl.events[i].event_type {
+                return Some(pos);
+            }
+        }
+        None
+    }
 }
