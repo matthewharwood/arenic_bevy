@@ -1,6 +1,5 @@
 use bevy::math::IVec2;
-use bevy::prelude::Component;
-use bevy::tasks::futures_lite::StreamExt;
+use bevy::prelude::{Component, Entity};
 use std::convert::identity;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
@@ -36,7 +35,7 @@ impl TimeStamp {
         self.0
     }
 
-    /// Wraps time back to start when exceeding 120 seconds
+    /// Wraps time back to start when, exceeding 120 seconds,
     /// NaN values are coerced to 0.0 for safety
     #[must_use]
     pub fn wrapped(seconds: f32) -> Self {
@@ -108,7 +107,7 @@ impl ArenaIdx {
     }
 }
 
-/// Not really needed vs Constructor version above
+/// Not really needed vs. a Constructor version above
 impl TryFrom<u8> for ArenaIdx {
     type Error = &'static str;
 
@@ -226,11 +225,19 @@ impl PublishTimeline {
 
         self.events[start_idx..end_idx].iter()
     }
+
+    /// Get movement intent at a specific timestamp using partition_point for optimal boundary finding
+    /// Returns the most recent movement event before or at the timestamp
+    ///
+    /// Uses partition_point which directly finds where the predicate changes from true to false,
+    /// making the logic clearer than binary_search_by with its Ok/Err handling
     #[must_use]
     pub fn get_movement_intent_at(tl: &PublishTimeline, t: TimeStamp) -> Option<GridPos> {
+        // partition_point finds first index where timestamp > t, so we work backwards from there
+        // This is more idiomatic than binary_search_by for finding boundaries in sorted sequences
         let mut i = tl.events.partition_point(|e| e.timestamp <= t);
         while i > 0 {
-            i -= 1; // last index with ts ≤ t
+            i -= 1; // Move to last index with ts ≤ t
             if let EventType::Movement(pos) = tl.events[i].event_type {
                 return Some(pos);
             }
@@ -238,3 +245,5 @@ impl PublishTimeline {
         None
     }
 }
+
+pub mod interpolation {}

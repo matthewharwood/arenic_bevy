@@ -28,8 +28,13 @@
       "Bash(sed:*)",
       "Bash(done)",
       "Bash(chmod:*)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(rustc test_timeline.rs)",
+      "Bash(rustup toolchain install:*)",
+      "Bash(rustup:*)",
+      "Bash(rustc --version)"
     ],
     "deny": []
-  }
+  },
+  "outputStyle": "default"
 }

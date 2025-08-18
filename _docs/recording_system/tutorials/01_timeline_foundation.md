@@ -315,23 +315,25 @@ impl PublishTimeline {
 pub mod interpolation {
     use super::*;
     
-    /// Get movement intent at a specific timestamp
+    /// Get movement intent at a specific timestamp using partition_point for optimal boundary finding
     /// Returns the most recent movement event before or at the timestamp
+    /// 
+    /// # Why partition_point is superior to binary_search_by:
+    /// - **Clearer Intent**: partition_point directly finds the boundary where predicate changes
+    /// - **Simpler Logic**: No Ok/Err pattern matching needed
+    /// - **More Idiomatic**: Specifically designed for finding boundaries in sorted sequences
+    /// - **Same Performance**: O(log n) complexity but cleaner implementation
     #[must_use]
     pub fn get_movement_intent_at(timeline: &PublishTimeline, timestamp: TimeStamp) -> Option<GridPos> {
-        // Binary search for the position
-        let idx = match timeline.events.binary_search_by(|e| e.timestamp.partial_cmp(&timestamp).unwrap()) {
-            Ok(idx) => idx,
-            Err(idx) => if idx > 0 { idx - 1 } else { return None },
-        };
-        
-        // Walk backwards to find the most recent movement event
-        for i in (0..=idx).rev() {
-            if let EventType::Movement(pos) = &timeline.events[i].event_type {
-                return Some(*pos);
+        // partition_point finds first index where timestamp > target, so work backwards from there
+        // This directly gives us the boundary we want without complex Ok/Err handling
+        let mut i = timeline.events.partition_point(|e| e.timestamp <= timestamp);
+        while i > 0 {
+            i -= 1; // Move to last index with ts ≤ timestamp
+            if let EventType::Movement(pos) = timeline.events[i].event_type {
+                return Some(pos);
             }
         }
-        
         None
     }
     
@@ -751,6 +753,7 @@ With the timeline foundation in place, we can now:
 5. **Binary Search**: Efficient O(log n) operations on sorted timelines
 6. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
 7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
+8. **partition_point over binary_search_by**: More idiomatic boundary finding with clearer intent and simpler logic
 
 ## Production Notes
 
@@ -775,6 +778,7 @@ With the timeline foundation in place, we can now:
 - **Arc<[T]>**: Share timeline across systems without cloning the data
 - **Binary Search**: Fast lookups for playback position queries
 - **Zero-Copy Ownership Transfer**: When data flows one-way (draft→publish), consume instead of borrow to enable efficient transformations
+- **partition_point Preference**: Choose partition_point over binary_search_by when finding boundaries - it's designed exactly for this pattern and eliminates Ok/Err handling complexity
 
 ### Zero-Copy Principle Applied:
 

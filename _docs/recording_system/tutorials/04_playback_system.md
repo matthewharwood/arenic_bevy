@@ -164,7 +164,7 @@ pub fn clear_recording_timeline(
 Add to `src/playback/mod.rs`:
 
 ```rust
-use crate::timeline::interpolation::get_movement_intent_at;
+use crate::timeline::interpolation::get_movement_intent_at;  // Uses partition_point for cleaner boundary finding
 
 /// Component to track previous movement state for interpolation
 #[derive(Component)]
@@ -722,6 +722,7 @@ With playback working, we can now:
 3. **Visual Distinction**: Ghosts have transparency and glow effects
 4. **Explicit Constructors**: TimeStamp::new(), ArenaIdx::new() throughout playback code
 5. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
+6. **Improved Timeline Queries**: get_movement_intent_at now uses partition_point for cleaner boundary finding
 
 ## Production Notes
 

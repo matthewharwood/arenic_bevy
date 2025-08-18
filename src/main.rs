@@ -111,7 +111,7 @@ fn setup_scene(
         .with_children(|battleground| {
             for arena_index in 0..TOTAL_ARENAS {
                 let debug_material = materials.add(StandardMaterial {
-                    base_color: DEBUG_COLORS[arena_index as usize],
+                    base_color: DEBUG_COLORS[arena_index as usize].clone(),
                     metallic: 0.0,
                     perceptual_roughness: 1.0,
                     ..default()
