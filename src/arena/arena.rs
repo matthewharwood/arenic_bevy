@@ -1,11 +1,11 @@
 use crate::arena::{CameraUpdate, CharacterMoved, LastActiveHero};
-use crate::arena_camera::{position_camera_for_arena, ZoomOut, ZOOM};
+use crate::arena_camera::{ZOOM, ZoomOut, position_camera_for_arena};
 use crate::character::Character;
 use crate::materials::Materials;
 use crate::selectors::Active;
+use crate::timeline::TimelineError;
 use bevy::prelude::*;
 use std::fmt::{Display, Formatter, Result as FmtResult};
-use crate::timeline::TimelineError;
 
 /// Arena names enum with explicit discriminants for all 9 arenas
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -24,13 +24,13 @@ pub enum ArenaName {
 
 impl ArenaName {
     const MAX_ARENAS: u8 = 9;
-    
+
     /// Returns the arena's numeric index (0-8)
     #[must_use]
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }
-    
+
     /// Creates ArenaName from u8 index if valid (0-8)
     #[must_use]
     pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
@@ -47,14 +47,14 @@ impl ArenaName {
             _ => Err(TimelineError::InvalidArenaIndex { index: idx }),
         }
     }
-    
+
     /// Creates ArenaName with fallback to Labyrinth if invalid
     /// Use this for startup/initialization where you need guaranteed success
     #[must_use]
     pub fn from_u8_clamped(idx: u8) -> Self {
         Self::from_u8(idx.min(Self::MAX_ARENAS - 1)).unwrap_or(Self::Labyrinth)
     }
-    
+
     /// Iterator over all arena names in order
     pub fn all() -> impl Iterator<Item = Self> {
         [
@@ -67,7 +67,8 @@ impl ArenaName {
             Self::Crucible,
             Self::Casino,
             Self::Gala,
-        ].into_iter()
+        ]
+        .into_iter()
     }
 }
 
@@ -105,13 +106,13 @@ impl Arena {
     pub fn new(name: ArenaName) -> Self {
         Self(name)
     }
-    
+
     /// Creates new Arena from u8 index if valid (0-8)
     #[must_use]
     pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
         Ok(Self(ArenaName::from_u8(idx)?))
     }
-    
+
     /// Creates new Arena with fallback to Labyrinth if invalid
     /// Use this for startup/initialization where you need guaranteed success
     #[must_use]
@@ -124,7 +125,7 @@ impl Arena {
     pub fn as_u8(&self) -> u8 {
         self.0.as_u8()
     }
-    
+
     /// Returns the ArenaName enum value
     #[must_use]
     pub fn name(&self) -> ArenaName {
@@ -162,7 +163,11 @@ impl CurrentArena {
 
     /// Decrement arena cyclically (Gala -> Casino -> ... -> Labyrinth -> Gala)
     pub fn decrement(arena: ArenaName) -> ArenaName {
-        let prev_idx = if arena.as_u8() == 0 { 8 } else { arena.as_u8() - 1 };
+        let prev_idx = if arena.as_u8() == 0 {
+            8
+        } else {
+            arena.as_u8() - 1
+        };
         ArenaName::from_u8_clamped(prev_idx)
     }
 
@@ -170,12 +175,12 @@ impl CurrentArena {
     pub fn go_to(arena: ArenaName) -> ArenaName {
         arena
     }
-    
+
     /// Get the arena's numeric index (0-8)
     pub fn as_u8(&self) -> u8 {
         self.0.as_u8()
     }
-    
+
     /// Get the ArenaName enum value
     pub fn name(&self) -> ArenaName {
         self.0
@@ -221,10 +226,10 @@ pub fn handle_character_moved(
     if character_moved_events.is_empty() {
         return;
     }
-    
+
     let current_arena = current_arena_q.into_inner();
     let (camera_entity, mut camera_transform, zoom) = camera.into_inner();
-    
+
     // Handle character movement between arenas
     for event in character_moved_events.read() {
         // Only update camera if we're not zoomed out and the target arena is the current arena
@@ -233,15 +238,25 @@ pub fn handle_character_moved(
             position_camera_for_arena(&mut camera_transform, event.to_arena.as_u8(), ZOOM.0);
             commands.entity(camera_entity).remove::<ZoomOut>();
         }
-        
+
         // Update LastActiveHero for the target arena
-        if let Some((arena_entity, _)) = arena_q.iter().find(|(_, arena)| arena.name() == event.to_arena) {
-            commands.entity(arena_entity).insert(LastActiveHero(Some(event.character_entity)));
-            println!("Updated LastActiveHero for {} to {:?}", event.to_arena, event.character_entity);
+        if let Some((arena_entity, _)) = arena_q
+            .iter()
+            .find(|(_, arena)| arena.name() == event.to_arena)
+        {
+            commands
+                .entity(arena_entity)
+                .insert(LastActiveHero(Some(event.character_entity)));
+            println!(
+                "Updated LastActiveHero for {} to {:?}",
+                event.to_arena, event.character_entity
+            );
         }
-        
-        println!("Character {:?} moved from {} to {} (preserved Active status)", 
-                 event.character_entity, event.from_arena, event.to_arena);
+
+        println!(
+            "Character {:?} moved from {} to {} (preserved Active status)",
+            event.character_entity, event.from_arena, event.to_arena
+        );
     }
 }
 
@@ -293,11 +308,7 @@ pub fn arena_update(
                     }
                     return;
                 } else {
-                    println!(
-                        "Found {} characters in {}",
-                        characters_data.len(),
-                        arena
-                    );
+                    println!("Found {} characters in {}", characters_data.len(), arena);
 
                     // Find the active character (if any)
                     let active_character = characters_data
@@ -306,10 +317,7 @@ pub fn arena_update(
                         .map(|(entity, _)| *entity);
 
                     if let Some(active_entity) = active_character {
-                        println!(
-                            "Found active character in {}: {:?}",
-                            arena, active_entity
-                        );
+                        println!("Found active character in {}: {:?}", arena, active_entity);
                         // This character is already active - handle this case
                         return;
                     } else {

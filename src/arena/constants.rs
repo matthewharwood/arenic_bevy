@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use crate::arena::ArenaName;
+use bevy::prelude::*;
 
 /// Grid dimensions for each arena
 pub const GRID_WIDTH: u32 = 66;

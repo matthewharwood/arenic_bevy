@@ -1,6 +1,6 @@
-use bevy::prelude::*;
 use crate::arena::{ARENA_HEIGHT_HALF, ARENA_WIDTH_HALF};
 use crate::arena_camera::CAMERA_CENTER;
+use bevy::prelude::*;
 
 pub fn spawn_lights(mut commands: Commands) {
     commands.spawn(DirectionalLight {

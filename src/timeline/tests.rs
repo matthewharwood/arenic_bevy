@@ -12,22 +12,28 @@ mod tests {
 
         // TODO(human): Add 3 events OUT OF ORDER to test sorting
         // Event 1: timestamp 5.0, Movement to position (1, 0)
-        timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(5.0),
-            event_type: EventType::Movement(GridPos::new(1, 0)),
-        }).expect("Failed to add movement event");
+        timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(5.0),
+                event_type: EventType::Movement(GridPos::new(1, 0)),
+            })
+            .expect("Failed to add movement event");
 
         // Event 2: timestamp 2.0, Ability AUTO_SHOT with no target
-        timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(2.0),
-            event_type: EventType::Ability(AbilityType::AutoShot, None),
-        }).expect("Failed to add ability event");
-        
+        timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(2.0),
+                event_type: EventType::Ability(AbilityType::AutoShot, None),
+            })
+            .expect("Failed to add ability event");
+
         // Event 3: timestamp 10.0, Death event
-        timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(10.0),
-            event_type: EventType::Death,
-        }).expect("Failed to add death event");
+        timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(10.0),
+                event_type: EventType::Death,
+            })
+            .expect("Failed to add death event");
 
         // TODO(human): Check that the events were added correctly
         // 1. timeline.events.len() should equal 3
@@ -73,22 +79,28 @@ mod tests {
     #[test]
     fn test_publish_timeline_get_events_in_range() {
         let mut draft_timeline = DraftTimeline::new();
-        draft_timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(5.0),
-            event_type: EventType::Death,
-        }).expect("Failed to add death event");
+        draft_timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(5.0),
+                event_type: EventType::Death,
+            })
+            .expect("Failed to add death event");
 
         // Event 2: timestamp 2.0, Ability AUTO_SHOT with no target
-        draft_timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(2.0),
-            event_type: EventType::Ability(AbilityType::AutoShot, None),
-        }).expect("Failed to add ability event");
-        
-        draft_timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(3.0),
-            event_type: EventType::Movement(GridPos::new(1, 0)),
-        }).expect("Failed to add movement event");
-        
+        draft_timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(2.0),
+                event_type: EventType::Ability(AbilityType::AutoShot, None),
+            })
+            .expect("Failed to add ability event");
+
+        draft_timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(3.0),
+                event_type: EventType::Movement(GridPos::new(1, 0)),
+            })
+            .expect("Failed to add movement event");
+
         let publish_timeline = PublishTimeline::from_draft(draft_timeline)
             .expect("Failed to create timeline from draft");
         let event_range: Vec<_> = publish_timeline
@@ -105,57 +117,68 @@ mod tests {
         let mut draft = DraftTimeline::new();
 
         // Add events at specific timestamps
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(10.0),
-            event_type: EventType::Movement(GridPos::new(0, 0)),
-        }).expect("Failed to add movement event");
-        
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(20.0),
-            event_type: EventType::Ability(AbilityType::AutoShot, None),
-        }).expect("Failed to add ability event");
-        
-        draft.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(30.0),
-            event_type: EventType::Movement(GridPos::new(1, 0)),
-        }).expect("Failed to add movement event");
+        draft
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(10.0),
+                event_type: EventType::Movement(GridPos::new(0, 0)),
+            })
+            .expect("Failed to add movement event");
 
-        let published = PublishTimeline::from_draft(draft)
-            .expect("Failed to create timeline from draft");
+        draft
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(20.0),
+                event_type: EventType::Ability(AbilityType::AutoShot, None),
+            })
+            .expect("Failed to add ability event");
+
+        draft
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(30.0),
+                event_type: EventType::Movement(GridPos::new(1, 0)),
+            })
+            .expect("Failed to add movement event");
+
+        let published =
+            PublishTimeline::from_draft(draft).expect("Failed to create timeline from draft");
 
         // Test: Find the next event after a timestamp with no exact match
-        let next = published.next_event_after(TimeStamp::new(15.0))
+        let next = published
+            .next_event_after(TimeStamp::new(15.0))
             .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(20.0));
 
         // Test: Find next event when timestamp matches exactly
-        let next = published.next_event_after(TimeStamp::new(20.0))
+        let next = published
+            .next_event_after(TimeStamp::new(20.0))
             .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(30.0));
 
         // Test: No next event when at or past last event
-        let next = published.next_event_after(TimeStamp::new(30.0))
+        let next = published
+            .next_event_after(TimeStamp::new(30.0))
             .expect("Failed to get next event");
         assert!(next.is_none());
 
-        let next = published.next_event_after(TimeStamp::new(35.0))
+        let next = published
+            .next_event_after(TimeStamp::new(35.0))
             .expect("Failed to get next event");
         assert!(next.is_none());
 
         // Test: Find first event when timestamp is before all events
-        let next = published.next_event_after(TimeStamp::new(5.0))
+        let next = published
+            .next_event_after(TimeStamp::new(5.0))
             .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(10.0));
     }
-    
+
     #[test]
     fn test_empty_timeline_error() {
         let empty_draft = DraftTimeline::new();
         let result = PublishTimeline::from_draft(empty_draft);
-        
+
         assert!(result.is_err());
         match result {
             Err(crate::timeline::TimelineError::EmptyTimeline) => {
@@ -165,16 +188,16 @@ mod tests {
             Ok(_) => panic!("Expected error for empty timeline"),
         }
     }
-    
+
     #[test]
     fn test_arena_validation() {
         use crate::arena::Arena;
-        
+
         // Valid arena
         let valid = Arena::from_u8(5);
         assert!(valid.is_ok());
         assert_eq!(valid.unwrap().as_u8(), 5);
-        
+
         // Invalid arena
         let invalid = Arena::from_u8(10);
         assert!(invalid.is_err());
@@ -184,19 +207,19 @@ mod tests {
             }
             _ => panic!("Expected InvalidArenaIndex error"),
         }
-        
+
         // Clamped arena always succeeds
         let clamped = Arena::from_u8_clamped(15);
         assert_eq!(clamped.as_u8(), 8); // Should clamp to max valid arena
     }
-    
+
     #[test]
     fn test_error_context_and_display() {
         let error = crate::timeline::TimelineError::InvalidArenaIndex { index: 42 };
         let error_string = error.to_string();
         assert!(error_string.contains("42"));
         assert!(error_string.contains("out of bounds"));
-        
+
         let empty_error = crate::timeline::TimelineError::EmptyTimeline;
         assert_eq!(empty_error.to_string(), "Timeline is empty");
     }

@@ -11,7 +11,6 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 #[derive(Component)]
 pub struct Projectile;
 
-
 /// Component storing the target position for the projectile
 #[derive(Component)]
 pub struct Target(Vec3);

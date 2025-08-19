@@ -3,10 +3,10 @@ mod constants;
 mod events;
 
 pub use arena::*;
-pub use events::*;
 use bevy::math::Vec3;
 use bevy::prelude::{Component, Entity};
 pub use constants::*;
+pub use events::*;
 
 #[derive(Component)]
 pub struct LastActiveHero(pub Option<Entity>);

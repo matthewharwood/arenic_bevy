@@ -12,19 +12,19 @@ mod materials;
 mod selectors;
 mod timeline;
 
+use crate::ability::{AutoShot, HolyNova};
 use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
-use crate::ability::{AutoShot, HolyNova};
 use crate::arena::{
-    arena_update, decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena, Arena, ArenaName, CameraUpdate, CharacterMoved, CurrentArena,
-    LastActiveHero, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
-    TILE_SIZE, TOTAL_ARENAS,
+    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaName, CameraUpdate, CharacterMoved, CurrentArena,
+    DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero, TILE_SIZE, TOTAL_ARENAS, arena_update,
+    decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena,
 };
 use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
-use crate::character::{move_active_character, toggle_active_character, Boss, Character};
+use crate::character::{Boss, Character, move_active_character, toggle_active_character};
 use crate::class_type::ClassType;
 use crate::lights::spawn_lights;
 use crate::materials::Materials;

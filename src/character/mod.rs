@@ -1,5 +1,6 @@
 use crate::arena::{
-    Arena, ArenaName, CharacterMoved, CurrentArena, LastActiveHero, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
+    Arena, ArenaName, CharacterMoved, CurrentArena, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
+    TILE_SIZE,
 };
 use crate::materials::Materials;
 use crate::selectors::Active;
@@ -136,14 +137,17 @@ pub fn move_active_character(
             let from_arena = current_arena.name();
             let new_arena_index = current_arena_index - 1;
             let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
-            current_arena.0 = new_arena_name;
 
             // Teleport character to right side of new arena
             character_transform.translation.x = max_x;
 
+            // Update CurrentArena after character movement
+            current_arena.0 = new_arena_name;
+
             // Reparent character to new arena
-            if let Some((new_arena_entity, _)) =
-                arena_q.iter().find(|(_, arena)| arena.name() == new_arena_name)
+            if let Some((new_arena_entity, _)) = arena_q
+                .iter()
+                .find(|(_, arena)| arena.name() == new_arena_name)
             {
                 commands
                     .entity(character_entity)
@@ -167,14 +171,17 @@ pub fn move_active_character(
             let from_arena = current_arena.name();
             let new_arena_index = current_arena_index + 1;
             let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
-            current_arena.0 = new_arena_name;
 
             // Teleport character to left side of new arena
             character_transform.translation.x = min_x;
 
+            // Update CurrentArena after character movement
+            current_arena.0 = new_arena_name;
+
             // Reparent character to new arena
-            if let Some((new_arena_entity, _)) =
-                arena_q.iter().find(|(_, arena)| arena.name() == new_arena_name)
+            if let Some((new_arena_entity, _)) = arena_q
+                .iter()
+                .find(|(_, arena)| arena.name() == new_arena_name)
             {
                 commands
                     .entity(character_entity)
@@ -198,14 +205,17 @@ pub fn move_active_character(
             let from_arena = current_arena.name();
             let new_arena_index = current_arena_index + 3;
             let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
-            current_arena.0 = new_arena_name;
 
             // Teleport character to top side of new arena
             character_transform.translation.y = max_y;
 
+            // Update CurrentArena after character movement
+            current_arena.0 = new_arena_name;
+
             // Reparent character to new arena
-            if let Some((new_arena_entity, _)) =
-                arena_q.iter().find(|(_, arena)| arena.name() == new_arena_name)
+            if let Some((new_arena_entity, _)) = arena_q
+                .iter()
+                .find(|(_, arena)| arena.name() == new_arena_name)
             {
                 commands
                     .entity(character_entity)
@@ -229,14 +239,17 @@ pub fn move_active_character(
             let from_arena = current_arena.name();
             let new_arena_index = current_arena_index - 3;
             let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
-            current_arena.0 = new_arena_name;
 
             // Teleport character to bottom side of new arena
             character_transform.translation.y = min_y;
 
+            // Update CurrentArena after character movement
+            current_arena.0 = new_arena_name;
+
             // Reparent character to new arena
-            if let Some((new_arena_entity, _)) =
-                arena_q.iter().find(|(_, arena)| arena.name() == new_arena_name)
+            if let Some((new_arena_entity, _)) = arena_q
+                .iter()
+                .find(|(_, arena)| arena.name() == new_arena_name)
             {
                 commands
                     .entity(character_entity)
@@ -260,6 +273,10 @@ pub fn move_active_character(
 
     println!(
         "Character at: {:?} in {}",
-        character_transform.translation, current_arena.name()
+        character_transform.translation,
+        current_arena.name()
     );
 }
+
+#[cfg(test)]
+mod tests;
