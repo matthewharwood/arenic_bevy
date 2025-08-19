@@ -10,6 +10,7 @@ support all future recording and playback functionality.
 - Basic understanding of Bevy ECS (Entity Component System)
 - Familiarity with the existing arena and character systems
 - Rust knowledge of structs, enums, and vectors
+- Add `thiserror = "2.0"` to your `Cargo.toml` dependencies for proper error handling
 
 ## Components/Systems
 
@@ -120,34 +121,101 @@ use crate::ability::AbilityType;
 // - from_id() and to_id() methods for backwards compatibility
 // - Integration with the actual ability system components (AutoShot, HolyNova)
 
-/// Newtype for arena indices (0-8)
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Component)]
-pub struct Arena(pub u8);
+/// Arena names enum with explicit discriminants for all 9 arenas
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u8)]
+pub enum ArenaName {
+    Labyrinth = 0,
+    GuildHouse = 1,
+    Sanctum = 2,
+    Mountain = 3,
+    Bastion = 4,
+    Pawnshop = 5,
+    Crucible = 6,
+    Casino = 7,
+    Gala = 8,
+}
 
-impl Arena {
-    /// Creates new Arena if value is valid (0-8)
-    #[must_use]
-    pub fn new(idx: u8) -> Option<Self> {
-        (idx < 9).then(|| Self(idx))
+impl ArenaName {
+    /// Returns the arena's numeric index (0-8)
+    pub fn as_u8(&self) -> u8 {
+        *self as u8
     }
     
+    /// Creates ArenaName from u8 index if valid (0-8)
+    pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
+        match idx {
+            0 => Ok(Self::Labyrinth),
+            1 => Ok(Self::GuildHouse),
+            2 => Ok(Self::Sanctum),
+            3 => Ok(Self::Mountain),
+            4 => Ok(Self::Bastion),
+            5 => Ok(Self::Pawnshop),
+            6 => Ok(Self::Crucible),
+            7 => Ok(Self::Casino),
+            8 => Ok(Self::Gala),
+            _ => Err(TimelineError::InvalidArenaIndex { index: idx }),
+        }
+    }
+}
+
+impl fmt::Display for ArenaName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Labyrinth => write!(f, "Labyrinth"),
+            Self::GuildHouse => write!(f, "Guild House"),
+            Self::Sanctum => write!(f, "Sanctum"),
+            Self::Mountain => write!(f, "Mountain"),
+            Self::Bastion => write!(f, "Bastion"),
+            Self::Pawnshop => write!(f, "Pawnshop"),
+            Self::Crucible => write!(f, "Crucible"),
+            Self::Casino => write!(f, "Casino"),
+            Self::Gala => write!(f, "Gala"),
+        }
+    }
+}
+
+/// Arena component using ArenaName enum instead of raw u8
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Arena(pub ArenaName);
+
+impl Arena {
+    /// Creates new Arena from ArenaName
+    #[must_use]
+    pub fn new(name: ArenaName) -> Self {
+        Self(name)
+    }
+    
+    /// Creates new Arena from u8 index if valid (0-8)
+    #[must_use]
+    pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
+        Ok(Self(ArenaName::from_u8(idx)?))
+    }
+    
+    /// Returns the arena's numeric index (0-8)
     #[must_use]
     pub fn as_u8(&self) -> u8 {
+        self.0.as_u8()
+    }
+    
+    /// Returns the ArenaName enum value
+    #[must_use]
+    pub fn name(&self) -> ArenaName {
         self.0
     }
 }
 
 impl TryFrom<u8> for Arena {
-    type Error = &'static str;
+    type Error = TimelineError;
     
     fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Self::new(value).ok_or("Arena index must be 0-8")
+        Self::from_u8(value)
     }
 }
 
 impl fmt::Display for Arena {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Arena {}", self.0)
+        write!(f, "{} ({})", self.0, self.as_u8())
     }
 }
 
@@ -218,13 +286,24 @@ impl DraftTimeline {
         }
     }
 
-    pub fn add_event(&mut self, event: TimelineEvent) {
+    /// Add event to timeline with proper error handling
+    /// 
+    /// # Errors
+    /// 
+    /// Returns `TimelineError::InvalidComparison` if timestamps cannot be compared
+    pub fn add_event(&mut self, event: TimelineEvent) -> TimelineResult<()> {
         // APPROVED: Binary search maintains O(log n) sorted insertion
-        // This is the right balance of performance and simplicity for tutorials
-        match self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&event.timestamp).unwrap()
-        }) {
-            Ok(pos) | Err(pos) => self.events.insert(pos, event),
+        // Use safe comparison with proper error handling instead of unwrap()
+        let comparison = |e: &TimelineEvent| {
+            e.timestamp.partial_cmp(&event.timestamp)
+                .ok_or(TimelineError::InvalidComparison)
+        };
+        
+        match self.events.binary_search_by(|e| comparison(e).unwrap_or(std::cmp::Ordering::Equal)) {
+            Ok(pos) | Err(pos) => {
+                self.events.insert(pos, event);
+                Ok(())
+            }
         }
     }
 
@@ -444,7 +523,7 @@ pub fn debug_timeline_clocks(
     // Use let-else for early return pattern - more idiomatic Rust
     let Some((arena, clock)) = arena_q
         .iter()
-        .find(|(arena, _)| arena.as_u8() == current_arena.0)
+        .find(|(arena, _)| arena.name() == current_arena.name())
     else {
         return;
     };
@@ -498,7 +577,7 @@ Also update arena spawning in `setup_scene` to include timer:
 battleground
 .spawn((
 Transform::from_xyz(offset_x, offset_y, 0.0),
-Arena::new(arena_index).unwrap(),
+Arena::new_clamped(arena_index), // Use clamped version for startup initialization
 TimelineClock::default(), // Add this line
 // InheritedVisibility is automatically added via required components
 class_type,
@@ -627,24 +706,29 @@ mod tests {
         let published = PublishTimeline::from_draft(draft);
         
         // Test: Find next event after a timestamp with no exact match
-        let next = published.next_event_after(TimeStamp::new(15.0));
+        let next = published.next_event_after(TimeStamp::new(15.0))
+            .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(20.0));
         
         // Test: Find next event when timestamp matches exactly
-        let next = published.next_event_after(TimeStamp::new(20.0));
+        let next = published.next_event_after(TimeStamp::new(20.0))
+            .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(30.0));
         
         // Test: No next event when at or past last event
-        let next = published.next_event_after(TimeStamp::new(30.0));
+        let next = published.next_event_after(TimeStamp::new(30.0))
+            .expect("Failed to get next event");
         assert!(next.is_none());
         
-        let next = published.next_event_after(TimeStamp::new(35.0));
+        let next = published.next_event_after(TimeStamp::new(35.0))
+            .expect("Failed to get next event");
         assert!(next.is_none());
         
         // Test: Find first event when timestamp is before all events
-        let next = published.next_event_after(TimeStamp::new(5.0));
+        let next = published.next_event_after(TimeStamp::new(5.0))
+            .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(10.0));
     }
@@ -659,13 +743,23 @@ mod tests {
         // Test TimeStamp::ZERO constant
         assert_eq!(TimeStamp::ZERO.as_secs(), TimeStamp::ZERO.0);
         
-        // Test Arena::new() as primary constructor
-        let idx = Arena::new(3).unwrap();
+        // Test Arena::from_u8() for u8 conversion with proper error handling
+        let idx = Arena::from_u8(3).expect("Arena 3 should be valid");
         assert_eq!(idx.as_u8(), 3);
-        assert_eq!(idx.to_string(), "Arena 3");
+        assert_eq!(idx.to_string(), "Mountain (3)");
         
-        let err = Arena::new(10);
-        assert!(err.is_none());
+        // Test error case - arena out of bounds
+        let invalid = Arena::from_u8(10);
+        assert!(invalid.is_err());
+        
+        // Test clamped constructor for startup cases
+        let clamped = Arena::from_u8_clamped(15);
+        assert_eq!(clamped.as_u8(), 8); // Should clamp to max valid arena (Gala)
+        
+        // Test Arena::new() with ArenaName enum
+        let arena = Arena::new(ArenaName::Bastion);
+        assert_eq!(arena.as_u8(), 4);
+        assert_eq!(arena.name(), ArenaName::Bastion);
         
         // Test GridPos::new() as primary constructor
         let pos = GridPos::new(5, -3);
@@ -676,6 +770,90 @@ mod tests {
         // From traits still work for Bevy interop
         let vec: IVec2 = pos.into();
         assert_eq!(vec, IVec2::new(5, -3));
+    }
+}
+```
+
+## Error Handling Best Practices
+
+This tutorial demonstrates production-ready error handling patterns using the three pragmatic rules:
+
+### Rule 19: Use Result<T, E> for operations that can fail
+
+```rust
+// ✅ Good: Methods that can fail return Result
+pub fn add_event(&mut self, event: TimelineEvent) -> TimelineResult<()>
+pub fn from_draft(draft: DraftTimeline) -> TimelineResult<Self>
+pub fn new(idx: u8) -> Result<Self, TimelineError>
+
+// ❌ Bad: Using Option or unwrap() for complex operations
+pub fn add_event(&mut self, event: TimelineEvent) // Can panic on invalid timestamps!
+pub fn new(idx: u8) -> Option<Self> // No context about why it failed
+```
+
+### Rule 20: Use ? operator for error propagation
+
+```rust
+// ✅ Good: Propagate errors up the call stack
+pub fn process_timeline(draft: DraftTimeline) -> TimelineResult<PublishTimeline> {
+    let timeline = PublishTimeline::from_draft(draft)?; // Propagates EmptyTimeline error
+    let events = timeline.events_in_range(start, end)?; // Propagates InvalidComparison error
+    Ok(timeline)
+}
+
+// ❌ Bad: Handling every error at every level
+pub fn process_timeline(draft: DraftTimeline) -> Option<PublishTimeline> {
+    match PublishTimeline::from_draft(draft) {
+        Ok(timeline) => Some(timeline),
+        Err(_) => None, // Lost context about what went wrong!
+    }
+}
+```
+
+### Rule 21: Provide context with errors using custom error types
+
+```rust
+// ✅ Good: Rich error context with thiserror
+#[derive(Debug, thiserror::Error)]
+pub enum TimelineError {
+    #[error("Arena index {index} is out of bounds (must be 0-8)")]
+    InvalidArenaIndex { index: u8 },
+    
+    #[error("Timeline is empty")]
+    EmptyTimeline,
+    
+    #[error("Event comparison failed - invalid timestamp")]
+    InvalidComparison,
+}
+
+// ❌ Bad: Generic error messages
+type TimelineError = Box<dyn Error>; // No context, hard to debug
+```
+
+### Error Recovery Patterns
+
+For startup/initialization code where you need guaranteed success:
+
+```rust
+// Use clamped constructors for startup
+Arena::new_clamped(arena_index) // Never fails, clamps to valid range
+
+// Use expect() with descriptive messages for "impossible" failures
+timeline.add_event(event).expect("Valid timestamp should always succeed");
+```
+
+For runtime code where errors are expected:
+
+```rust
+// Propagate errors up to where they can be handled meaningfully
+let arena = Arena::from_u8(user_input)?; // Let caller decide how to handle invalid input
+
+// Match on specific error types for targeted recovery
+match timeline_result {
+    Ok(timeline) => process_timeline(timeline),
+    Err(TimelineError::EmptyTimeline) => show_empty_state(),
+    Err(TimelineError::InvalidArenaIndex { index }) => {
+        show_error(&format!("Arena {} doesn't exist", index))
     }
 }
 ```
@@ -713,7 +891,7 @@ With the timeline foundation in place, we can now:
 1. **Type-Safe Newtypes**: TimeStamp, Arena, GridPos provide compile-time safety
 2. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
 3. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
-4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), Arena::new() as primary API
+4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), Arena::new(ArenaName) and Arena::from_u8() as primary API
 5. **Binary Search**: Efficient O(log n) operations on sorted timelines
 6. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
 7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent

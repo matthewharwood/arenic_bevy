@@ -12,6 +12,31 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Error types for timeline operations
+#[derive(Debug, thiserror::Error)]
+pub enum TimelineError {
+    #[error("Invalid timestamp: {timestamp}s (must be between 0.0 and 120.0)")]
+    InvalidTimestamp { timestamp: f32 },
+    
+    #[error("Timeline position corrupted: {position}s")]
+    CorruptedPosition { position: f32 },
+    
+    #[error("Timeline is empty")]
+    EmptyTimeline,
+    
+    #[error("Event comparison failed - invalid timestamp")]
+    InvalidComparison,
+    
+    #[error("Arena index {index} is out of bounds (must be 0-8)")]
+    InvalidArenaIndex { index: u8 },
+    
+    #[error("Grid position out of bounds: ({x}, {y})")]
+    InvalidGridPosition { x: i32, y: i32 },
+}
+
+/// Result type for timeline operations
+pub type TimelineResult<T> = Result<T, TimelineError>;
+
 
 #[derive(Clone, Debug)]
 pub struct TimelineEvent {
@@ -137,13 +162,18 @@ impl DraftTimeline {
         }
     }
 
-    pub fn add_event(&mut self, event: TimelineEvent) {
-        // Safety: TimeStamp constructor ensures no NaN values, so partial_cmp never returns None
-        match self
-            .events
-            .binary_search_by(|e| e.timestamp.partial_cmp(&event.timestamp).unwrap())
-        {
-            Ok(pos) | Err(pos) => self.events.insert(pos, event),
+    pub fn add_event(&mut self, event: TimelineEvent) -> TimelineResult<()> {
+        // Use safe comparison with proper error handling
+        let comparison = |e: &TimelineEvent| {
+            e.timestamp.partial_cmp(&event.timestamp)
+                .ok_or(TimelineError::InvalidComparison)
+        };
+        
+        match self.events.binary_search_by(|e| comparison(e).unwrap_or(std::cmp::Ordering::Equal)) {
+            Ok(pos) | Err(pos) => {
+                self.events.insert(pos, event);
+                Ok(())
+            }
         }
     }
 
@@ -157,43 +187,51 @@ pub struct PublishTimeline {
 }
 
 impl PublishTimeline {
-    pub fn from_draft(draft: DraftTimeline) -> Self {
-        Self {
-            events: draft.events.into(),
+    pub fn from_draft(draft: DraftTimeline) -> TimelineResult<Self> {
+        if draft.events.is_empty() {
+            return Err(TimelineError::EmptyTimeline);
         }
+        
+        Ok(Self {
+            events: draft.events.into(),
+        })
     }
     #[must_use]
     pub fn events_in_range(
         &self,
         start: TimeStamp,
         end: TimeStamp,
-    ) -> impl Iterator<Item = &TimelineEvent> + '_ {
-        // Simple range query - wrap-around handling comes in Tutorial 04
-        // Safety: TimeStamp constructor ensures no NaN values, so partial_cmp never returns None
+    ) -> TimelineResult<impl Iterator<Item = &TimelineEvent> + '_> {
+        // Safe comparison with proper error handling
+        let safe_compare = |e: &TimelineEvent, target: TimeStamp| {
+            e.timestamp.partial_cmp(&target)
+                .ok_or(TimelineError::InvalidComparison)
+        };
+        
         let start_idx = self
             .events
-            .binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap())
+            .binary_search_by(|e| safe_compare(e, start).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or_else(identity);
         let end_idx = self
             .events
-            .binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap())
+            .binary_search_by(|e| safe_compare(e, end).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or_else(identity);
 
-        self.events[start_idx..end_idx].iter()
+        Ok(self.events[start_idx..end_idx].iter())
     }
 
     /// Get next event after a specific timestamp
     /// Returns the first event with timestamp > the provided timestamp
-    /// ```
     #[must_use]
-    pub fn next_event_after(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
-        // Safety: TimeStamp constructor ensures no NaN values, so partial_cmp never returns None
-        match self
-            .events
-            .binary_search_by(|e| e.timestamp.partial_cmp(&timestamp).unwrap())
-        {
-            Ok(idx) => self.events.get(idx + 1), // Found exact match, return next
-            Err(idx) => self.events.get(idx), // Found insertion point, return event at that position
+    pub fn next_event_after(&self, timestamp: TimeStamp) -> TimelineResult<Option<&TimelineEvent>> {
+        let safe_compare = |e: &TimelineEvent| {
+            e.timestamp.partial_cmp(&timestamp)
+                .ok_or(TimelineError::InvalidComparison)
+        };
+        
+        match self.events.binary_search_by(|e| safe_compare(e).unwrap_or(std::cmp::Ordering::Equal)) {
+            Ok(idx) => Ok(self.events.get(idx + 1)), // Found exact match, return next
+            Err(idx) => Ok(self.events.get(idx)), // Found insertion point, return event at that position
         }
     }
 
@@ -202,14 +240,15 @@ impl PublishTimeline {
     ///
     /// Complements next_event_after for full timeline traversal capabilities
     #[must_use]
-    pub fn prev_event_before(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
-        // Safety: TimeStamp constructor ensures no NaN values, so partial_cmp never returns None
-        match self
-            .events
-            .binary_search_by(|e| e.timestamp.partial_cmp(&timestamp).unwrap())
-        {
-            Ok(idx) => self.events.get(idx), // Found an exact match, return it
-            Err(idx) => idx.checked_sub(1).and_then(|i| self.events.get(i)), // Return previous element
+    pub fn prev_event_before(&self, timestamp: TimeStamp) -> TimelineResult<Option<&TimelineEvent>> {
+        let safe_compare = |e: &TimelineEvent| {
+            e.timestamp.partial_cmp(&timestamp)
+                .ok_or(TimelineError::InvalidComparison)
+        };
+        
+        match self.events.binary_search_by(|e| safe_compare(e).unwrap_or(std::cmp::Ordering::Equal)) {
+            Ok(idx) => Ok(self.events.get(idx)), // Found an exact match, return it
+            Err(idx) => Ok(idx.checked_sub(1).and_then(|i| self.events.get(i))), // Return previous element
         }
     }
 }
@@ -323,7 +362,7 @@ pub fn debug_timeline_clocks(
     // Use let-else for early return pattern - more idiomatic Rust
     let Some((arena, clock)) = arena_q
         .iter()
-        .find(|(arena, _)| arena.as_u8() == current_arena.0)
+        .find(|(arena, _)| arena.name() == current_arena.name())
     else {
         return;
     };

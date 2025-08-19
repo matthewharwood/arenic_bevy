@@ -609,8 +609,8 @@ mod tests {
     #[test]
     fn test_ghost_arena_independence() {
         // Create two ghosts with different arenas using explicit constructors
-        let ghost_arena_0 = GhostArena(Arena::new(0).unwrap());
-        let ghost_arena_5 = GhostArena(Arena::new(5).unwrap());
+        let ghost_arena_0 = GhostArena(Arena::new(0).expect("Arena 0 should be valid"));
+        let ghost_arena_5 = GhostArena(Arena::new(5).expect("Arena 5 should be valid"));
         
         // Create different clocks for each arena
         let mut clock_0 = TimelineClock::default();
@@ -620,8 +620,8 @@ mod tests {
         
         // Verify ghosts track different times based on their arena
         assert_ne!(clock_0.current().as_secs(), clock_5.current().as_secs());
-        assert_eq!(ghost_arena_0.0, Arena::new(0).unwrap());
-        assert_eq!(ghost_arena_5.0, Arena::new(5).unwrap());
+        assert_eq!(ghost_arena_0.0, Arena::new(0).expect("Arena 0 should be valid"));
+        assert_eq!(ghost_arena_5.0, Arena::new(5).expect("Arena 5 should be valid"));
         
         // Each ghost will use its own arena's clock during playback
         // This ensures off-screen ghosts advance independently

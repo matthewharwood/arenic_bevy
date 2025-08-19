@@ -19,7 +19,7 @@ pub fn position_camera_for_arena(transform: &mut Transform, arena_index: u8, zoo
 pub fn setup_camera(mut commands: Commands, current_arena: Single<&CurrentArena>) {
     let arena = current_arena.into_inner();
     let mut transform = Transform::default();
-    position_camera_for_arena(&mut transform, arena.0, ZOOM.0);
+    position_camera_for_arena(&mut transform, arena.as_u8(), ZOOM.0);
 
     commands.spawn((
         Camera3d::default(),
@@ -51,7 +51,7 @@ pub fn toggle_camera_zoom(
         if zoom_out.is_some() {
             // Camera is zoomed out, zoom back in to current arena
             // Reset camera position based on current arena
-            position_camera_for_arena(&mut camera_transform, current_arena.0, ZOOM.0);
+            position_camera_for_arena(&mut camera_transform, current_arena.as_u8(), ZOOM.0);
             commands.entity(camera_entity).remove::<ZoomOut>();
             
             // Send event
@@ -91,7 +91,7 @@ pub fn draw_arena_border(
 
     // Use the same calculation as position_camera_for_arena to get the exact center
     let (x, y) = (8.125, 3.5); // Base position (center of a single arena)
-    let (offset_x, offset_y) = calculate_camera_position(arena.0);
+    let (offset_x, offset_y) = calculate_camera_position(arena.as_u8());
     let center = Vec3::new(x + offset_x, y - offset_y + (TILE_SIZE / 2.0), 1.0); // Same as camera looks at, with z=1 for visibility
 
     // Draw 5 rectangles for thickness (using 3D rect in world space)

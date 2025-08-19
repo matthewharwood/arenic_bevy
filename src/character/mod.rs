@@ -1,5 +1,5 @@
 use crate::arena::{
-    Arena, CameraUpdate, CurrentArena, LastActiveHero, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
+    Arena, ArenaName, CharacterMoved, CurrentArena, LastActiveHero, GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
 };
 use crate::materials::Materials;
 use crate::selectors::Active;
@@ -31,17 +31,17 @@ pub fn toggle_active_character(
     }
 
     let current_arena = current_arena_q.into_inner();
-    let current_arena_index = current_arena.0;
+    let current_arena_name = current_arena.name();
 
     for (arena_entity, arena, children) in arena_q.iter() {
-        if arena.0 == current_arena_index {
+        if arena.name() == current_arena_name {
             // Get all characters in this arena
             let characters_data: Vec<(Entity, Option<&Active>)> =
                 characters_q.iter_many(children).collect();
 
             // Need at least 2 characters to cycle
             if characters_data.len() < 2 {
-                println!("Not enough characters to cycle in arena {}", arena.0);
+                println!("Not enough characters to cycle in {}", arena);
                 return;
             }
 
@@ -74,8 +74,8 @@ pub fn toggle_active_character(
                     .insert(LastActiveHero(Some(next_entity)));
 
                 println!(
-                    "Cycled from character {:?} to {:?} in arena {}",
-                    current_entity, next_entity, arena.0
+                    "Cycled from character {:?} to {:?} in {}",
+                    current_entity, next_entity, arena
                 );
             }
         }
@@ -85,10 +85,10 @@ pub fn toggle_active_character(
 pub fn move_active_character(
     mut commands: Commands,
     keycode: Res<ButtonInput<KeyCode>>,
-    mut current_arena_q: Single<&mut CurrentArena>,
-    mut active_character_q: Single<(Entity, &mut Transform), (With<Character>, With<Active>)>,
+    current_arena_q: Single<&mut CurrentArena>,
+    active_character_q: Single<(Entity, &mut Transform), (With<Character>, With<Active>)>,
     arena_q: Query<(Entity, &Arena), With<Arena>>,
-    mut arena_refresh_event: EventWriter<CameraUpdate>,
+    mut character_moved_event: EventWriter<CharacterMoved>,
 ) {
     let mut movement = Vec3::ZERO;
     if keycode.just_pressed(KeyCode::KeyW) {
@@ -124,7 +124,7 @@ pub fn move_active_character(
     // 3 4 5
     // 6 7 8
 
-    let current_arena_index = current_arena.0;
+    let current_arena_index = current_arena.as_u8();
     let col = current_arena_index % 3;
     let row = current_arena_index / 3;
 
@@ -133,23 +133,29 @@ pub fn move_active_character(
         // Moving left out of bounds
         if col > 0 {
             // Can move to arena on the left
+            let from_arena = current_arena.name();
             let new_arena_index = current_arena_index - 1;
-            current_arena.0 = new_arena_index;
+            let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+            current_arena.0 = new_arena_name;
 
             // Teleport character to right side of new arena
             character_transform.translation.x = max_x;
 
             // Reparent character to new arena
             if let Some((new_arena_entity, _)) =
-                arena_q.iter().find(|(_, arena)| arena.0 == new_arena_index)
+                arena_q.iter().find(|(_, arena)| arena.name() == new_arena_name)
             {
                 commands
                     .entity(character_entity)
                     .insert(ChildOf(new_arena_entity));
             }
-            println!("Moved to arena {} (left)", new_arena_index);
-            // Send arena refresh event
-            arena_refresh_event.write(CameraUpdate);
+            println!("Moved to {} (left)", new_arena_name);
+            // Send character moved event
+            character_moved_event.write(CharacterMoved {
+                character_entity,
+                from_arena,
+                to_arena: new_arena_name,
+            });
         } else {
             println!("Cannot move left - at battleground boundary");
             return; // Prevent movement
@@ -158,23 +164,29 @@ pub fn move_active_character(
         // Moving right out of bounds
         if col < 2 {
             // Can move to arena on the right
+            let from_arena = current_arena.name();
             let new_arena_index = current_arena_index + 1;
-            current_arena.0 = new_arena_index;
+            let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+            current_arena.0 = new_arena_name;
 
             // Teleport character to left side of new arena
             character_transform.translation.x = min_x;
 
             // Reparent character to new arena
             if let Some((new_arena_entity, _)) =
-                arena_q.iter().find(|(_, arena)| arena.0 == new_arena_index)
+                arena_q.iter().find(|(_, arena)| arena.name() == new_arena_name)
             {
                 commands
                     .entity(character_entity)
                     .insert(ChildOf(new_arena_entity));
             }
-            println!("Moved to arena {} (right)", new_arena_index);
-            // Send arena refresh event
-            arena_refresh_event.write(CameraUpdate);
+            println!("Moved to {} (right)", new_arena_name);
+            // Send character moved event
+            character_moved_event.write(CharacterMoved {
+                character_entity,
+                from_arena,
+                to_arena: new_arena_name,
+            });
         } else {
             println!("Cannot move right - at battleground boundary");
             return; // Prevent movement
@@ -183,23 +195,29 @@ pub fn move_active_character(
         // Moving down out of bounds
         if row < 2 {
             // Can move to arena below
+            let from_arena = current_arena.name();
             let new_arena_index = current_arena_index + 3;
-            current_arena.0 = new_arena_index;
+            let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+            current_arena.0 = new_arena_name;
 
             // Teleport character to top side of new arena
             character_transform.translation.y = max_y;
 
             // Reparent character to new arena
             if let Some((new_arena_entity, _)) =
-                arena_q.iter().find(|(_, arena)| arena.0 == new_arena_index)
+                arena_q.iter().find(|(_, arena)| arena.name() == new_arena_name)
             {
                 commands
                     .entity(character_entity)
                     .insert(ChildOf(new_arena_entity));
             }
-            println!("Moved to arena {} (down)", new_arena_index);
-            // Send arena refresh event
-            arena_refresh_event.write(CameraUpdate);
+            println!("Moved to {} (down)", new_arena_name);
+            // Send character moved event
+            character_moved_event.write(CharacterMoved {
+                character_entity,
+                from_arena,
+                to_arena: new_arena_name,
+            });
         } else {
             println!("Cannot move down - at battleground boundary");
             return; // Prevent movement
@@ -208,23 +226,29 @@ pub fn move_active_character(
         // Moving up out of bounds
         if row > 0 {
             // Can move to arena above
+            let from_arena = current_arena.name();
             let new_arena_index = current_arena_index - 3;
-            current_arena.0 = new_arena_index;
+            let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+            current_arena.0 = new_arena_name;
 
             // Teleport character to bottom side of new arena
             character_transform.translation.y = min_y;
 
             // Reparent character to new arena
             if let Some((new_arena_entity, _)) =
-                arena_q.iter().find(|(_, arena)| arena.0 == new_arena_index)
+                arena_q.iter().find(|(_, arena)| arena.name() == new_arena_name)
             {
                 commands
                     .entity(character_entity)
                     .insert(ChildOf(new_arena_entity));
             }
-            println!("Moved to arena {} (up)", new_arena_index);
-            // Send arena refresh event
-            arena_refresh_event.write(CameraUpdate);
+            println!("Moved to {} (up)", new_arena_name);
+            // Send character moved event
+            character_moved_event.write(CharacterMoved {
+                character_entity,
+                from_arena,
+                to_arena: new_arena_name,
+            });
         } else {
             println!("Cannot move up - at battleground boundary");
             return; // Prevent movement
@@ -235,7 +259,7 @@ pub fn move_active_character(
     }
 
     println!(
-        "Character at: {:?} in arena {}",
-        character_transform.translation, current_arena.0
+        "Character at: {:?} in {}",
+        character_transform.translation, current_arena.name()
     );
 }

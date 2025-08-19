@@ -219,6 +219,36 @@ Each class brings unique tactical advantages and 4 specialized abilities:
 - **Multi-Arena Management**: All 9 arenas run independently with separate timers
 - **Scaling Difficulty**: Normal → Heroic → Mythic progression tiers
 
+### Arena Names & Layout
+
+Arenic features **9 distinct arenas** arranged in a 3×3 grid layout. Each arena has a unique name and thematic identity:
+
+| Index | Arena Name | Grid Position | Theme |
+|-------|------------|---------------|-------|
+| **0** | **Labyrinth** | Top-Left (0,0) | Hunter-focused with precision and traps |
+| **1** | **Guild House** | Top-Center (1,0) | Alchemist-focused with transformation |
+| **2** | **Sanctum** | Top-Right (2,0) | Cardinal-focused with divine magic |
+| **3** | **Mountain** | Middle-Left (0,1) | Warrior-focused with strength and defense |
+| **4** | **Bastion** | Middle-Center (1,1) | Thief-focused with stealth and mobility |
+| **5** | **Pawnshop** | Middle-Right (2,1) | Bard-focused with rhythm and support |
+| **6** | **Crucible** | Bottom-Left (0,2) | Forager-focused with terrain manipulation |
+| **7** | **Casino** | Bottom-Center (1,2) | Merchant-focused with economic warfare |
+| **8** | **Gala** | Bottom-Right (2,2) | Mixed themes and ultimate challenges |
+
+#### Arena Navigation
+```
+Grid Layout (3×3):
+[0] Labyrinth  [1] Guild House  [2] Sanctum
+[3] Mountain   [4] Bastion      [5] Pawnshop  
+[6] Crucible   [7] Casino       [8] Gala
+```
+
+#### Technical Implementation
+- **ArenaName Enum**: Each arena uses a strongly-typed `ArenaName` enum instead of raw numeric indices
+- **Type Safety**: Prevents invalid arena references and provides human-readable names
+- **Index Conversion**: `ArenaName::as_u8()` provides the numeric index (0-8) when needed for calculations
+- **Error Handling**: Invalid arena indices are handled gracefully with proper error messages
+
 ### Arena Navigation & Camera System
 - **Arena Selection**: Use [ and ] keys to cycle through arenas (0-8, wraps around)
 - **Camera Zoom**: Press P to toggle between single arena view and all-arenas overview
@@ -248,14 +278,15 @@ Each class brings unique tactical advantages and 4 specialized abilities:
 - **No Enrage Timer**: Bosses reset each cycle without becoming stronger over time
 
 ### Arena-Specific Boss Types
-1. **Hunter Arena**: Features a Hunter-class boss with precision ranged attacks
-2. **Alchemist Arena**: Alchemical boss using transformation and area denial
-3. **Cardinal Arena**: Divine boss with healing denial and purification attacks
-4. **Warrior Arena**: Heavily armored boss with charge attacks and area damage
-5. **Thief Arena**: Stealth boss with teleportation and ambush mechanics
-6. **Bard Arena**: Rhythm-based boss requiring timing-sensitive responses
-7. **Forager Arena**: Environment-manipulating boss that changes the battlefield
-8. **Merchant Arena**: Economic boss with risk-reward mechanical interactions
+0. **Labyrinth**: Features a Hunter-class boss with precision ranged attacks and deadly trap mechanics
+1. **Guild House**: Alchemist boss using elemental transformation and area denial through toxic pools
+2. **Sanctum**: Cardinal boss with healing denial, purification attacks, and divine shields
+3. **Mountain**: Warrior boss with heavily armored defenses, charge attacks, and area damage
+4. **Bastion**: Thief boss employing stealth mechanics, teleportation strikes, and ambush tactics
+5. **Pawnshop**: Bard boss requiring timing-sensitive responses to rhythmic attack patterns
+6. **Crucible**: Forager boss that dynamically changes the battlefield through terrain manipulation
+7. **Casino**: Merchant boss with risk-reward mechanics and economic warfare strategies
+8. **Gala**: Ultimate challenge arena featuring mixed boss mechanics from all other arenas
 
 ---
 

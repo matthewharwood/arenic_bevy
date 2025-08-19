@@ -15,9 +15,9 @@ mod timeline;
 use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
-use crate::ability::{AbilityType, AutoShot, HolyNova};
+use crate::ability::{AutoShot, HolyNova};
 use crate::arena::{
-    arena_update, decrement_current_arena, get_local_tile_space, increment_current_arena, Arena, CameraUpdate, CurrentArena,
+    arena_update, decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena, Arena, ArenaName, CameraUpdate, CharacterMoved, CurrentArena,
     LastActiveHero, ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
     TILE_SIZE, TOTAL_ARENAS,
 };
@@ -57,6 +57,7 @@ fn main() {
         .init_state::<GameState>()
         // Register custom events
         .add_event::<CameraUpdate>()
+        .add_event::<CharacterMoved>()
         .add_systems(
             Startup,
             (
@@ -77,6 +78,7 @@ fn main() {
                 increment_current_arena,
                 decrement_current_arena,
                 arena_update,
+                handle_character_moved,
                 move_active_character,
                 draw_arena_border,
                 auto_shot_ability,
@@ -108,7 +110,7 @@ fn setup_scene(
             BattleGround,
             Transform::default(),
             InheritedVisibility::default(),
-            CurrentArena(1),
+            CurrentArena(ArenaName::GuildHouse), // Arena index 1
         ))
         .with_children(|battleground| {
             for arena_index in 0..TOTAL_ARENAS {
@@ -126,7 +128,7 @@ fn setup_scene(
                 battleground
                     .spawn((
                         Transform::from_xyz(offset_x, offset_y, 0.0),
-                        Arena::new(arena_index).expect("Arena index must be 0-8 during setup"),
+                        Arena::from_u8_clamped(arena_index),
                         InheritedVisibility::default(),
                         TimelineClock::default(),
                         class_type,
@@ -159,9 +161,9 @@ fn spawn_starting_hero(
     current_arena: Single<&CurrentArena>,
     arena_query: Query<(Entity, &Arena)>,
 ) {
-    let current_arena_index = current_arena.into_inner().0;
+    let current_arena_name = current_arena.into_inner().name();
     for (arena_entity, arena) in arena_query.iter() {
-        if arena.0 == current_arena_index {
+        if arena.name() == current_arena_name {
             let sphere_radius = 0.125;
             let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
             let local_position = get_local_tile_space(36.0, 15.0, 0.125);
@@ -208,7 +210,7 @@ fn spawn_starting_bosses(
         let boss_mesh = meshes.add(Sphere::new(boss_radius));
 
         let local_position = get_local_tile_space(32.0, 10.0, boss_radius);
-        if arena_id.0 == 1 {
+        if arena_id.name() == ArenaName::GuildHouse {
             commands.entity(arena_entity).with_child((
                 Boss,
                 Active,

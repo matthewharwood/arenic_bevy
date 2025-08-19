@@ -65,8 +65,6 @@ Before writing any code you MUST follow these steps and create a plan:
 
 ## Pragmatic Rules
 
-## Complete Bevy Development Rules
-
 1. **Components First**: Entity state in components; resources only for true singletons. Prefer `Query<&T>` over global
    state.
 2. **Static Data Lookup**: Game data in `const` arrays/structs; apply via systems.
@@ -87,11 +85,15 @@ Before writing any code you MUST follow these steps and create a plan:
 16. **Direct Field Access**: Public fields when no invariant exists; methods only when adding value.
 17. **One Interface per Concept**: Expose only the variant that serves the API's purpose.
 18. **Pattern Match Enums**: Prefer `match` over `if let` chains for exhaustiveness checking.
-19. **Make Invalid States Unrepresentable**: Use const constructors and enums to eliminate runtime validation where
-    possible. Infallible setup, fallible user input.
-20. **Three-Layer Error Pattern**: Domain errors with `thiserror`, systems return `Result`, propagate with `?`. Add
-    `.with_context()` when error origin would be unclear. Never`.unwrap()` in systems.
+19. **Finite Sets are Enums**: When a type has fewer than 20 valid values that are known at compile-time, use an enum.
+    Never validate integers/strings for closed sets—enumerate them. `Arena(u8)` with validation → `Arena(ArenaIndex)`
+    with enum variants.
+20. **Three-Layer Error Pattern**: Domain errors with `thiserror`, systems return `Result` (imported from bevy prelude),
+    propagate with `?`. Add `.with_context()` when error origin would be unclear. Never`.unwrap()` in systems.
 21. **Development vs Production**: Let errors panic in dev (default), log in production. Configure once in main.
+22. **Import at Module Level**: Import enum variants, associated constants, and frequently used types at the top of a
+    file. Avoid inline qualified paths `std::cmp::Ordering::Equal` in favor of clean imports
+    `use std::cmp::Ordering::Equal`.
 
 ## Ideal Data Flow
 
