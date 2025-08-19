@@ -12,6 +12,7 @@ use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
 use std::time::Duration;
 
+
 #[derive(Clone, Debug)]
 pub struct TimelineEvent {
     pub timestamp: TimeStamp,
@@ -73,7 +74,6 @@ pub enum Target {
     Entity(Entity),
     Position(GridPos),
 }
-
 
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
 pub struct GridPos(pub IVec2);
@@ -138,6 +138,7 @@ impl DraftTimeline {
     }
 
     pub fn add_event(&mut self, event: TimelineEvent) {
+        // Safety: TimeStamp constructor ensures no NaN values, so partial_cmp never returns None
         match self
             .events
             .binary_search_by(|e| e.timestamp.partial_cmp(&event.timestamp).unwrap())
@@ -168,6 +169,7 @@ impl PublishTimeline {
         end: TimeStamp,
     ) -> impl Iterator<Item = &TimelineEvent> + '_ {
         // Simple range query - wrap-around handling comes in Tutorial 04
+        // Safety: TimeStamp constructor ensures no NaN values, so partial_cmp never returns None
         let start_idx = self
             .events
             .binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap())
@@ -180,35 +182,35 @@ impl PublishTimeline {
         self.events[start_idx..end_idx].iter()
     }
 
-    /// Get movement intent at a specific timestamp using partition_point for optimal boundary finding
-    /// Returns the most recent movement event before or at the timestamp
-    ///
-    /// Uses partition_point which directly finds where the predicate changes from true to false,
-    /// clarifying the logic than binary_search_by with its Ok/Err handling
+    /// Get next event after a specific timestamp
+    /// Returns the first event with timestamp > the provided timestamp
+    /// ```
     #[must_use]
-    pub fn get_movement_intent_at(&self, timestamp: TimeStamp) -> Option<GridPos> {
-        // partition_point finds the first index where timestamp > t, so we work backwards from there
-        // This is more idiomatic than binary_search_by for finding boundaries in sorted sequences
-        let mut i = self.events.partition_point(|e| e.timestamp <= timestamp);
-        while i > 0 {
-            i -= 1; // Move to the last index with ts ≤ timestamp
-            if let EventType::Movement(pos) = self.events[i].event_type {
-                return Some(pos);
-            }
+    pub fn next_event_after(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
+        // Safety: TimeStamp constructor ensures no NaN values, so partial_cmp never returns None
+        match self
+            .events
+            .binary_search_by(|e| e.timestamp.partial_cmp(&timestamp).unwrap())
+        {
+            Ok(idx) => self.events.get(idx + 1), // Found exact match, return next
+            Err(idx) => self.events.get(idx), // Found insertion point, return event at that position
         }
-        None
     }
 
-    /// Get abilities within a time window
-    /// Returns an iterator over events that contain abilities within the specified range
+    /// Get a previous event before or at a specific timestamp
+    /// Returns the most recent event with timestamp <= the provided timestamp
+    ///
+    /// Complements next_event_after for full timeline traversal capabilities
     #[must_use]
-    pub fn abilities_in_window(
-        &self,
-        start: TimeStamp,
-        end: TimeStamp,
-    ) -> impl Iterator<Item = &TimelineEvent> + '_ {
-        self.events_in_range(start, end)
-            .filter(|e| matches!(e.event_type, EventType::Ability(_, _)))
+    pub fn prev_event_before(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
+        // Safety: TimeStamp constructor ensures no NaN values, so partial_cmp never returns None
+        match self
+            .events
+            .binary_search_by(|e| e.timestamp.partial_cmp(&timestamp).unwrap())
+        {
+            Ok(idx) => self.events.get(idx), // Found an exact match, return it
+            Err(idx) => idx.checked_sub(1).and_then(|i| self.events.get(i)), // Return previous element
+        }
     }
 }
 

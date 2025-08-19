@@ -115,7 +115,7 @@ mod tests {
 
         let published = PublishTimeline::from_draft(draft);
 
-        // Test: Find next event after a timestamp with no exact match
+        // Test: Find the next event after a timestamp with no exact match
         let next = published.next_event_after(TimeStamp::new(15.0));
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(20.0));

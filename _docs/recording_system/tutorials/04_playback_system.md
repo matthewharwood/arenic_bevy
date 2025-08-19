@@ -210,8 +210,13 @@ pub fn playback_ghost_movement(
         // Update timeline position to match ghost's arena clock
         position.0 = current_time;
 
-        // Get movement intent at current timestamp
-        if let Some(move_intent) = timeline.get_movement_intent_at(current_time) {
+        // Get movement intent at current timestamp using the new consolidated API
+        // Apply Rule #20: Pattern matching over conditional extraction
+        if let Some(move_intent) = timeline.prev_event_before(current_time)
+            .and_then(|e| match e.event_type {
+                EventType::Movement(pos) => Some(pos),
+                _ => None,
+            }) {
             // Convert grid position to world position (deterministic)
             let target_world_pos = Vec3::new(
                 move_intent.x() as f32 * 1.0,  // Grid unit size
@@ -284,7 +289,8 @@ pub fn loop_ghost_timelines(
 Add to `src/playback/mod.rs`:
 
 ```rust
-// No need to import - abilities_in_window is now a method on PublishTimeline
+// No need to import - events_in_range is now the unified method on PublishTimeline
+// Filter with iterator methods for specific event types
 
 /// Event sent when a ghost triggers an ability
 #[derive(Event)]
@@ -306,11 +312,12 @@ pub fn playback_ghost_abilities(
         let current_time = position.0;
         let prev_time = triggered.previous_position.unwrap_or(current_time);
         
-        // Use the wrap-aware events_in_range method
+        // Use the consolidated events_in_range with iterator filtering
         // The PublishTimeline::events_in_range now handles wrap-around internally
         // When prev_time > current_time, it automatically returns events from
         // [prev_time..120) concatenated with [0..current_time)
-        let abilities = timeline.events_in_range(prev_time, current_time);
+        let abilities = timeline.events_in_range(prev_time, current_time)
+            .filter(|e| matches!(e.event_type, EventType::Ability(_, _)));
         
         // Zero-alloc: Process abilities directly from iterator
         for event in abilities {

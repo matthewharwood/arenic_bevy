@@ -80,8 +80,9 @@ Before writing any code you MUST follow these steps and create a plan:
 12. **Use `Display`/`FromStr`**: Human-readable boundaries; no internal representation leakage.
 13. **Prefer `&str`/slices**: Borrow rather than allocate; avoid to_string() churn.
 14. **No global mutable state**: If absolutely unavoidable, a single owner with documented initialization.
-15. **Docs are tests** — rustdoc examples compile; executable documentation; with terse, proper grammar that include
-    articles and punctuation.
+15. **Docs are tests** — rustdoc examples compile; executable documentation; with terse, proper grammar that includes
+    articles and punctuation. e.g., Correct: "Found an exact match, return it" vs. Incorrect: "Found exact match, return
+    it."
 16. **Never ignore `Result`**: Handle or propagate with context.
 17. **Zero panics in libraries**: Libraries return Result; binary panics only on startup misconfigurations.
 18. **Direct field access over trivial getters/setters**: Prefer public fields or direct mutation when there's no
@@ -90,6 +91,9 @@ Before writing any code you MUST follow these steps and create a plan:
 19. **One interface per concept**: When multiple methods expose variations of the same underlying data, provide only the
     variant that serves the API's purpose. Internal representations and intermediate forms should stay private unless
     they represent genuinely different concepts.
+20. **Pattern Matching over Conditional Extraction**: When extracting values from enums, prefer match expressions over
+    if let chains with else None. Match expressions are more idiomatic, exhaustiveness-checked, and scale better when
+    variants are added
 
 ## Ideal Data Flow
 

@@ -277,8 +277,8 @@ impl PublishTimeline {
         self.events[start_idx..end_idx].iter()
     }
 
-    // TODO(human): Decide whether to keep specialized query methods or simplify to just events_in_range()
-    // Rule 19 suggests removing these, but they're used in Tutorial 04 for ghost playback
+    // Consolidated API: Use next_event_after/prev_event_before with iterator methods for specific queries
+    // Example: timeline.events_in_range(start, end).filter(|e| matches!(e.event_type, EventType::Ability(_, _)))
     
     /// Zero-alloc helper: Find next event after timestamp
     #[must_use]
@@ -295,38 +295,17 @@ impl PublishTimeline {
         &self.events[start.min(self.events.len())..end.min(self.events.len())]
     }
 
-    /// Get movement intent at a specific timestamp using partition_point for optimal boundary finding
-    /// Returns the most recent movement event before or at the timestamp
+    /// Get previous event before or at a specific timestamp
+    /// Returns the most recent event with timestamp <= the provided timestamp
     /// 
-    /// # Why partition_point is superior to binary_search_by:
-    /// - **Clearer Intent**: partition_point directly finds the boundary where predicate changes
-    /// - **Simpler Logic**: No Ok/Err pattern matching needed
-    /// - **More Idiomatic**: Specifically designed for finding boundaries in sorted sequences
-    /// - **Same Performance**: O(log n) complexity but cleaner implementation
+    /// Complements next_event_after for full timeline traversal capabilities
+    /// Use with iterator methods for specific event type filtering
     #[must_use]
-    pub fn get_movement_intent_at(&self, timestamp: TimeStamp) -> Option<GridPos> {
-        // partition_point finds first index where timestamp > target, so work backwards from there
-        // This directly gives us the boundary we want without complex Ok/Err handling
-        let mut i = self.events.partition_point(|e| e.timestamp <= timestamp);
-        while i > 0 {
-            i -= 1; // Move to last index with ts ≤ timestamp
-            if let EventType::Movement(pos) = self.events[i].event_type {
-                return Some(pos);
-            }
+    pub fn prev_event_before(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
+        match self.events.binary_search_by(|e| e.timestamp.partial_cmp(&timestamp).unwrap()) {
+            Ok(idx) => self.events.get(idx),     // Found exact match, return it
+            Err(idx) => idx.checked_sub(1).and_then(|i| self.events.get(i)), // Return previous element
         }
-        None
-    }
-    
-    /// Get abilities within a time window
-    /// Returns an iterator over events that contain abilities within the specified range
-    #[must_use]
-    pub fn abilities_in_window(
-        &self,
-        start: TimeStamp, 
-        end: TimeStamp
-    ) -> impl Iterator<Item=&TimelineEvent> + '_ {
-        self.events_in_range(start, end)
-            .filter(|e| matches!(e.event_type, EventType::Ability(_, _)))
     }
 }
 ```
@@ -736,7 +715,7 @@ With the timeline foundation in place, we can now:
 5. **Binary Search**: Efficient O(log n) operations on sorted timelines
 6. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
 7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
-8. **partition_point over binary_search_by**: More idiomatic boundary finding with clearer intent and simpler logic
+8. **Consolidated Timeline API**: next_event_after/prev_event_before provide unified temporal queries with consistent binary_search_by approach
 9. **Virtual Time for Pause Safety**: Time<Virtual> prevents time jumps when pausing/unpausing
 
 ## Production Notes
@@ -762,7 +741,7 @@ With the timeline foundation in place, we can now:
 - **Arc<[T]>**: Share timeline across systems without cloning the data
 - **Binary Search**: Fast lookups for playback position queries
 - **Zero-Copy Ownership Transfer**: When data flows one-way (draft→publish), consume instead of borrow to enable efficient transformations
-- **partition_point Preference**: Choose partition_point over binary_search_by when finding boundaries - it's designed exactly for this pattern and eliminates Ok/Err handling complexity
+- **Unified Timeline Queries**: Use next_event_after/prev_event_before as foundational API, combine with iterator methods for event type filtering instead of specialized methods
 
 ### Zero-Copy Principle Applied:
 
