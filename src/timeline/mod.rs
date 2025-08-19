@@ -233,9 +233,6 @@ impl TimelineClock {
             self.timer.tick(delta);
         }
     }
-    pub fn tick_secs(&mut self, seconds: f32) {
-        self.tick(Duration::from_secs_f32(seconds));
-    }
     pub fn reset(&mut self) {
         self.timer.reset();
     }
@@ -244,9 +241,6 @@ impl TimelineClock {
     }
     pub fn resume(&mut self) {
         self.is_paused = false;
-    }
-    pub fn elapsed_secs(&self) -> f32 {
-        self.timer.elapsed_secs()
     }
     pub fn current(&self) -> TimeStamp {
         TimeStamp::wrapped(self.timer.elapsed_secs())
@@ -333,8 +327,8 @@ pub fn debug_timeline_clocks(
     };
 
     // PR Gate: Using trace! for per-frame logs instead of info!
-    if (clock.elapsed_secs() % 1.0) < 0.02 {
-        trace!("{}: {:.1}s", arena, clock.elapsed_secs());
+    if (clock.current().as_secs() % 1.0) < 0.02 {
+        trace!("{}: {:.1}s", arena, clock.current().as_secs());
     }
 }
 

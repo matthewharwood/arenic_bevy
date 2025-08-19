@@ -382,7 +382,7 @@ pub fn adjust_ghost_update_frequency(
     arena_q: Query<&Arena>,
     time: Res<Time>,
 ) {
-    let current_time = time.elapsed_secs();
+    let current_time = time.elapsed().as_secs_f32();
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
@@ -427,7 +427,7 @@ pub fn frequency_limited_ghost_update(
         return;
     }
     
-    let current_time = time.elapsed_secs();
+    let current_time = time.elapsed().as_secs_f32();
 
     // Process current arena ghosts first (high priority)
     let Some(current_idx) = Arena::new(current_arena.0) else {
@@ -626,7 +626,7 @@ pub fn monitor_performance(
     metrics.memory_usage_mb = (timeline_memory + compressed_memory) as f32 / 1_048_576.0;
 
     // Log every 5 seconds
-    if time.elapsed_secs() as u32 % 5 == 0 {
+    if time.elapsed().as_secs() % 5 == 0 {
         info!(
             "Performance: {} ghosts, {:.0} FPS, {:.2} MB timeline memory",
             metrics.ghost_count,

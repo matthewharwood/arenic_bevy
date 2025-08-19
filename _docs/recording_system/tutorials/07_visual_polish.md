@@ -253,7 +253,7 @@ pub fn update_ghost_trails(
     mut ghost_q: Query<(&Transform, &mut GhostTrail), With<Ghost>>,
     time: Res<Time>,
 ) {
-    let current_time = time.elapsed_secs();
+    let current_time = time.elapsed().as_secs_f32();
 
     for (transform, mut trail) in ghost_q.iter_mut() {
         // Add current position to back
@@ -327,7 +327,7 @@ pub fn render_ghost_trails(
     mut trail_q: Query<(Entity, &mut TrailSegment, &mut Transform, &Handle<StandardMaterial>)>,
     virtual_time: Res<Time<Virtual>>,
 ) {
-    let current_time = virtual_time.elapsed_secs();
+    let current_time = virtual_time.elapsed().as_secs_f32();
 
     // Update existing trail segments
     for (entity, mut segment, mut transform, material_handle) in trail_q.iter_mut() {
@@ -503,8 +503,8 @@ pub fn pulse_recording_characters(
     mut materials: ResMut<Assets<StandardMaterial>>,
     time: Res<Time>,
 ) {
-    let pulse = (time.elapsed_secs() * 4.0).sin() * 0.05 + 1.0;
-    let emissive_strength = ((time.elapsed_secs() * 3.0).sin() + 1.0) * 0.5;
+    let pulse = (time.elapsed().as_secs_f32() * 4.0).sin() * 0.05 + 1.0;
+    let emissive_strength = ((time.elapsed().as_secs_f32() * 3.0).sin() + 1.0) * 0.5;
 
     for (mut transform, material_handle) in recording_q.iter_mut() {
         transform.scale = Vec3::splat(pulse);

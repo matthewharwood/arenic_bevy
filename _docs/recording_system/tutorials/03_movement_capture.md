@@ -450,7 +450,7 @@ pub fn debug_recording_stats(
     time: Res<Time>,
 ) {
     // Only log every second to avoid spam
-    if (time.elapsed_secs() as u32 % 60) != 0 {
+    if (time.elapsed().as_secs() % 60) != 0 {
         return;
     }
 
@@ -547,7 +547,7 @@ use crate::recording::debug::{
     // Optimization (run less frequently)
     optimize_timeline_events.run_if(|time: Res<Time>| {
         // Run every second
-        (time.elapsed_secs() as u32) % 60 == 0
+        time.elapsed().as_secs() % 60 == 0
     }),
     
     // Debug visualization

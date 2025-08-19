@@ -85,12 +85,6 @@ impl TimeStamp {
     }
 }
 
-// From trait kept only for Bevy interop - use TimeStamp::new() in examples
-impl From<f32> for TimeStamp {
-    fn from(seconds: f32) -> Self {
-        Self::new(seconds)
-    }
-}
 
 impl fmt::Display for TimeStamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -283,6 +277,9 @@ impl PublishTimeline {
         self.events[start_idx..end_idx].iter()
     }
 
+    // TODO(human): Decide whether to keep specialized query methods or simplify to just events_in_range()
+    // Rule 19 suggests removing these, but they're used in Tutorial 04 for ghost playback
+    
     /// Zero-alloc helper: Find next event after timestamp
     #[must_use]
     pub fn next_event_after(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
@@ -369,21 +366,13 @@ impl TimelineClock {
         }
     }
     
-    /// Convenience method for ticking with seconds (useful for tests)
-    pub fn tick_secs(&mut self, seconds: f32) {
-        self.tick(std::time::Duration::from_secs_f32(seconds));
-    }
 
     pub fn reset(&mut self) {
         self.timer.reset();
     }
     
-    pub fn elapsed_secs(&self) -> f32 {
-        self.timer.elapsed_secs()
-    }
-    
     pub fn current(&self) -> TimeStamp {
-        TimeStamp::wrapped(self.timer.elapsed_secs())
+        TimeStamp::new(self.timer.elapsed_secs())
     }
 }
 
@@ -480,8 +469,8 @@ pub fn debug_timeline_clocks(
     };
     
     // PR Gate: Using trace! for per-frame logs instead of info!
-    if (clock.elapsed_secs() % 1.0) < 0.02 {
-        trace!("{}: {:.1}s", arena, clock.elapsed_secs());
+    if (clock.current().as_secs() % 1.0) < 0.02 {
+        trace!("{}: {:.1}s", arena, clock.current().as_secs());
     }
 }
 ```
@@ -578,7 +567,7 @@ mod tests {
         let mut clock = TimelineClock::default();
 
         // Tick past 120 seconds
-        clock.tick_secs(125.0);
+        clock.tick(Duration::from_secs(125));
 
         // Should loop back
         assert_eq!(clock.current().as_secs(), 5.0);
@@ -603,15 +592,15 @@ mod tests {
     fn test_timeline_clock_pause_resume() {
         let mut clock = TimelineClock::default();
 
-        clock.tick_secs(10.0);
+        clock.tick(Duration::from_secs(10));
         assert_eq!(clock.current().as_secs(), 10.0);
 
         clock.pause();
-        clock.tick_secs(10.0); // Should not advance while paused
+        clock.tick(Duration::from_secs(10)); // Should not advance while paused
         assert_eq!(clock.current().as_secs(), 10.0);
 
         clock.resume();
-        clock.tick_secs(10.0); // Should advance again
+        clock.tick(Duration::from_secs(10)); // Should advance again
         assert_eq!(clock.current().as_secs(), 20.0);
     }
 

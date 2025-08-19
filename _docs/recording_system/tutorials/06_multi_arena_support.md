@@ -234,7 +234,7 @@ pub fn update_arena_timers_with_sync(
         TimerSyncMode::Independent => {
             // Each arena updates independently
             for (_, mut clock) in arena_q.iter_mut() {
-                clock.tick_secs(delta);
+                clock.tick(Duration::from_secs_f32(delta));
             }
         }
         TimerSyncMode::Synchronized => {
@@ -450,7 +450,7 @@ pub fn display_arena_statistics(
     time: Res<Time>,
 ) {
     // Display every 5 seconds
-    if time.elapsed_secs() as u32 % 5 != 0 {
+    if time.elapsed().as_secs() % 5 != 0 {
         return;
     }
 

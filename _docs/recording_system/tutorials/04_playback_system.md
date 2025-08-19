@@ -399,7 +399,7 @@ pub fn pulse_ghost_transparency(
     mut ghost_q: Query<&mut GhostVisuals, With<Ghost>>,
     time: Res<Time>,
 ) {
-    let pulse = (time.elapsed_secs() * 2.0).sin() * 0.1 + 0.5;
+    let pulse = (time.elapsed().as_secs_f32() * 2.0).sin() * 0.1 + 0.5;
 
     for mut visuals in ghost_q.iter_mut() {
         visuals.transparency = pulse;
@@ -607,9 +607,9 @@ mod tests {
         
         // Create different clocks for each arena
         let mut clock_0 = TimelineClock::default();
-        clock_0.tick_secs(10.0);
+        clock_0.tick(Duration::from_secs(10));
         let mut clock_5 = TimelineClock::default();
-        clock_5.tick_secs(45.0);
+        clock_5.tick(Duration::from_secs(45));
         
         // Verify ghosts track different times based on their arena
         assert_ne!(clock_0.current().as_secs(), clock_5.current().as_secs());

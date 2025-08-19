@@ -32,9 +32,16 @@
       "Bash(rustc test_timeline.rs)",
       "Bash(rustup toolchain install:*)",
       "Bash(rustup:*)",
-      "Bash(rustc --version)"
+      "Bash(rustc --version)",
+      "Bash(./filename \"Create a user authentication system with JWT tokens and password hashing\")",
+      "Bash(./filename \"I need help debugging why my Bevy game component isn''t updating properly in the ECS system\")",
+      "Bash(./filename \"Hey Blow, what is the difference between these two functions why do I really need two different versions of similar ideas??\")",
+      "Bash(./filename \"Debug complex ECS system performance issues with profiling\")",
+      "Bash(./prompt \"debug bevy ecs performance issues\")",
+      "Bash(./prompt \"refactor timeline system architecture\")",
+      "Bash(./prompt \"test prompts\")"
     ],
     "deny": []
   },
-  "outputStyle": "default"
+  "outputStyle": "Learning"
 }

@@ -36,4 +36,10 @@ mod tests {
         assert_eq!(timeline.events[2].timestamp, TimeStamp::new(10.0));
         assert_eq!(timeline.events.len(), 3);
     }
+    #[test]
+    fn test_timeline_clock_loops_at_120_seconds() {
+        let mut clock = TimelineClock::default();
+        clock.tick(Duration::from_secs(125));
+        assert_eq!(clock.current().as_secs(), 5.0);
+    }
 }
