@@ -28,26 +28,12 @@ mod tests {
             event_type: EventType::Death,
         });
 
-        // Bevy API hints:
-        // - TimelineEvent struct has: timestamp: TimeStamp, event_type: EventType
-        // - TimeStamp::new(f32) creates a timestamp (will clamp to 0-120)
-        // - GridPos::new(x: i32, y: i32) creates a grid position
-        // - EventType enum variants:
-        //   - EventType::Movement(GridPos)
-        //   - EventType::Ability(AbilityType, Option<Target>)
-        //   - EventType::Death
-        // - AbilityType::AutoShot is the enum variant
-        // - DraftTimeline has add_event(&mut self, event: TimelineEvent) method
-
-        // EXPECTATIONS - Assert all of these:
+        // TODO(human): Check that the events were added correctly
         // 1. timeline.events.len() should equal 3
         // 2. Events should be sorted by timestamp:
-        //    - timeline.events[0].timestamp should equal TimeStamp::new(2.0)
-        //    - timeline.events[1].timestamp should equal TimeStamp::new(5.0)
-        //    - timeline.events[2].timestamp should equal TimeStamp::new(10.0)
-
-        // Example assertion syntax:
-        // assert_eq!(actual_value, expected_value);
-        // assert_eq!(timeline.events.len(), 3);
+        assert_eq!(timeline.events[0].timestamp, TimeStamp::new(2.0));
+        assert_eq!(timeline.events[1].timestamp, TimeStamp::new(5.0));
+        assert_eq!(timeline.events[2].timestamp, TimeStamp::new(10.0));
+        assert_eq!(timeline.events.len(), 3);
     }
 }
