@@ -46,12 +46,12 @@ pub struct TimelineEvent {
 
 /// Newtype for timeline timestamps (0.0 to 120.0 seconds)
 /// PR Gate: TimeStamp + Duration pattern for type safety (not raw f32)
-/// 
+///
 /// # Examples
 /// ```
 /// let timestamp = TimeStamp::new(65.5);
 /// assert_eq!(timestamp.as_secs(), 65.5);
-/// 
+///
 /// let clamped = TimeStamp::new(150.0);
 /// assert_eq!(clamped.as_secs(), 120.0); // Clamped to MAX
 /// ```
@@ -75,7 +75,7 @@ impl TimeStamp {
     pub fn as_secs(&self) -> f32 {
         self.0
     }
-    
+
     /// Wraps time back to start when exceeding 120 seconds
     /// NaN values are coerced to 0.0 for safety
     #[must_use]
@@ -141,7 +141,7 @@ impl ArenaName {
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }
-    
+
     /// Creates ArenaName from u8 index if valid (0-8)
     pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
         match idx {
@@ -185,19 +185,19 @@ impl Arena {
     pub fn new(name: ArenaName) -> Self {
         Self(name)
     }
-    
+
     /// Creates new Arena from u8 index if valid (0-8)
     #[must_use]
     pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
         Ok(Self(ArenaName::from_u8(idx)?))
     }
-    
+
     /// Returns the arena's numeric index (0-8)
     #[must_use]
     pub fn as_u8(&self) -> u8 {
         self.0.as_u8()
     }
-    
+
     /// Returns the ArenaName enum value
     #[must_use]
     pub fn name(&self) -> ArenaName {
@@ -207,7 +207,7 @@ impl Arena {
 
 impl TryFrom<u8> for Arena {
     type Error = TimelineError;
-    
+
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         Self::from_u8(value)
     }
@@ -228,12 +228,12 @@ impl GridPos {
     pub fn new(x: i32, y: i32) -> Self {
         Self(IVec2::new(x, y))
     }
-    
+
     #[must_use]
     pub fn x(&self) -> i32 {
         self.0.x
     }
-    
+
     #[must_use]
     pub fn y(&self) -> i32 {
         self.0.y
@@ -287,9 +287,9 @@ impl DraftTimeline {
     }
 
     /// Add event to timeline with proper error handling
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns `TimelineError::InvalidComparison` if timestamps cannot be compared
     pub fn add_event(&mut self, event: TimelineEvent) -> TimelineResult<()> {
         // APPROVED: Binary search maintains O(log n) sorted insertion
@@ -298,7 +298,7 @@ impl DraftTimeline {
             e.timestamp.partial_cmp(&event.timestamp)
                 .ok_or(TimelineError::InvalidComparison)
         };
-        
+
         match self.events.binary_search_by(|e| comparison(e).unwrap_or(std::cmp::Ordering::Equal)) {
             Ok(pos) | Err(pos) => {
                 self.events.insert(pos, event);
@@ -333,10 +333,10 @@ impl PublishTimeline {
 
     /// Zero-alloc helper: Get events within a time range
     /// PR Gate: Added #[must_use] to timeline slice functions
-    /// 
+    ///
     /// Returns events where start <= timestamp < end
     /// NOTE: Wrap-around handling (e.g., 118.0 → 2.0) is covered in Tutorial 04
-    /// 
+    ///
     /// # Examples
     /// ```
     /// // Normal range
@@ -352,13 +352,13 @@ impl PublishTimeline {
             .unwrap_or_else(identity);
         let end_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap())
             .unwrap_or_else(identity);
-        
+
         self.events[start_idx..end_idx].iter()
     }
 
     // Consolidated API: Use next_event_after/prev_event_before with iterator methods for specific queries
     // Example: timeline.events_in_range(start, end).filter(|e| matches!(e.event_type, EventType::Ability(_, _)))
-    
+
     /// Zero-alloc helper: Find next event after timestamp
     #[must_use]
     pub fn next_event_after(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
@@ -367,7 +367,7 @@ impl PublishTimeline {
             Err(idx) => self.events.get(idx),
         }
     }
-    
+
     /// Get a slice of the timeline events
     #[must_use]
     pub fn slice(&self, start: usize, end: usize) -> &[TimelineEvent] {
@@ -376,7 +376,7 @@ impl PublishTimeline {
 
     /// Get previous event before or at a specific timestamp
     /// Returns the most recent event with timestamp <= the provided timestamp
-    /// 
+    ///
     /// Complements next_event_after for full timeline traversal capabilities
     /// Use with iterator methods for specific event type filtering
     #[must_use]
@@ -423,12 +423,12 @@ impl TimelineClock {
             self.timer.tick(delta);
         }
     }
-    
+
 
     pub fn reset(&mut self) {
         self.timer.reset();
     }
-    
+
     pub fn current(&self) -> TimeStamp {
         TimeStamp::new(self.timer.elapsed_secs())
     }
@@ -469,7 +469,7 @@ impl GlobalTimelinePause {
         self.is_paused = true;
         self.pause_reason = Some(reason);
     }
-    
+
     pub fn resume(&mut self) {
         self.is_paused = false;
         self.pause_reason = None;
@@ -519,7 +519,7 @@ pub fn debug_timeline_clocks(
     let Ok(current_arena) = current_arena_q.single() else {
         return;
     };
-    
+
     // Use let-else for early return pattern - more idiomatic Rust
     let Some((arena, clock)) = arena_q
         .iter()
@@ -527,7 +527,7 @@ pub fn debug_timeline_clocks(
     else {
         return;
     };
-    
+
     // PR Gate: Using trace! for per-frame logs instead of info!
     if (clock.current().as_secs() % 1.0) < 0.02 {
         trace!("{}: {:.1}s", arena, clock.current().as_secs());
@@ -578,7 +578,7 @@ battleground
 .spawn((
 Transform::from_xyz(offset_x, offset_y, 0.0),
 Arena::new_clamped(arena_index), // Use clamped version for startup initialization
-TimelineClock::default(), // Add this line
+TimelineClock::default (), // Add this line
 // InheritedVisibility is automatically added via required components
 class_type,
 Name::new(arena_name),
@@ -632,17 +632,17 @@ mod tests {
         // Should loop back
         assert_eq!(clock.current().as_secs(), 5.0);
     }
-    
+
     #[test]
     fn test_timestamp_wrap_around_edge_cases() {
         // Test exact boundary
         let timestamp = TimeStamp::wrapped(TimeStamp::MAX.0);
         assert_eq!(timestamp.as_secs(), TimeStamp::ZERO.0);
-        
+
         // Test multiple wraps
         let timestamp = TimeStamp::wrapped(365.0); // 365 = 3*120 + 5
         assert_eq!(timestamp.as_secs(), 5.0);
-        
+
         // Test negative wrapping
         let timestamp = TimeStamp::wrapped(-10.0);
         assert_eq!(timestamp.as_secs(), 110.0); // -10 + 120 = 110
@@ -684,11 +684,11 @@ mod tests {
         assert_eq!(events[0].timestamp, TimeStamp::new(6.0));
         assert_eq!(events[1].timestamp, TimeStamp::new(8.0));
     }
-    
+
     #[test]
     fn test_next_event_after_edge_cases() {
         let mut draft = DraftTimeline::new();
-        
+
         // Add events at specific timestamps
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(10.0),
@@ -702,181 +702,77 @@ mod tests {
             timestamp: TimeStamp::new(30.0),
             event_type: EventType::Movement(GridPos::new(1, 0)),
         });
-        
+
         let published = PublishTimeline::from_draft(draft);
-        
+
         // Test: Find next event after a timestamp with no exact match
         let next = published.next_event_after(TimeStamp::new(15.0))
             .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(20.0));
-        
+
         // Test: Find next event when timestamp matches exactly
         let next = published.next_event_after(TimeStamp::new(20.0))
             .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(30.0));
-        
+
         // Test: No next event when at or past last event
         let next = published.next_event_after(TimeStamp::new(30.0))
             .expect("Failed to get next event");
         assert!(next.is_none());
-        
+
         let next = published.next_event_after(TimeStamp::new(35.0))
             .expect("Failed to get next event");
         assert!(next.is_none());
-        
+
         // Test: Find first event when timestamp is before all events
         let next = published.next_event_after(TimeStamp::new(5.0))
             .expect("Failed to get next event");
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(10.0));
     }
-    
+
     #[test]
     fn test_explicit_constructors() {
         // Test TimeStamp::new() as primary constructor
         let timestamp = TimeStamp::new(42.5);
         assert_eq!(timestamp.as_secs(), 42.5);
         assert_eq!(timestamp.to_string(), "42.5s");
-        
+
         // Test TimeStamp::ZERO constant
         assert_eq!(TimeStamp::ZERO.as_secs(), TimeStamp::ZERO.0);
-        
+
         // Test Arena::from_u8() for u8 conversion with proper error handling
         let idx = Arena::from_u8(3).expect("Arena 3 should be valid");
         assert_eq!(idx.as_u8(), 3);
         assert_eq!(idx.to_string(), "Mountain (3)");
-        
+
         // Test error case - arena out of bounds
         let invalid = Arena::from_u8(10);
         assert!(invalid.is_err());
-        
+
         // Test clamped constructor for startup cases
         let clamped = Arena::from_u8_clamped(15);
         assert_eq!(clamped.as_u8(), 8); // Should clamp to max valid arena (Gala)
-        
+
         // Test Arena::new() with ArenaName enum
         let arena = Arena::new(ArenaName::Bastion);
         assert_eq!(arena.as_u8(), 4);
         assert_eq!(arena.name(), ArenaName::Bastion);
-        
+
         // Test GridPos::new() as primary constructor
         let pos = GridPos::new(5, -3);
         assert_eq!(pos.x(), 5);
         assert_eq!(pos.y(), -3);
         assert_eq!(pos.to_string(), "(5, -3)");
-        
+
         // From traits still work for Bevy interop
         let vec: IVec2 = pos.into();
         assert_eq!(vec, IVec2::new(5, -3));
     }
 }
 ```
-
-## Error Handling Best Practices
-
-This tutorial demonstrates production-ready error handling patterns using the three pragmatic rules:
-
-### Rule 19: Use Result<T, E> for operations that can fail
-
-```rust
-// ✅ Good: Methods that can fail return Result
-pub fn add_event(&mut self, event: TimelineEvent) -> TimelineResult<()>
-pub fn from_draft(draft: DraftTimeline) -> TimelineResult<Self>
-pub fn new(idx: u8) -> Result<Self, TimelineError>
-
-// ❌ Bad: Using Option or unwrap() for complex operations
-pub fn add_event(&mut self, event: TimelineEvent) // Can panic on invalid timestamps!
-pub fn new(idx: u8) -> Option<Self> // No context about why it failed
-```
-
-### Rule 20: Use ? operator for error propagation
-
-```rust
-// ✅ Good: Propagate errors up the call stack
-pub fn process_timeline(draft: DraftTimeline) -> TimelineResult<PublishTimeline> {
-    let timeline = PublishTimeline::from_draft(draft)?; // Propagates EmptyTimeline error
-    let events = timeline.events_in_range(start, end)?; // Propagates InvalidComparison error
-    Ok(timeline)
-}
-
-// ❌ Bad: Handling every error at every level
-pub fn process_timeline(draft: DraftTimeline) -> Option<PublishTimeline> {
-    match PublishTimeline::from_draft(draft) {
-        Ok(timeline) => Some(timeline),
-        Err(_) => None, // Lost context about what went wrong!
-    }
-}
-```
-
-### Rule 21: Provide context with errors using custom error types
-
-```rust
-// ✅ Good: Rich error context with thiserror
-#[derive(Debug, thiserror::Error)]
-pub enum TimelineError {
-    #[error("Arena index {index} is out of bounds (must be 0-8)")]
-    InvalidArenaIndex { index: u8 },
-    
-    #[error("Timeline is empty")]
-    EmptyTimeline,
-    
-    #[error("Event comparison failed - invalid timestamp")]
-    InvalidComparison,
-}
-
-// ❌ Bad: Generic error messages
-type TimelineError = Box<dyn Error>; // No context, hard to debug
-```
-
-### Error Recovery Patterns
-
-For startup/initialization code where you need guaranteed success:
-
-```rust
-// Use clamped constructors for startup
-Arena::new_clamped(arena_index) // Never fails, clamps to valid range
-
-// Use expect() with descriptive messages for "impossible" failures
-timeline.add_event(event).expect("Valid timestamp should always succeed");
-```
-
-For runtime code where errors are expected:
-
-```rust
-// Propagate errors up to where they can be handled meaningfully
-let arena = Arena::from_u8(user_input)?; // Let caller decide how to handle invalid input
-
-// Match on specific error types for targeted recovery
-match timeline_result {
-    Ok(timeline) => process_timeline(timeline),
-    Err(TimelineError::EmptyTimeline) => show_empty_state(),
-    Err(TimelineError::InvalidArenaIndex { index }) => {
-        show_error(&format!("Arena {} doesn't exist", index))
-    }
-}
-```
-
-## Verification
-
-Run the tests to verify implementation:
-
-```bash
-cargo test timeline
-```
-
-Run the game and observe timer logs:
-
-```bash
-cargo run
-```
-
-You should see:
-
-- TimelineClock counting from TimeStamp::ZERO to TimeStamp::MAX for the current arena  
-- TimelineClock looping back to TimeStamp::ZERO after reaching TimeStamp::MAX
-- No crashes or panics
 
 ## Next Steps
 
@@ -891,13 +787,16 @@ With the timeline foundation in place, we can now:
 1. **Type-Safe Newtypes**: TimeStamp, Arena, GridPos provide compile-time safety
 2. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
 3. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
-4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), Arena::new(ArenaName) and Arena::from_u8() as primary API
+4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), Arena::new(ArenaName) and Arena::from_u8() as primary
+   API
 5. **Binary Search**: Efficient O(log n) operations on sorted timelines
 6. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
 7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
-8. **Consolidated Timeline API**: next_event_after/prev_event_before provide unified temporal queries with consistent binary_search_by approach
+8. **Consolidated Timeline API**: next_event_after/prev_event_before provide unified temporal queries with consistent
+   binary_search_by approach
 9. **Virtual Time for Pause Safety**: Time<Virtual> prevents time jumps when pausing/unpausing
-10. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust error handling
+10. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust
+    error handling
 
 ## Production Notes
 
@@ -921,15 +820,19 @@ With the timeline foundation in place, we can now:
 - **Intent Recording**: Deterministic replay regardless of physics/interpolation
 - **Arc<[T]>**: Share timeline across systems without cloning the data
 - **Binary Search**: Fast lookups for playback position queries
-- **Zero-Copy Ownership Transfer**: When data flows one-way (draft→publish), consume instead of borrow to enable efficient transformations
-- **Unified Timeline Queries**: Use next_event_after/prev_event_before as foundational API, combine with iterator methods for event type filtering instead of specialized methods
-- **🆕 Bevy 0.16 Error-Safe Patterns**: Query methods now return Results - use `let Ok(...) = query.single() else { return; }` for graceful early returns
+- **Zero-Copy Ownership Transfer**: When data flows one-way (draft→publish), consume instead of borrow to enable
+  efficient transformations
+- **Unified Timeline Queries**: Use next_event_after/prev_event_before as foundational API, combine with iterator
+  methods for event type filtering instead of specialized methods
+- **🆕 Bevy 0.16 Error-Safe Patterns**: Query methods now return Results - use
+  `let Ok(...) = query.single() else { return; }` for graceful early returns
 
 ### Zero-Copy Principle Applied:
 
 The `PublishTimeline::from_draft(draft)` method demonstrates the zero-copy principle:
 
 **Before (Inefficient):**
+
 ```rust
 pub fn from_draft(draft: &DraftTimeline) -> Self {
     Self {
@@ -939,6 +842,7 @@ pub fn from_draft(draft: &DraftTimeline) -> Self {
 ```
 
 **After (Zero-Copy):**
+
 ```rust
 pub fn from_draft(draft: DraftTimeline) -> Self {
     Self {
@@ -947,6 +851,9 @@ pub fn from_draft(draft: DraftTimeline) -> Self {
 }
 ```
 
-This transformation avoids cloning potentially thousands of events when transitioning from draft to published state. The key insight is that draft timelines naturally flow one-way into published timelines, so consuming ownership enables efficient Vec<T> → Arc<[T]> conversion.
+This transformation avoids cloning potentially thousands of events when transitioning from draft to published state. The
+key insight is that draft timelines naturally flow one-way into published timelines, so consuming ownership enables
+efficient Vec<T> → Arc<[T]> conversion.
 
-This foundation provides a robust base for the entire recording system. The type-safe APIs prevent common errors, the sorted event storage makes playback efficient, and recording intent ensures perfect replay fidelity.
+This foundation provides a robust base for the entire recording system. The type-safe APIs prevent common errors, the
+sorted event storage makes playback efficient, and recording intent ensures perfect replay fidelity.
