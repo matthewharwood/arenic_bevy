@@ -65,35 +65,58 @@ Before writing any code you MUST follow these steps and create a plan:
 
 ## Pragmatic Rules
 
+## Complete Bevy Development Rules
+
 1. **Components First**: Entity state in components; resources only for true singletons. Prefer `Query<&T>` over global
    state.
 2. **Static Data Lookup**: Game data in `const` arrays/structs; apply via systems.
 3. **Events for Communication**: Changes flow through events; decouple with event boundaries.
-4. **Assets via Handles**: Always store `Handle<T>`; cache handles in resources; never reload per frame.
+4. **Assets via Handles**: Use typed asset components (`Mesh3d(Handle<Mesh>)`, `MeshMaterial3d(Handle<Material>)`)
+   instead of generic `Handle<T>`. Sprites have integrated `image` field. Audio uses `AudioPlayer(Handle<AudioSource>)`.
 5. **Marker Components**: Zero-sized markers for categorization/toggles.
 6. **Change Detection**: Use `Added<T>`/`Changed<T>`; process only what changed.
-7. **Bundle Spawning**: Group related components for archetype efficiency.
-8. **Single Responsibility Systems**: One job per system; explicit order with sets/labels; <50 LOC.
+7. **Required Components Pattern**: Components use `#[require()]` attribute to auto-include dependencies. Spawn
+   individual components, not bundles. Camera2dBundle → Camera2d, SpriteBundle → Sprite component with integrated
+   fields.
+8. **Single Responsibility Systems**: One job per system; explicit order with sets/labels; <50 LOC including error
+   propagation. Systems return `Result` for fallible operations.
 9. **Query Efficiency**: Use `With<T>`/`Without<T>`; minimize lookups; cache locally if reused.
 10. **Composition Architecture**: Many simple components > few complex ones; no inheritance.
-11. **Design for idempotency**: Idempotency keys; mathematical properties verified with property tests when appropriate.
+11. **Design for Idempotency**: Idempotency keys; mathematical properties verified with property tests when appropriate.
 12. **Use `Display`/`FromStr`**: Human-readable boundaries; no internal representation leakage.
 13. **Prefer `&str`/slices**: Borrow rather than allocate; avoid to_string() churn.
-14. **No global mutable state**: If absolutely unavoidable, a single owner with documented initialization.
-15. **Docs are tests** — rustdoc examples compile; executable documentation; with terse, proper grammar that includes
-    articles and punctuation. e.g., Correct: "Found an exact match, return it" vs. Incorrect: "Found exact match, return
-    it."
-16. **Never ignore `Result`**: Handle or propagate with context.
-17. **Zero panics in libraries**: Libraries return Result; binary panics only on startup misconfigurations.
-18. **Direct field access over trivial getters/setters**: Prefer public fields or direct mutation when there's no
-    invariant to maintain or additional logic. Methods should only wrap field access when they add value (validation,
-    event emission, logging, or complex state transitions).
-19. **One interface per concept**: When multiple methods expose variations of the same underlying data, provide only the
+14. **No Global Mutable State**: If absolutely unavoidable, a single owner with documented initialization.
+15. **Docs are Tests**: rustdoc examples compile; executable documentation; with terse, proper grammar that includes
+    articles and punctuation.
+16. **Never Ignore `Result`**: Handle or propagate with context using `.context()` or `.with_context()`. In Bevy 0.16,
+    embrace the `?` operator everywhere.
+17. **Zero Panics in Libraries**: Libraries return Result; binary panics only on startup misconfigurations. Bevy now
+    encourages bubbling up errors rather than panicking immediately. Use a type-state pattern for infallible
+    construction
+    when appropriate.
+18. **Direct Field Access**: Prefer public fields or direct mutation when there's no invariant to maintain or additional
+    logic. Methods should only wrap field access when they add value (validation, event emission, logging, or complex
+    state transitions).
+19. **One Interface per Concept**: When multiple methods expose variations of the same underlying data, provide only the
     variant that serves the API's purpose. Internal representations and intermediate forms should stay private unless
     they represent genuinely different concepts.
 20. **Pattern Matching over Conditional Extraction**: When extracting values from enums, prefer match expressions over
     if let chains with else None. Match expressions are more idiomatic, exhaustiveness-checked, and scale better when
-    variants are added
+    variants are added.
+21. **Bevy 0.16 Error-First Systems**: All systems return `Result<(), BevyError>` (aliased as `Result`). Query methods (
+    `single()`, `get_many()`, etc.) return Results instead of panicking. Configure `GLOBAL_ERROR_HANDLER` to panic in
+    development, log in production.
+22. **Structured Error Types with Context**: Use `thiserror` for domain/library errors with specific variants. Use
+    `anyhow`/`BevyError` for application-level error propagation. Always add context with `.with_context()` when
+    converting between error types.
+23. **Infallible Construction Pattern**: For constrained types (like `Arena` with max index), return
+    `Result<T, SpecificError>` from constructors, not `Option<T>`. Once constructed, getters should be infallible (no
+    Result needed) because invariants are guaranteed.
+24. **Query Error Propagation**: Replace all `.unwrap()` on queries with `?` operator. Replace deprecated `many()`/
+    `many_mut()` with `get_many()`/`get_many_mut()`. Systems that can fail must return `Result`.
+25. **Development vs Production Error Strategy**: Default to panicking error handler during development for immediate
+    feedback. Switch to logging handler for production deployments. Never suppress errors silently - either handle
+    explicitly or propagate.
 
 ## Ideal Data Flow
 

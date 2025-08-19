@@ -430,11 +430,13 @@ pub fn control_virtual_time_pause(
 }
 
 /// System to display current clock values (for debugging)
+/// 🆕 Bevy 0.16: Uses error-safe ECS patterns with let-else for clean error handling
 pub fn debug_timeline_clocks(
     arena_q: Query<(&Arena, &TimelineClock)>,
     current_arena_q: Query<&CurrentArena>,  // CurrentArena is a Component, not Resource
 ) {
-    // Get the current arena entity
+    // Get the current arena entity - following Rule #22: Error-Safe ECS First
+    // The let-else pattern gracefully handles the case where no CurrentArena exists
     let Ok(current_arena) = current_arena_q.single() else {
         return;
     };
@@ -717,6 +719,7 @@ With the timeline foundation in place, we can now:
 7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
 8. **Consolidated Timeline API**: next_event_after/prev_event_before provide unified temporal queries with consistent binary_search_by approach
 9. **Virtual Time for Pause Safety**: Time<Virtual> prevents time jumps when pausing/unpausing
+10. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust error handling
 
 ## Production Notes
 
@@ -742,6 +745,7 @@ With the timeline foundation in place, we can now:
 - **Binary Search**: Fast lookups for playback position queries
 - **Zero-Copy Ownership Transfer**: When data flows one-way (draft→publish), consume instead of borrow to enable efficient transformations
 - **Unified Timeline Queries**: Use next_event_after/prev_event_before as foundational API, combine with iterator methods for event type filtering instead of specialized methods
+- **🆕 Bevy 0.16 Error-Safe Patterns**: Query methods now return Results - use `let Ok(...) = query.single() else { return; }` for graceful early returns
 
 ### Zero-Copy Principle Applied:
 

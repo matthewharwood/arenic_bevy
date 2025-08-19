@@ -126,7 +126,7 @@ fn setup_scene(
                 battleground
                     .spawn((
                         Transform::from_xyz(offset_x, offset_y, 0.0),
-                        Arena::new(arena_index).unwrap(),
+                        Arena::new(arena_index).expect("Arena index must be 0-8 during setup"),
                         InheritedVisibility::default(),
                         TimelineClock::default(),
                         class_type,

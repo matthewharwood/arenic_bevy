@@ -82,10 +82,10 @@ pub fn draw_arena_border(
     current_arena: Single<&CurrentArena>,
     camera: Query<&ZoomOut, With<Camera3d>>,
 ) {
-    // Only draw if camera is zoomed out
-    if camera.single().is_err() {
+    // Only draw if camera is zoomed out - following Rule #22: Error-Safe ECS First
+    let Ok(_zoom_out) = camera.single() else {
         return;
-    }
+    };
 
     let arena = current_arena.into_inner();
 
