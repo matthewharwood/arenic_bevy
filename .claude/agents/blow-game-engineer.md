@@ -71,52 +71,27 @@ Before writing any code you MUST follow these steps and create a plan:
    state.
 2. **Static Data Lookup**: Game data in `const` arrays/structs; apply via systems.
 3. **Events for Communication**: Changes flow through events; decouple with event boundaries.
-4. **Assets via Handles**: Use typed asset components (`Mesh3d(Handle<Mesh>)`, `MeshMaterial3d(Handle<Material>)`)
-   instead of generic `Handle<T>`. Sprites have integrated `image` field. Audio uses `AudioPlayer(Handle<AudioSource>)`.
+4. **Typed Asset Components**: Use `Mesh3d(Handle<Mesh>)`, `MeshMaterial3d(Handle<Material>)` instead of generic
+   `Handle<T>`.
 5. **Marker Components**: Zero-sized markers for categorization/toggles.
 6. **Change Detection**: Use `Added<T>`/`Changed<T>`; process only what changed.
-7. **Required Components Pattern**: Components use `#[require()]` attribute to auto-include dependencies. Spawn
-   individual components, not bundles. Camera2dBundle → Camera2d, SpriteBundle → Sprite component with integrated
-   fields.
-8. **Single Responsibility Systems**: One job per system; explicit order with sets/labels; <50 LOC including error
-   propagation. Systems return `Result` for fallible operations.
-9. **Query Efficiency**: Use `With<T>`/`Without<T>`; minimize lookups; cache locally if reused.
-10. **Composition Architecture**: Many simple components > few complex ones; no inheritance.
-11. **Design for Idempotency**: Idempotency keys; mathematical properties verified with property tests when appropriate.
-12. **Use `Display`/`FromStr`**: Human-readable boundaries; no internal representation leakage.
-13. **Prefer `&str`/slices**: Borrow rather than allocate; avoid to_string() churn.
-14. **No Global Mutable State**: If absolutely unavoidable, a single owner with documented initialization.
-15. **Docs are Tests**: rustdoc examples compile; executable documentation; with terse, proper grammar that includes
-    articles and punctuation.
-16. **Never Ignore `Result`**: Handle or propagate with context using `.context()` or `.with_context()`. In Bevy 0.16,
-    embrace the `?` operator everywhere.
-17. **Zero Panics in Libraries**: Libraries return Result; binary panics only on startup misconfigurations. Bevy now
-    encourages bubbling up errors rather than panicking immediately. Use a type-state pattern for infallible
-    construction
-    when appropriate.
-18. **Direct Field Access**: Prefer public fields or direct mutation when there's no invariant to maintain or additional
-    logic. Methods should only wrap field access when they add value (validation, event emission, logging, or complex
-    state transitions).
-19. **One Interface per Concept**: When multiple methods expose variations of the same underlying data, provide only the
-    variant that serves the API's purpose. Internal representations and intermediate forms should stay private unless
-    they represent genuinely different concepts.
-20. **Pattern Matching over Conditional Extraction**: When extracting values from enums, prefer match expressions over
-    if let chains with else None. Match expressions are more idiomatic, exhaustiveness-checked, and scale better when
-    variants are added.
-21. **Bevy 0.16 Error-First Systems**: All systems return `Result<(), BevyError>` (aliased as `Result`). Query methods (
-    `single()`, `get_many()`, etc.) return Results instead of panicking. Configure `GLOBAL_ERROR_HANDLER` to panic in
-    development, log in production.
-22. **Structured Error Types with Context**: Use `thiserror` for domain/library errors with specific variants. Use
-    `anyhow`/`BevyError` for application-level error propagation. Always add context with `.with_context()` when
-    converting between error types.
-23. **Infallible Construction Pattern**: For constrained types (like `Arena` with max index), return
-    `Result<T, SpecificError>` from constructors, not `Option<T>`. Once constructed, getters should be infallible (no
-    Result needed) because invariants are guaranteed.
-24. **Query Error Propagation**: Replace all `.unwrap()` on queries with `?` operator. Replace deprecated `many()`/
-    `many_mut()` with `get_many()`/`get_many_mut()`. Systems that can fail must return `Result`.
-25. **Development vs Production Error Strategy**: Default to panicking error handler during development for immediate
-    feedback. Switch to logging handler for production deployments. Never suppress errors silently - either handle
-    explicitly or propagate.
+7. **Required Components**: Use `#[require()]` to auto-include dependencies. Spawn components, not bundles.
+8. **Single Responsibility Systems**: One job per system; explicit order with sets/labels; <50 LOC.
+9. **Query Efficiency**: Use `With<T>`/`Without<T>` filters; cache locally if reused.
+10. **Composition over Complexity**: Many simple components > few complex ones.
+11. **Design for Idempotency**: Verify mathematical properties with tests when appropriate.
+12. **Human-Readable Boundaries**: Use `Display`/`FromStr` at API edges; no internal representation leakage.
+13. **Prefer Borrowing**: Use `&str`/slices over allocations; avoid `.to_string()` churn.
+14. **No Global Mutable State**: If unavoidable, single owner with documented initialization.
+15. **Docs are Tests**: Rustdoc examples compile; terse grammar with proper punctuation.
+16. **Direct Field Access**: Public fields when no invariant exists; methods only when adding value.
+17. **One Interface per Concept**: Expose only the variant that serves the API's purpose.
+18. **Pattern Match Enums**: Prefer `match` over `if let` chains for exhaustiveness checking.
+19. **Make Invalid States Unrepresentable**: Use const constructors and enums to eliminate runtime validation where
+    possible. Infallible setup, fallible user input.
+20. **Three-Layer Error Pattern**: Domain errors with `thiserror`, systems return `Result`, propagate with `?`. Add
+    `.with_context()` when error origin would be unclear. Never`.unwrap()` in systems.
+21. **Development vs Production**: Let errors panic in dev (default), log in production. Configure once in main.
 
 ## Ideal Data Flow
 
