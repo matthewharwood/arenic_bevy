@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+"""
+Hook for creating timestamped prompt files
+Usage: Called automatically when user sends a message starting with /prompt
+"""
+import sys
+import re
+import os
+import time
+import json
+
+def generate_terse_filename(description: str) -> str:
+    """Generate a short, memorable filename from a brief description."""
+    
+    # Convert to lowercase and extract meaningful words
+    words = re.findall(r'\b[a-zA-Z]+\b', description.lower())
+    
+    # Remove common stop words and particles
+    stop_words = {
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
+        'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have',
+        'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should',
+        'can', 'may', 'might', 'must', 'i', 'you', 'he', 'she', 'it', 'we',
+        'they', 'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her',
+        'its', 'our', 'their', 'me', 'him', 'her', 'us', 'them', 'about',
+        'make', 'create', 'need', 'help', 'want'
+    }
+    
+    # Filter meaningful words
+    meaningful_words = [word for word in words if word not in stop_words and len(word) > 2]
+    
+    # Prioritize technical terms and action words
+    tech_terms = {
+        'api', 'ui', 'ux', 'css', 'html', 'js', 'py', 'rust', 'bevy', 'game',
+        'code', 'debug', 'test', 'build', 'deploy', 'git', 'repo', 'data',
+        'auth', 'user', 'admin', 'config', 'setup', 'install', 'update',
+        'system', 'component', 'entity', 'resource', 'plugin', 'event',
+        'query', 'bundle', 'asset', 'scene', 'mesh', 'material', 'shader'
+    }
+    
+    priority_words = []
+    
+    # First pass: technical terms and longer descriptive words
+    for word in meaningful_words:
+        if word in tech_terms or len(word) >= 5:
+            priority_words.append(word)
+    
+    # Second pass: fill remaining slots with shorter meaningful words
+    if len(priority_words) < 3:
+        for word in meaningful_words:
+            if word not in priority_words:
+                priority_words.append(word)
+                if len(priority_words) >= 3:
+                    break
+    
+    # Take first 2-3 words to keep filename terse
+    selected_words = priority_words[:3]
+    
+    # Truncate very long words for readability
+    truncated_words = []
+    for word in selected_words:
+        if len(word) > 6:
+            truncated_words.append(word[:6])
+        else:
+            truncated_words.append(word)
+    
+    filename = '_'.join(truncated_words)
+    
+    # Fallback if no meaningful words found
+    if not filename or len(filename) < 2:
+        filename = 'prompt'
+    
+    return filename
+
+def main():
+    try:
+        # Read the JSON input from stdin
+        input_data = json.loads(sys.stdin.read().strip())
+        user_message = input_data.get('prompt', '')
+    except json.JSONDecodeError:
+        # Fallback to plain text for direct testing
+        user_message = sys.stdin.read().strip()
+    
+    # Check if message starts with /prompt
+    if not user_message.startswith('/prompt'):
+        sys.exit(0)  # Not a prompt command, do nothing
+    
+    # Extract the description after /prompt
+    description = user_message[7:].strip().strip('"\'')
+    
+    if not description:
+        print("Usage: /prompt \"brief description of prompt usecase\"")
+        sys.exit(1)
+    
+    # Generate terse filename
+    base_filename = generate_terse_filename(description)
+    
+    # Generate 10-character unix timestamp
+    timestamp = str(int(time.time()))
+    
+    # Find the project root by looking for .claude directory
+    current_dir = os.getcwd()
+    project_root = None
+    
+    # Walk up the directory tree to find .claude
+    check_dir = current_dir
+    while check_dir != os.path.dirname(check_dir):  # Stop at filesystem root
+        claude_dir = os.path.join(check_dir, '.claude')
+        if os.path.exists(claude_dir) and os.path.isdir(claude_dir):
+            project_root = check_dir
+            break
+        check_dir = os.path.dirname(check_dir)
+    
+    # Fallback to current directory if no .claude found
+    if project_root is None:
+        project_root = current_dir
+    
+    # Create _prompts as sibling to .claude directory
+    prompts_dir = os.path.join(project_root, "_prompts")
+    os.makedirs(prompts_dir, exist_ok=True)
+    
+    # Create full filename with timestamp
+    full_filename = f"{base_filename}_{timestamp}.md"
+    file_path = os.path.join(prompts_dir, full_filename)
+    
+    # Create file with template
+    with open(file_path, 'w') as f:
+        f.write(f"# {base_filename}\n\n")
+        f.write(f"**Usecase:** {description}\n\n")
+        f.write(f"**Created:** {timestamp}\n\n")
+        f.write("---\n\n")
+        f.write("<!-- Write your detailed prompt here -->\n\n")
+    
+    # Log success
+    print(f"Created: {file_path}")
+    
+    # Also write to a log file for debugging
+    with open(os.path.join(project_root, "hook.log"), "a") as log:
+        log.write(f"{timestamp}: Created {file_path}\n")
+
+if __name__ == "__main__":
+    main()

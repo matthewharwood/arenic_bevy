@@ -39,9 +39,23 @@
       "Bash(./filename \"Debug complex ECS system performance issues with profiling\")",
       "Bash(./prompt \"debug bevy ecs performance issues\")",
       "Bash(./prompt \"refactor timeline system architecture\")",
-      "Bash(./prompt \"test prompts\")"
+      "Bash(./prompt \"test prompts\")",
+      "WebFetch(domain:docs.anthropic.com)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "/prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/commands/prompt"
+          }
+        ]
+      }
+    ]
   },
   "outputStyle": "Learning"
 }
