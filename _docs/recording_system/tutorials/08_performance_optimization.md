@@ -193,7 +193,7 @@ impl CompressedTimeline {
                     EventType::Transform(pos)
                 }
                 CompressedEventData::Ability(id) => {
-                    EventType::Ability(AbilityId(*id))
+                    EventType::Ability(AbilityType::from_id(*id).unwrap_or(AbilityType::AutoShot))
                 }
                 CompressedEventData::Death => EventType::Death,
             };
@@ -217,7 +217,7 @@ impl CompressedTimeline {
     }
 }
 
-use crate::timeline::AbilityId;
+use crate::ability::AbilityType;
 ```
 
 ### Step 2: Create Spatial Ghost Index

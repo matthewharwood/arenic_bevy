@@ -46,7 +46,8 @@ Create `src/recording/capture.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{DraftTimeline, TimelineEvent, EventType, AbilityId, TimeStamp, GridPos, Target, TimelineClock, Arena};
+use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, GridPos, Target, TimelineClock, Arena};
+use crate::ability::AbilityType;
 use crate::recording::{Recording, RecordingMode, RecordingState};
 use crate::arena::CurrentArena;
 use crate::character::Character;
@@ -58,11 +59,11 @@ const KEY_MOVE_LEFT: KeyCode = KeyCode::KeyA;
 const KEY_MOVE_RIGHT: KeyCode = KeyCode::KeyD;
 
 // Const keymaps for abilities
-const KEY_ABILITIES: [(KeyCode, AbilityId); 4] = [
-    (KeyCode::Digit1, AbilityId::AUTO_SHOT),
-    (KeyCode::Digit2, AbilityId::HOLY_NOVA),
-    (KeyCode::Digit3, AbilityId::POISON_SHOT),
-    (KeyCode::Digit4, AbilityId::HEAL),
+const KEY_ABILITIES: [(KeyCode, AbilityType); 4] = [
+    (KeyCode::Digit1, AbilityType::AutoShot),
+    (KeyCode::Digit2, AbilityType::HolyNova),
+    (KeyCode::Digit3, AbilityType::PoisonShot),
+    (KeyCode::Digit4, AbilityType::Heal),
 ];
 
 /// Capture movement INTENT during recording - NOT transforms!
@@ -388,7 +389,8 @@ Create `src/timeline/query.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{TimelineEvent, EventType, PublishTimeline, TimeStamp, GridPos, AbilityId};
+use crate::timeline::{TimelineEvent, EventType, PublishTimeline, TimeStamp, GridPos};
+use crate::ability::AbilityType;
 
 /// Get the movement intent at a specific time
 pub fn get_movement_at_time(
@@ -411,7 +413,7 @@ pub fn get_abilities_at_time(
     timeline: &PublishTimeline,
     current_time: TimeStamp,
     last_checked: TimeStamp,
-) -> Vec<(AbilityId, Option<Target>)> {
+) -> Vec<(AbilityType, Option<Target>)> {
     timeline.events
         .iter()
         .filter(|e| e.timestamp > last_checked && e.timestamp <= current_time)
@@ -591,7 +593,7 @@ mod tests {
         // Add some ability events
         timeline.add_event(TimelineEvent {
             timestamp: TimeStamp::new(0.5),
-            event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
+            event_type: EventType::Ability(AbilityType::AutoShot, None),
         });
 
         let original_count = timeline.events.len();
@@ -643,13 +645,13 @@ mod tests {
 
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(5.0),
-            event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
+            event_type: EventType::Ability(AbilityType::AutoShot, None),
         });
 
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(10.0),
             event_type: EventType::Ability(
-                AbilityId::HEAL,
+                AbilityType::Heal,
                 Some(Target::Position(GridPos::new(5, 5)))
             ),
         });
@@ -664,8 +666,8 @@ mod tests {
         );
         
         assert_eq!(abilities.len(), 2);
-        assert_eq!(abilities[0].0, AbilityId::AUTO_SHOT);
-        assert_eq!(abilities[1].0, AbilityId::HEAL);
+        assert_eq!(abilities[0].0, AbilityType::AutoShot);
+        assert_eq!(abilities[1].0, AbilityType::Heal);
     }
 
     #[test]

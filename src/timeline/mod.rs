@@ -1,3 +1,6 @@
+mod tests;
+
+use crate::ability::AbilityType;
 use crate::arena::{Arena, CurrentArena};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
@@ -71,29 +74,6 @@ pub enum Target {
     Position(GridPos),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct AbilityId(pub u8);
-
-impl AbilityId {
-    pub const AUTO_SHOT: Self = Self(1);
-    pub const HOLY_NOVA: Self = Self(2);
-    pub const POISON_SHOT: Self = Self(3);
-    pub const HEAL: Self = Self(4);
-}
-
-impl Display for AbilityId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let name = match *self {
-            Self::AUTO_SHOT => "AutoShot",
-            Self::HOLY_NOVA => "HolyNova",
-            Self::POISON_SHOT => "PoisonShot",
-            Self::HEAL => "Heal",
-            _ => "Unknown",
-        };
-        write!(f, "{}", name)
-    }
-}
-
 
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
 pub struct GridPos(pub IVec2);
@@ -134,7 +114,7 @@ impl Display for GridPos {
 #[derive(Clone, Debug)]
 pub enum EventType {
     Movement(GridPos),
-    Ability(AbilityId, Option<Target>),
+    Ability(AbilityType, Option<Target>),
     Death,
 }
 

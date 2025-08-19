@@ -24,7 +24,7 @@ After Jon's production-focused review, these patterns have been refined:
 - **Event-Driven Transitions**: `RecordingTransition`, `DialogTransition` for traceability
 - **SystemSets with .chain()**: Deterministic ordering with both patterns shown
 - **Zero-Alloc Helpers**: `events_in_range()`, `slice()`, binary search throughout
-- **Const Keymaps**: `const KEY_ABILITIES: [(KeyCode, AbilityId); 4]`
+- **Const Keymaps**: `const KEY_ABILITIES: [(KeyCode, AbilityType); 4]`
 - **Changed<T> Reactive Systems**: State-driven UI updates
 - **GlobalTimelinePause**: Proper pause state for all clocks
 - **VecDeque for Trails**: O(1) front/back operations for buffers

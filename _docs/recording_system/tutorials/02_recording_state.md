@@ -30,7 +30,8 @@ Create `src/recording/mod.rs`:
 ```rust
 use bevy::prelude::*;
 use bevy::time::Virtual;
-use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, Arena, GridPos, AbilityId, TimelineClock};
+use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, Arena, GridPos, TimelineClock};
+use crate::ability::AbilityType;
 use crate::character::Character;
 use crate::selectors::Active;
 

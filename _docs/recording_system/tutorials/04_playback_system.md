@@ -29,7 +29,8 @@ Create `src/playback/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{PublishTimeline, TimelinePosition, EventType, AbilityId, TimeStamp, TimelineClock, Arena};
+use crate::timeline::{PublishTimeline, TimelinePosition, EventType, TimeStamp, TimelineClock, Arena};
+use crate::ability::AbilityType;
 use crate::recording::Ghost;
 use crate::character::Character;
 
@@ -40,18 +41,18 @@ pub struct Replaying;
 /// Tracks which abilities have been triggered this frame
 #[derive(Component, Default)]
 pub struct TriggeredAbilities {
-    pub abilities: Vec<(TimeStamp, AbilityId)>, // (timestamp, ability)
+    pub abilities: Vec<(TimeStamp, AbilityType)>, // (timestamp, ability)
     pub previous_position: Option<TimeStamp>, // Track previous position for range checks
 }
 
 impl TriggeredAbilities {
-    pub fn has_triggered(&self, timestamp: TimeStamp, ability: AbilityId) -> bool {
+    pub fn has_triggered(&self, timestamp: TimeStamp, ability: AbilityType) -> bool {
         self.abilities.iter().any(|(t, a)| {
             *t == timestamp && *a == ability
         })
     }
 
-    pub fn add_triggered(&mut self, timestamp: TimeStamp, ability: AbilityId) {
+    pub fn add_triggered(&mut self, timestamp: TimeStamp, ability: AbilityType) {
         self.abilities.push((timestamp, ability));
 
         // Keep only recent triggers (last 1 second)
@@ -289,7 +290,7 @@ Add to `src/playback/mod.rs`:
 #[derive(Event)]
 pub struct GhostAbilityTrigger {
     pub ghost: Entity,
-    pub ability: AbilityId,
+    pub ability: AbilityType,
     pub timestamp: TimeStamp,
 }
 
@@ -349,11 +350,11 @@ pub fn process_ghost_ability_triggers(
             // Here you would connect to existing ability systems
             // For now, just log the trigger
             match event.ability {
-                AbilityId::AUTO_SHOT => {
+                AbilityType::AutoShot => {
                     info!("Ghost AutoShot from {:?}", transform.translation);
                     // TODO: Spawn projectile
                 }
-                AbilityId::HOLY_NOVA => {
+                AbilityType::HolyNova => {
                     info!("Ghost HolyNova from {:?}", transform.translation);
                     // TODO: Trigger AoE effect
                 }
@@ -561,17 +562,17 @@ mod tests {
         let mut triggered = TriggeredAbilities::default();
 
         // Add some triggers
-        triggered.add_triggered(TimeStamp::new(5.0), AbilityId::AUTO_SHOT);
-        triggered.add_triggered(TimeStamp::new(5.0), AbilityId::HOLY_NOVA);
-        triggered.add_triggered(TimeStamp::new(10.0), AbilityId::AUTO_SHOT);
+        triggered.add_triggered(TimeStamp::new(5.0), AbilityType::AutoShot);
+        triggered.add_triggered(TimeStamp::new(5.0), AbilityType::HolyNova);
+        triggered.add_triggered(TimeStamp::new(10.0), AbilityType::AutoShot);
 
         // Check if triggered
-        assert!(triggered.has_triggered(TimeStamp::new(5.0), AbilityId::AUTO_SHOT));
-        assert!(triggered.has_triggered(TimeStamp::new(5.0), AbilityId::HOLY_NOVA));
-        assert!(!triggered.has_triggered(TimeStamp::new(5.0), AbilityId::HEAL));
+        assert!(triggered.has_triggered(TimeStamp::new(5.0), AbilityType::AutoShot));
+        assert!(triggered.has_triggered(TimeStamp::new(5.0), AbilityType::HolyNova));
+        assert!(!triggered.has_triggered(TimeStamp::new(5.0), AbilityType::Heal));
 
         // Old triggers should be cleaned up
-        triggered.add_triggered(TimeStamp::new(11.1), AbilityId::HEAL);
+        triggered.add_triggered(TimeStamp::new(11.1), AbilityType::Heal);
         assert_eq!(triggered.abilities.len(), 2); // 10.0 and 11.1 remain
     }
 
@@ -629,25 +630,25 @@ mod tests {
         // Add ability at 119.5 seconds
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(119.5),
-            event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
+            event_type: EventType::Ability(AbilityType::AutoShot, None),
         });
         
         // Add ability at 119.8 seconds
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(119.8),
-            event_type: EventType::Ability(AbilityId::HOLY_NOVA, None),
+            event_type: EventType::Ability(AbilityType::HolyNova, None),
         });
         
         // Add ability after wrap at 0.1 seconds
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(0.1),
-            event_type: EventType::Ability(AbilityId::POISON_SHOT, None),
+            event_type: EventType::Ability(AbilityType::PoisonShot, None),
         });
         
         // Add ability at 0.5 seconds
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(0.5),
-            event_type: EventType::Ability(AbilityId::HEAL, None),
+            event_type: EventType::Ability(AbilityType::Heal, None),
         });
         
         let published = PublishTimeline::from_draft(&draft);
@@ -663,23 +664,23 @@ mod tests {
         
         // Verify order is preserved across wrap
         if let EventType::Ability(id, _) = &abilities[0].event_type {
-            assert_eq!(*id, AbilityId::AUTO_SHOT);
+            assert_eq!(*id, AbilityType::AutoShot);
         }
         if let EventType::Ability(id, _) = &abilities[1].event_type {
-            assert_eq!(*id, AbilityId::HOLY_NOVA);
+            assert_eq!(*id, AbilityType::HolyNova);
         }
         if let EventType::Ability(id, _) = &abilities[2].event_type {
-            assert_eq!(*id, AbilityId::POISON_SHOT);
+            assert_eq!(*id, AbilityType::PoisonShot);
         }
         if let EventType::Ability(id, _) = &abilities[3].event_type {
-            assert_eq!(*id, AbilityId::HEAL);
+            assert_eq!(*id, AbilityType::Heal);
         }
         
         // Test that triggered abilities tracking prevents duplicates
         let mut triggered = TriggeredAbilities::default();
-        triggered.add_triggered(TimeStamp::new(119.5), AbilityId::AUTO_SHOT);
-        assert!(triggered.has_triggered(TimeStamp::new(119.5), AbilityId::AUTO_SHOT));
-        assert!(!triggered.has_triggered(TimeStamp::new(0.1), AbilityId::POISON_SHOT));
+        triggered.add_triggered(TimeStamp::new(119.5), AbilityType::AutoShot);
+        assert!(triggered.has_triggered(TimeStamp::new(119.5), AbilityType::AutoShot));
+        assert!(!triggered.has_triggered(TimeStamp::new(0.1), AbilityType::PoisonShot));
     }
 }
 ```

@@ -104,7 +104,7 @@ pub enum EventType {
     /// Movement intent from input - not transform!
     Movement(GridPos),
     /// Ability cast with optional target
-    Ability(AbilityId, Option<Target>),
+    Ability(AbilityType, Option<Target>),
     /// Character death event
     Death,
 }
@@ -116,29 +116,15 @@ pub enum Target {
     Position(GridPos),
 }
 
-/// Identifier for character abilities
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct AbilityId(pub u8);
+/// Import unified ability types from the ability module
+/// This replaces the previous duplicate AbilityId definition
+use crate::ability::AbilityType;
 
-impl AbilityId {
-    pub const AUTO_SHOT: Self = Self(1);
-    pub const HOLY_NOVA: Self = Self(2);
-    pub const POISON_SHOT: Self = Self(3);
-    pub const HEAL: Self = Self(4);
-}
-
-impl fmt::Display for AbilityId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let name = match *self {
-            Self::AUTO_SHOT => "AutoShot",
-            Self::HOLY_NOVA => "HolyNova",
-            Self::POISON_SHOT => "PoisonShot",
-            Self::HEAL => "Heal",
-            _ => "Unknown",
-        };
-        write!(f, "{}", name)
-    }
-}
+// NOTE: AbilityType is now defined in /src/ability/mod.rs and provides:
+// - AbilityType::AutoShot, AbilityType::HolyNova, etc.
+// - Display implementation for human-readable names
+// - from_id() and to_id() methods for backwards compatibility
+// - Integration with the actual ability system components (AutoShot, HolyNova)
 
 /// Newtype for arena indices (0-8)
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Component)]
@@ -572,7 +558,7 @@ mod tests {
 
         timeline.add_event(TimelineEvent {
             timestamp: TimeStamp::new(2.0),
-            event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
+            event_type: EventType::Ability(AbilityType::AutoShot, None),
         });
 
         timeline.add_event(TimelineEvent {
@@ -661,7 +647,7 @@ mod tests {
         });
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(20.0),
-            event_type: EventType::Ability(AbilityId::AUTO_SHOT, None),
+            event_type: EventType::Ability(AbilityType::AutoShot, None),
         });
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(30.0),
