@@ -44,7 +44,6 @@ impl ArenaName {
         *self as u8
     }
 
-
     /// Creates ArenaName from index with compile-time safety (clamps to valid range)
     /// Use this for internal code where we control the input
     #[must_use]
@@ -58,7 +57,6 @@ impl ArenaName {
         Self::ALL_ARENAS.into_iter()
     }
 }
-
 
 impl Display for ArenaName {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
@@ -92,7 +90,6 @@ impl ArenaId {
     pub fn new(name: ArenaName) -> Self {
         Self(name)
     }
-
 
     /// Creates ArenaId from index with compile-time safety (clamps to valid range)
     /// Use this for internal code where we control the input
@@ -128,8 +125,6 @@ impl Arena {
         self.0.as_u8()
     }
 }
-
-
 
 impl Display for ArenaId {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
@@ -167,18 +162,20 @@ impl ArenaEntities {
         }
         Self { entities }
     }
-    
+
     /// Get arena entity by name - O(1) lookup using enum discriminant as index
     #[must_use]
     pub fn get(&self, name: ArenaName) -> Entity {
         self.entities[name as usize]
     }
-    
+
     /// Find which arena an entity belongs to - O(n) but only 9 entities max
     /// Returns None if entity is not found in any arena
     #[must_use]
     pub fn find_arena_for_entity(&self, entity: Entity) -> Option<ArenaName> {
-        self.entities.iter().position(|&e| e == entity)
+        self.entities
+            .iter()
+            .position(|&e| e == entity)
             .map(|idx| ArenaName::from_index_safe(idx as u8))
     }
 }
@@ -199,7 +196,6 @@ impl CurrentArena {
         };
         ArenaId::from_index_safe(prev_idx)
     }
-
 
     /// Get the arena's numeric index (0-8)
     pub fn as_u8(&self) -> u8 {
@@ -316,7 +312,7 @@ pub fn arena_update(
 
         // O(1) lookup for current arena entity
         let current_arena_entity = arena_entities.get(current_arena.name());
-        
+
         // Direct query for the current arena - no iteration needed
         if let Ok((arena, children, last_active_hero)) = arena_q.get(current_arena_entity) {
             // Check if arena has characters

@@ -14,3 +14,10 @@ If you are reading this than you are making a 3D Video Game top-down orthographi
 - When tasked with coding, when you are done with your coding task, you MUST always run `cargo test` and fix any errors
   until it compiles.
 - When tasked with coding, when you are done with your coding task, you MUST always run `cargo fmt` and fix any errors
+
+## Bevy Development Rules
+
+To prevent runtime panics and ensure code quality:
+
+- **Resource Access Rule**: Never use both `Res<T>` and `ResMut<T>` for the same resource type `T` in a single system's parameters. Choose either immutable access (`Res<T>`) or mutable access (`ResMut<T>`) consistently throughout the system.
+- **System Parameter Review**: Before finalizing any system, review all parameters for conflicting resource access patterns.

@@ -87,7 +87,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
 
         // Insert the current arena as a resource
         world.insert_resource(CurrentArena(ArenaId::new(ArenaName::GuildHouse)));
-        
+
         // Add ArenaEntities resource for system that needs it
         let arena_entities = ArenaEntities::new([
             (ArenaName::Labyrinth, labyrinth_entity),
@@ -193,9 +193,8 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
                     current_arena.0 = new_arena_id;
 
                     // Reparent character to new arena
-                    if let Some((new_arena_entity, _)) = arena_q
-                        .iter()
-                        .find(|(_, arena)| arena.0 == new_arena_name)
+                    if let Some((new_arena_entity, _)) =
+                        arena_q.iter().find(|(_, arena)| arena.0 == new_arena_name)
                     {
                         commands
                             .entity(character_entity)

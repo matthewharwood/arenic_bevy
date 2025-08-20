@@ -1,16 +1,16 @@
 // Timeline module - implements unified event architecture
 // Based on Tutorial 01: Timeline Foundation (refactored version)
 
-use bevy::prelude::*;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
+use bevy::prelude::*;
 use bevy::time::Virtual;
-use std::collections::HashMap;
-use std::fmt::{self, Display, Formatter};
-use std::convert::identity;
 use std::cmp::Ordering;
-use std::time::Duration;
+use std::collections::HashMap;
+use std::convert::identity;
+use std::fmt::{self, Display, Formatter};
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 
 /// Error types for timeline operations
@@ -48,7 +48,11 @@ impl TimeStamp {
     #[must_use]
     pub fn new(seconds: f32) -> Self {
         debug_assert!(!seconds.is_nan(), "TimeStamp cannot be NaN");
-        let safe_seconds = if seconds.is_nan() { Self::ZERO.0 } else { seconds };
+        let safe_seconds = if seconds.is_nan() {
+            Self::ZERO.0
+        } else {
+            seconds
+        };
         Self(safe_seconds.clamp(Self::ZERO.0, Self::MAX.0))
     }
 
@@ -61,7 +65,11 @@ impl TimeStamp {
     #[must_use]
     pub fn wrapped(seconds: f32) -> Self {
         debug_assert!(!seconds.is_nan(), "TimeStamp cannot be NaN");
-        let safe_seconds = if seconds.is_nan() { Self::ZERO.0 } else { seconds };
+        let safe_seconds = if seconds.is_nan() {
+            Self::ZERO.0
+        } else {
+            seconds
+        };
         Self(safe_seconds.rem_euclid(Self::MAX.0))
     }
 }
@@ -94,7 +102,7 @@ pub enum Target {
 use crate::ability::AbilityType;
 
 /// Import arena types from the arena module
-use crate::arena::{Arena, ArenaId, ArenaEntities, CurrentArena};
+use crate::arena::{Arena, ArenaEntities, ArenaId, CurrentArena};
 
 /// Newtype for grid positions using IVec2 internally
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
@@ -157,10 +165,11 @@ impl DraftTimeline {
     /// Add event to timeline with proper error handling
     pub fn add_event(&mut self, event: TimelineEvent) -> TimelineResult<()> {
         let pos = self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&event.timestamp)
+            e.timestamp
+                .partial_cmp(&event.timestamp)
                 .unwrap_or(Ordering::Equal)
         });
-        
+
         match pos {
             Ok(pos) | Err(pos) => {
                 self.events.insert(pos, event);
@@ -224,14 +233,20 @@ impl PublishTimeline {
 
     /// Zero-alloc helper: Get events within a time range
     #[must_use]
-    pub fn events_in_range(&self, start: TimeStamp, end: TimeStamp) -> impl Iterator<Item=&TimelineEvent> + '_ {
-        let start_idx = self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&start).unwrap_or(Ordering::Equal)
-        }).unwrap_or_else(identity);
-        
-        let end_idx = self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&end).unwrap_or(Ordering::Equal)
-        }).unwrap_or_else(identity);
+    pub fn events_in_range(
+        &self,
+        start: TimeStamp,
+        end: TimeStamp,
+    ) -> impl Iterator<Item = &TimelineEvent> + '_ {
+        let start_idx = self
+            .events
+            .binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap_or(Ordering::Equal))
+            .unwrap_or_else(identity);
+
+        let end_idx = self
+            .events
+            .binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap_or(Ordering::Equal))
+            .unwrap_or_else(identity);
 
         self.events[start_idx..end_idx].iter()
     }
@@ -240,7 +255,9 @@ impl PublishTimeline {
     #[must_use]
     pub fn next_event_after(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
         match self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&timestamp).unwrap_or(Ordering::Equal)
+            e.timestamp
+                .partial_cmp(&timestamp)
+                .unwrap_or(Ordering::Equal)
         }) {
             Ok(idx) => self.events.get(idx + 1),
             Err(idx) => self.events.get(idx),
@@ -257,7 +274,9 @@ impl PublishTimeline {
     #[must_use]
     pub fn prev_event_before(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
         match self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&timestamp).unwrap_or(Ordering::Equal)
+            e.timestamp
+                .partial_cmp(&timestamp)
+                .unwrap_or(Ordering::Equal)
         }) {
             Ok(idx) => self.events.get(idx),
             Err(idx) => idx.checked_sub(1).and_then(|i| self.events.get(i)),
@@ -383,7 +402,7 @@ pub fn debug_timeline_clocks(
     current_arena: Res<CurrentArena>,
 ) {
     let current_arena_entity = arena_entities.get(current_arena.name());
-    
+
     let Ok((arena, clock)) = arena_q.get(current_arena_entity) else {
         return;
     };
@@ -397,13 +416,15 @@ pub struct TimelinePlugin;
 
 impl Plugin for TimelinePlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<GlobalTimelinePause>()
-            .add_systems(Update, (
+        app.init_resource::<GlobalTimelinePause>().add_systems(
+            Update,
+            (
                 control_virtual_time_pause,
                 update_timeline_clocks,
                 debug_timeline_clocks,
-            ).chain());
+            )
+                .chain(),
+        );
     }
 }
 
@@ -415,20 +436,26 @@ mod tests {
     fn test_draft_timeline_adds_events_sorted() {
         let mut timeline = DraftTimeline::new();
 
-        timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(5.0),
-            event_type: EventType::Movement(GridPos::new(1, 0)),
-        }).expect("Failed to add event");
+        timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(5.0),
+                event_type: EventType::Movement(GridPos::new(1, 0)),
+            })
+            .expect("Failed to add event");
 
-        timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(2.0),
-            event_type: EventType::Ability(AbilityType::AutoShot, None),
-        }).expect("Failed to add event");
+        timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(2.0),
+                event_type: EventType::Ability(AbilityType::AutoShot, None),
+            })
+            .expect("Failed to add event");
 
-        timeline.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(10.0),
-            event_type: EventType::Death,
-        }).expect("Failed to add event");
+        timeline
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(10.0),
+                event_type: EventType::Death,
+            })
+            .expect("Failed to add event");
 
         assert_eq!(timeline.events.len(), 3);
         assert_eq!(timeline.events[0].timestamp, TimeStamp::new(2.0));
@@ -476,31 +503,35 @@ mod tests {
     #[test]
     fn test_character_timelines_multi_arena_storage() {
         let mut character_timelines = CharacterTimelines::new();
-        
+
         let mut draft_labyrinth = DraftTimeline::new();
-        draft_labyrinth.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(10.0),
-            event_type: EventType::Movement(GridPos::new(0, 0)),
-        }).expect("Failed to add event");
+        draft_labyrinth
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(10.0),
+                event_type: EventType::Movement(GridPos::new(0, 0)),
+            })
+            .expect("Failed to add event");
         let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth);
-        
+
         let mut draft_gala = DraftTimeline::new();
-        draft_gala.add_event(TimelineEvent {
-            timestamp: TimeStamp::new(30.0),
-            event_type: EventType::Ability(AbilityType::AutoShot, None),
-        }).expect("Failed to add event");
+        draft_gala
+            .add_event(TimelineEvent {
+                timestamp: TimeStamp::new(30.0),
+                event_type: EventType::Ability(AbilityType::AutoShot, None),
+            })
+            .expect("Failed to add event");
         let timeline_gala = PublishTimeline::from_draft(draft_gala);
-        
+
         let labyrinth_id = ArenaId::from_index_safe(0);
         let gala_id = ArenaId::from_index_safe(8);
-        
+
         character_timelines.store_timeline(labyrinth_id, timeline_labyrinth);
         character_timelines.store_timeline(gala_id, timeline_gala);
-        
+
         assert_eq!(character_timelines.arena_count(), 2);
         assert!(character_timelines.has_recording_for(labyrinth_id));
         assert!(character_timelines.has_recording_for(gala_id));
-        
+
         let labyrinth_timeline = character_timelines.get_timeline(labyrinth_id).unwrap();
         assert_eq!(labyrinth_timeline.events.len(), 1);
         assert_eq!(labyrinth_timeline.events[0].timestamp, TimeStamp::new(10.0));

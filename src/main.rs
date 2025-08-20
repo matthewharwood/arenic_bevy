@@ -18,9 +18,10 @@ use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
 use crate::arena::{
-    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaEntities, ArenaId, ArenaName, CameraUpdate, CharacterMoved, CurrentArena,
-    DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero, TILE_SIZE, TOTAL_ARENAS, arena_update,
-    decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena,
+    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaEntities, ArenaId, ArenaName, CameraUpdate,
+    CharacterMoved, CurrentArena, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero, TILE_SIZE,
+    TOTAL_ARENAS, arena_update, decrement_current_arena, get_local_tile_space,
+    handle_character_moved, increment_current_arena,
 };
 use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
 use crate::audio::Audio;
@@ -169,7 +170,8 @@ fn setup_scene(
         });
 
     // Convert Vec to array - compile-time guaranteed to have exactly 9 elements
-    let arena_entities_array: [(ArenaName, Entity); 9] = arena_entity_pairs.try_into()
+    let arena_entities_array: [(ArenaName, Entity); 9] = arena_entity_pairs
+        .try_into()
         .expect("Arena spawn must create exactly 9 arenas");
 
     // Insert O(1) arena lookup resource
@@ -185,7 +187,7 @@ fn spawn_starting_hero(
 ) {
     // O(1) lookup for current arena entity
     let arena_entity = arena_entities.get(current_arena.name());
-    
+
     let sphere_radius = 0.125;
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
     let local_position = get_local_tile_space(36.0, 15.0, 0.125);
@@ -230,7 +232,7 @@ fn spawn_starting_bosses(
     let boss_radius = 0.125 * 4.0;
     let boss_mesh = meshes.add(Sphere::new(boss_radius));
     let local_position = get_local_tile_space(32.0, 10.0, boss_radius);
-    
+
     commands.entity(guildhouse_entity).with_child((
         Boss,
         Active,
@@ -238,7 +240,7 @@ fn spawn_starting_bosses(
         MeshMaterial3d(mats.red.clone()),
         Transform::from_translation(local_position),
     ));
-    
+
     // Spawn regular (inactive) bosses in all other arenas
     for arena_name in ArenaName::ALL_ARENAS {
         if arena_name != ArenaName::GuildHouse {

@@ -1,6 +1,6 @@
 use crate::arena::{
-    Arena, ArenaEntities, ArenaId, ArenaName, CharacterMoved, CurrentArena, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
-    TILE_SIZE,
+    Arena, ArenaEntities, ArenaId, ArenaName, CharacterMoved, CurrentArena, GRID_HEIGHT,
+    GRID_WIDTH, LastActiveHero, TILE_SIZE,
 };
 use crate::materials::Materials;
 use crate::selectors::Active;
@@ -8,8 +8,8 @@ use bevy::input::ButtonInput;
 use bevy::math::Vec3;
 use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::{
-    ChildOf, Children, Commands, Component, Entity, EventWriter, KeyCode, Query, Res, ResMut, Single,
-    Transform, With,
+    ChildOf, Children, Commands, Component, Entity, EventWriter, KeyCode, Query, Res, ResMut,
+    Single, Transform, With,
 };
 
 /// Marker component for character entities.
