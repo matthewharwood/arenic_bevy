@@ -47,7 +47,7 @@ Create `src/recording/capture.rs`:
 ```rust
 use bevy::prelude::*;
 use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, GridPos, Target, TimelineClock};
-use crate::arena::{Arena, ArenaId, CurrentArena};
+use crate::arena::{Arena, ArenaId, CurrentArena, ArenaEntities};
 use crate::ability::AbilityType;
 use crate::recording::{Recording, RecordingMode, RecordingState};
 use crate::arena::CurrentArena;
@@ -76,6 +76,7 @@ pub fn capture_movement_intent(
     current_arena: Res<CurrentArena>,
     mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
 ) {
     // Tutorial Note: We use a simple early return check here for clarity.
     // The lead suggested .run_if(not_paused) but for juniors learning,
@@ -97,14 +98,11 @@ pub fn capture_movement_intent(
         return;
     }
 
-    // Use ArenaId for current arena comparison
-    let current_arena_id = current_arena.id();
-
-    // Get current arena timer using let-else
-    let Some((_, clock)) = arena_q
-        .iter()
-        .find(|(arena, _)| arena.name() == current_arena_id.name())
-    else {
+    // O(1) lookup for current arena entity using ArenaEntities
+    let current_arena_entity = arena_entities.get(current_arena.name());
+    
+    // Direct query for the current arena - no iteration needed
+    let Ok((_, clock)) = arena_q.get(current_arena_entity) else {
         return;
     };
 
@@ -165,6 +163,7 @@ pub fn optimize_movement_recording(
     current_arena: Res<CurrentArena>,
     mut recording_q: Query<(Entity, &mut DraftTimeline, Option<&mut LastRecordedMovement>), With<Recording>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
     mut commands: Commands,
 ) {
     // PR Gate: Respecting GlobalTimelinePause
@@ -179,14 +178,11 @@ pub fn optimize_movement_recording(
 
     let movement_dir = get_movement_direction(&keyboard);
 
-    // Use ArenaId for current arena comparison
-    let current_arena_id = current_arena.id();
-
-    // Get current arena timer
-    let Some((_, clock)) = arena_q
-        .iter()
-        .find(|(arena, _)| arena.name() == current_arena_id.name())
-    else {
+    // O(1) lookup for current arena entity using ArenaEntities
+    let current_arena_entity = arena_entities.get(current_arena.name());
+    
+    // Direct query for the current arena - no iteration needed
+    let Ok((_, clock)) = arena_q.get(current_arena_entity) else {
         return;
     };
 
@@ -241,6 +237,7 @@ pub fn capture_ability_intent(
     current_arena: Res<CurrentArena>,
     mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
     mouse_button: Res<ButtonInput<MouseButton>>,
     cursor_ray: Option<Res<CursorRay>>,
 ) {
@@ -264,14 +261,11 @@ pub fn capture_ability_intent(
         return;
     };
 
-    // Use ArenaId for current arena comparison
-    let current_arena_id = current_arena.id();
-
-    // Get current arena timer
-    let Some((_, clock)) = arena_q
-        .iter()
-        .find(|(arena, _)| arena.name() == current_arena_id.name())
-    else {
+    // O(1) lookup for current arena entity using ArenaEntities
+    let current_arena_entity = arena_entities.get(current_arena.name());
+    
+    // Direct query for the current arena - no iteration needed
+    let Ok((_, clock)) = arena_q.get(current_arena_entity) else {
         return;
     };
 
@@ -756,6 +750,7 @@ With intent capture complete, we can now:
 3. **Timeline Optimization**: Remove redundant events while preserving important changes
 4. **Explicit Constructors**: GridPos::new(), Arena::new() as primary API
 5. **Type Safety**: GridPos and Arena prevent invalid data
+6. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup in capture systems - essential for responsive input handling
 
 ## Production Notes
 

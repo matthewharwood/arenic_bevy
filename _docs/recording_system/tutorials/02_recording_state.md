@@ -33,7 +33,7 @@ use std::fmt::{self, Display, Formatter};
 use std::error::Error;
 use std::time::Duration;
 use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, GridPos, TimelineClock};
-use crate::arena::{Arena, ArenaId, CurrentArena};
+use crate::arena::{Arena, ArenaId, CurrentArena, ArenaEntities};
 use crate::ability::AbilityType;
 use crate::character::Character;
 use crate::selectors::Active;
@@ -371,17 +371,18 @@ Add to `src/recording/mod.rs`:
 // This system is now integrated into the command processor
 // The state machine handles initialization directly when processing StartRecording commands
 
-/// Reset arena timeline when requested
+/// Reset arena timeline when requested - uses ArenaEntities O(1) lookup
 pub fn reset_arena_timeline(
     mut reset_events: EventReader<ResetArenaTimeline>,
     mut arena_q: Query<(&Arena, &mut TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
 ) {
     for event in reset_events.read() {
-        // Use iterator find with proper Arena comparison
-        let Some((_, mut clock)) = arena_q
-            .iter_mut()
-            .find(|(arena, _)| arena.name() == event.arena.name())
-        else {
+        // O(1) lookup for arena entity using ArenaEntities
+        let arena_entity = arena_entities.get(event.arena.name());
+        
+        // Direct query for the specific arena - no iteration needed
+        let Ok((_, mut clock)) = arena_q.get_mut(arena_entity) else {
             continue;
         };
 
@@ -481,10 +482,11 @@ pub fn block_recording_interruptions(
 Add to `src/recording/mod.rs`:
 
 ```rust
-/// Check if recording time limit reached - now uses command pattern
+/// Check if recording time limit reached - uses ArenaEntities O(1) lookup
 pub fn check_recording_time_limit(
     recording_state: Res<RecordingState>,
     arena_q: Query<(&Arena, &TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
     current_arena: Res<CurrentArena>,
     mut command_writer: EventWriter<RecordingCommand>,
 ) {
@@ -493,14 +495,11 @@ pub fn check_recording_time_limit(
         return;
     }
 
-    // Use ArenaId for current arena comparison
-    let current_arena_id = current_arena.0;
-
-    // Check current arena timer using let-else
-    let Some((_, clock)) = arena_q
-        .iter()
-        .find(|(arena, _)| arena.name() == current_arena_id.name())
-    else {
+    // O(1) lookup for current arena entity using ArenaEntities
+    let current_arena_entity = arena_entities.get(current_arena.name());
+    
+    // Direct query for the current arena - no iteration needed
+    let Ok((_, clock)) = arena_q.get(current_arena_entity) else {
         return;
     };
 
@@ -743,6 +742,7 @@ With the event-driven recording state machine complete, we can now:
 5. **Let-Else Pattern**: Cleaner early returns with proper error handling
 6. **Const Keymaps**: Centralized key definitions prevent magic values
 7. **Event Notifications**: State changes emit events for other systems to react
+8. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup in check_recording_time_limit system - critical for performance with multiple recording systems
 
 ## Why Command Pattern vs Direct Transitions?
 

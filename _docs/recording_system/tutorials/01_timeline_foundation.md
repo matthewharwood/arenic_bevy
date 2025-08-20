@@ -142,166 +142,8 @@ use crate::ability::AbilityType;
 // - from_id() and to_id() methods for backwards compatibility
 // - Integration with the actual ability system components (AutoShot, HolyNova)
 
-/// Arena names enum with explicit discriminants for all 9 arenas
-/// This is a VALUE TYPE only - not a Component
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u8)]
-pub enum ArenaName {
-    Labyrinth = 0,
-    GuildHouse = 1,
-    Sanctum = 2,
-    Mountain = 3,
-    Bastion = 4,
-    Pawnshop = 5,
-    Crucible = 6,
-    Casino = 7,
-    Gala = 8,
-}
-
-impl ArenaName {
-    /// All arenas in index order for compile-time safe iteration
-    pub const ALL_ARENAS: [Self; 9] = [
-        Self::Labyrinth,
-        Self::GuildHouse,
-        Self::Sanctum,
-        Self::Mountain,
-        Self::Bastion,
-        Self::Pawnshop,
-        Self::Crucible,
-        Self::Casino,
-        Self::Gala,
-    ];
-
-    /// Returns the arena's numeric index (0-8)
-    pub fn as_u8(&self) -> u8 {
-        *self as u8
-    }
-
-    /// Creates ArenaName from u8 index if valid (0-8)
-    /// ONLY use at system boundaries (file loading, network, external input)
-
-    /// Creates ArenaName from index with compile-time safety (clamps to valid range)
-    /// Use this for internal code where we control the input
-    pub fn from_index_safe(idx: u8) -> Self {
-        let clamped_idx = idx.min(8); // Max valid index is 8
-        Self::ALL_ARENAS[clamped_idx as usize]
-    }
-
-    /// Iterator over all arena names in order
-    pub fn all() -> impl Iterator<Item = Self> {
-        Self::ALL_ARENAS.into_iter()
-    }
-}
-
-impl Display for ArenaName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Labyrinth => write!(f, "Labyrinth"),
-            Self::GuildHouse => write!(f, "Guild House"),
-            Self::Sanctum => write!(f, "Sanctum"),
-            Self::Mountain => write!(f, "Mountain"),
-            Self::Bastion => write!(f, "Bastion"),
-            Self::Pawnshop => write!(f, "Pawnshop"),
-            Self::Crucible => write!(f, "Crucible"),
-            Self::Casino => write!(f, "Casino"),
-            Self::Gala => write!(f, "Gala"),
-        }
-    }
-}
-
-/// Arena ID value type for passing arena identifiers in events and data
-/// This is a VALUE TYPE only - not a Component
-/// PR Gate: Rule 1 - Type Domain Separation - Values pass data
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ArenaId(pub ArenaName);
-
-/// Arena component that marks arena entities
-/// This is a COMPONENT TYPE only - for attaching to arena entities
-/// PR Gate: Rule 1 - Type Domain Separation - Components attach to entities
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct Arena(pub ArenaName);
-
-impl ArenaId {
-    /// Creates new ArenaId from ArenaName - primary constructor for value types
-    #[must_use]
-    pub fn new(name: ArenaName) -> Self {
-        Self(name)
-    }
-
-    /// Creates ArenaId from u8 index if valid (0-8)
-    /// ONLY use at system boundaries (file loading, network, external input)
-    #[must_use]
-
-    /// Creates ArenaId from index with compile-time safety (clamps to valid range)
-    /// Use this for internal code where we control the input
-    #[must_use]
-    pub fn from_index_safe(idx: u8) -> Self {
-        Self(ArenaName::from_index_safe(idx))
-    }
-
-    /// Returns the arena's numeric index (0-8)
-    #[must_use]
-    pub fn as_u8(&self) -> u8 {
-        self.0.as_u8()
-    }
-
-    /// Returns the ArenaName enum value
-    #[must_use]
-    pub fn name(&self) -> ArenaName {
-        self.0
-    }
-}
-
-impl Arena {
-    /// Creates new Arena from ArenaName - primary constructor for components
-    #[must_use]
-    pub fn new(name: ArenaName) -> Self {
-        Self(name)
-    }
-
-    /// Creates Arena from u8 index if valid (0-8)
-    /// ONLY use at system boundaries (file loading, network, external input)
-    #[must_use]
-
-    /// Creates Arena from index with compile-time safety (clamps to valid range)
-    /// Use this for internal code where we control the input
-    #[must_use]
-    pub fn from_index_safe(idx: u8) -> Self {
-        Self(ArenaName::from_index_safe(idx))
-    }
-
-    /// Returns the arena's numeric index (0-8)
-    #[must_use]
-    pub fn as_u8(&self) -> u8 {
-        self.0.as_u8()
-    }
-
-    /// Returns the ArenaName enum value
-    #[must_use]
-    pub fn name(&self) -> ArenaName {
-        self.0
-    }
-
-    /// Convert Arena component to ArenaId value type
-    #[must_use]
-    pub fn to_id(&self) -> ArenaId {
-        ArenaId(self.0)
-    }
-}
-
-
-
-impl Display for ArenaId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.0, self.as_u8())
-    }
-}
-
-impl Display for Arena {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.0, self.as_u8())
-    }
-}
+// Import arena types from the arena module - no duplicates!
+use crate::arena::{Arena, ArenaId, ArenaName, ArenaEntities};
 
 /// Newtype for grid positions using IVec2 internally
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
@@ -658,19 +500,17 @@ pub fn control_virtual_time_pause(
 }
 
 /// System to display current clock values (for debugging)
-/// 🆕 Bevy 0.16: Uses error-safe ECS patterns with let-else for clean error handling
+/// 🆕 Uses ArenaEntities O(1) lookup - eliminates O(n) linear search!
 pub fn debug_timeline_clocks(
     arena_q: Query<(&Arena, &TimelineClock)>,
-    current_arena: Res<CurrentArena>,  // PR Gate: CurrentArena should be a Resource
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
+    current_arena: Res<CurrentArena>,
 ) {
-    // PR Gate: Rule 1 - Use Arena::from_index_safe() for safe conversion from ArenaId
-    let current_arena_component = Arena::from_index_safe(current_arena.as_u8());
-
-    // Use let-else for early return pattern - more idiomatic Rust
-    let Some((arena, clock)) = arena_q
-        .iter()
-        .find(|(arena, _)| **arena == current_arena_component)
-    else {
+    // O(1) lookup for current arena entity using ArenaEntities
+    let current_arena_entity = arena_entities.get(current_arena.name());
+    
+    // Direct query for the current arena - no iteration needed
+    let Ok((arena, clock)) = arena_q.get(current_arena_entity) else {
         return;
     };
 
@@ -686,7 +526,7 @@ pub fn debug_timeline_clocks(
 Add to `src/timeline/mod.rs`:
 
 ```rust
-use crate::arena::CurrentArena;
+use crate::arena::{CurrentArena, ArenaEntities};
 
 pub struct TimelinePlugin;
 
@@ -990,8 +830,41 @@ With the timeline foundation in place, we can now:
 12. **🆕 Compile-Time Safe Arena Creation**: Use `from_index_safe()` for all arena creation - no runtime validation needed
 13. **🎯 Multi-Arena Timeline Storage**: CharacterTimelines component stores HashMap<ArenaId, PublishTimeline> to support characters recording in all 9 arenas with separate timeline storage per arena
 14. **🎯 Arena-Aware Events**: CommitRecording event includes arena context to resolve which arena timeline to commit
+15. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup instead of O(n) linear search. Performance is critical when supporting 320+ ghosts across 9 arenas!
 
 ## Production Notes
+
+### Critical Performance Optimization: ArenaEntities O(1) Lookup
+
+**The Problem:** Early tutorial versions used O(n) linear searches to find arena entities:
+
+```rust
+// OLD WAY - O(n) linear search (SLOW!)
+let Some((arena, clock)) = arena_q
+    .iter()
+    .find(|(arena, _)| arena.name() == current_arena.name())
+else {
+    return;
+};
+```
+
+This becomes a performance bottleneck when supporting 320+ ghosts across 9 arenas.
+
+**The Solution:** Use ArenaEntities resource for O(1) lookup:
+
+```rust
+// NEW WAY - O(1) lookup using ArenaEntities (FAST!)
+let current_arena_entity = arena_entities.get(current_arena.name());
+let Ok((arena, clock)) = arena_q.get(current_arena_entity) else {
+    return;
+};
+```
+
+**Why This Matters:**
+- O(n) search: 9 comparisons worst case per system per frame
+- O(1) lookup: 1 array access using enum discriminant as index
+- With 100+ systems doing arena lookups, this saves thousands of comparisons per frame
+- ArenaEntities uses ArenaName enum discriminants (0-8) as array indices for instant access
 
 ### Critical Architectural Fix: Multi-Arena Timeline Storage
 

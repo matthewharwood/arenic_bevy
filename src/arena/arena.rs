@@ -115,13 +115,6 @@ impl ArenaId {
 }
 
 impl Arena {
-    /// Creates new Arena from ArenaName
-    #[must_use]
-    pub fn new(name: ArenaName) -> Self {
-        Self(name)
-    }
-
-
     /// Creates Arena from index with compile-time safety (clamps to valid range)
     /// Use this for internal code where we control the input
     #[must_use]
@@ -133,18 +126,6 @@ impl Arena {
     #[must_use]
     pub fn as_u8(&self) -> u8 {
         self.0.as_u8()
-    }
-
-    /// Returns the ArenaName enum value
-    #[must_use]
-    pub fn name(&self) -> ArenaName {
-        self.0
-    }
-
-    /// Convert Arena component to ArenaId value type
-    #[must_use]
-    pub fn to_id(&self) -> ArenaId {
-        ArenaId(self.0)
     }
 }
 
@@ -169,6 +150,39 @@ pub struct ArenaTile;
 #[derive(Resource, Debug, Clone)]
 pub struct CurrentArena(pub ArenaId);
 
+/// O(1) arena entity lookup resource - eliminates linear searches
+/// Maps ArenaName enum values (0-8) to their corresponding arena entities
+#[derive(Resource, Debug)]
+pub struct ArenaEntities {
+    entities: [Entity; 9],
+}
+
+impl ArenaEntities {
+    /// Creates new ArenaEntities from array of (ArenaName, Entity) pairs
+    /// Uses ArenaName enum discriminants as indices for O(1) access
+    pub fn new(arena_entities: [(ArenaName, Entity); 9]) -> Self {
+        let mut entities = [Entity::PLACEHOLDER; 9];
+        for (name, entity) in arena_entities {
+            entities[name as usize] = entity;
+        }
+        Self { entities }
+    }
+    
+    /// Get arena entity by name - O(1) lookup using enum discriminant as index
+    #[must_use]
+    pub fn get(&self, name: ArenaName) -> Entity {
+        self.entities[name as usize]
+    }
+    
+    /// Find which arena an entity belongs to - O(n) but only 9 entities max
+    /// Returns None if entity is not found in any arena
+    #[must_use]
+    pub fn find_arena_for_entity(&self, entity: Entity) -> Option<ArenaName> {
+        self.entities.iter().position(|&e| e == entity)
+            .map(|idx| ArenaName::from_index_safe(idx as u8))
+    }
+}
+
 impl CurrentArena {
     /// Increment arena cyclically (Labyrinth -> GuildHouse -> ... -> Gala -> Labyrinth)
     pub fn increment(arena_id: ArenaId) -> ArenaId {
@@ -186,10 +200,6 @@ impl CurrentArena {
         ArenaId::from_index_safe(prev_idx)
     }
 
-    /// Go to specific arena, clamps invalid values
-    pub fn go_to(arena_id: ArenaId) -> ArenaId {
-        arena_id
-    }
 
     /// Get the arena's numeric index (0-8)
     pub fn as_u8(&self) -> u8 {
@@ -238,7 +248,7 @@ pub fn handle_character_moved(
     mut character_moved_events: EventReader<CharacterMoved>,
     current_arena: Res<CurrentArena>,
     camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
-    arena_q: Query<(Entity, &Arena), With<Arena>>,
+    arena_entities: Res<ArenaEntities>,
 ) {
     // Only process if there are events to handle
     if character_moved_events.is_empty() {
@@ -257,19 +267,15 @@ pub fn handle_character_moved(
             commands.entity(camera_entity).remove::<ZoomOut>();
         }
 
-        // Update LastActiveHero for the target arena
-        if let Some((arena_entity, _)) = arena_q
-            .iter()
-            .find(|(_, arena)| arena.name() == event.to_arena.name())
-        {
-            commands
-                .entity(arena_entity)
-                .insert(LastActiveHero(Some(event.character_entity)));
-            println!(
-                "Updated LastActiveHero for {} to {:?}",
-                event.to_arena, event.character_entity
-            );
-        }
+        // Update LastActiveHero for the target arena - O(1) lookup
+        let arena_entity = arena_entities.get(event.to_arena.name());
+        commands
+            .entity(arena_entity)
+            .insert(LastActiveHero(Some(event.character_entity)));
+        println!(
+            "Updated LastActiveHero for {} to {:?}",
+            event.to_arena, event.character_entity
+        );
 
         println!(
             "Character {:?} moved from {} to {} (preserved Active status)",
@@ -283,7 +289,8 @@ pub fn arena_update(
     mut arena_refresh_events: EventReader<CameraUpdate>,
     current_arena: Res<CurrentArena>,
     camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
-    arena_q: Query<(Entity, &Arena, &Children, Option<&LastActiveHero>), With<Arena>>,
+    arena_entities: Res<ArenaEntities>,
+    arena_q: Query<(&Arena, &Children, Option<&LastActiveHero>), With<Arena>>,
     characters_q: Query<(Entity, Option<&Active>), With<Character>>,
     mats: Res<Materials>,
 ) {
@@ -304,90 +311,91 @@ pub fn arena_update(
             }
         }
     } else {
-        let current_arena_name = current_arena.name();
         position_camera_for_arena(&mut camera_transform, current_arena.as_u8(), ZOOM.0);
         commands.entity(camera_entity).remove::<ZoomOut>();
 
-        for (arena_entity, arena, children, last_active_hero) in arena_q.iter() {
-            if arena.name() == current_arena_name {
-                // Check if arena has characters
-                let characters_data: Vec<(Entity, Option<&Active>)> =
-                    characters_q.iter_many(children).collect();
+        // O(1) lookup for current arena entity
+        let current_arena_entity = arena_entities.get(current_arena.name());
+        
+        // Direct query for the current arena - no iteration needed
+        if let Ok((arena, children, last_active_hero)) = arena_q.get(current_arena_entity) {
+            // Check if arena has characters
+            let characters_data: Vec<(Entity, Option<&Active>)> =
+                characters_q.iter_many(children).collect();
 
-                if characters_data.is_empty() {
-                    println!("No characters in {}", arena);
-                    for (entity, active) in characters_q.iter() {
-                        if active.is_some() {
-                            commands
-                                .entity(entity)
-                                .insert(MeshMaterial3d(mats.gray.clone()))
-                                .remove::<Active>();
-                        }
+            if characters_data.is_empty() {
+                println!("No characters in {}", arena);
+                for (entity, active) in characters_q.iter() {
+                    if active.is_some() {
+                        commands
+                            .entity(entity)
+                            .insert(MeshMaterial3d(mats.gray.clone()))
+                            .remove::<Active>();
                     }
+                }
+                return;
+            } else {
+                println!("Found {} characters in {}", characters_data.len(), arena);
+
+                // Find the active character (if any)
+                let active_character = characters_data
+                    .iter()
+                    .find(|(_, active)| active.is_some())
+                    .map(|(entity, _)| *entity);
+
+                if let Some(active_entity) = active_character {
+                    println!("Found active character in {}: {:?}", arena, active_entity);
+                    // This character is already active - handle this case
                     return;
                 } else {
-                    println!("Found {} characters in {}", characters_data.len(), arena);
+                    println!("No active character in {}", arena);
 
-                    // Find the active character (if any)
-                    let active_character = characters_data
-                        .iter()
-                        .find(|(_, active)| active.is_some())
-                        .map(|(entity, _)| *entity);
+                    // Check if LastActiveHero has a character present and still exists
+                    let use_last_active_hero =
+                        last_active_hero
+                            .and_then(|hero| hero.0)
+                            .filter(|&hero_entity| {
+                                characters_data
+                                    .iter()
+                                    .any(|(entity, _)| *entity == hero_entity)
+                            });
 
-                    if let Some(active_entity) = active_character {
-                        println!("Found active character in {}: {:?}", arena, active_entity);
-                        // This character is already active - handle this case
-                        return;
-                    } else {
-                        println!("No active character in {}", arena);
-
-                        // Check if LastActiveHero has a character present and still exists
-                        let use_last_active_hero =
-                            last_active_hero
-                                .and_then(|hero| hero.0)
-                                .filter(|&hero_entity| {
-                                    characters_data
-                                        .iter()
-                                        .any(|(entity, _)| *entity == hero_entity)
-                                });
-
-                        if let Some(hero_entity) = use_last_active_hero {
-                            println!("Using LastActiveHero: {:?}", hero_entity);
-                            // Remove Active from all currently active characters across all arenas
-                            for (entity, active) in characters_q.iter() {
-                                if active.is_some() {
-                                    commands
-                                        .entity(entity)
-                                        .insert(MeshMaterial3d(mats.gray.clone()))
-                                        .remove::<Active>();
-                                }
+                    if let Some(hero_entity) = use_last_active_hero {
+                        println!("Using LastActiveHero: {:?}", hero_entity);
+                        // Remove Active from all currently active characters across all arenas
+                        for (entity, active) in characters_q.iter() {
+                            if active.is_some() {
+                                commands
+                                    .entity(entity)
+                                    .insert(MeshMaterial3d(mats.gray.clone()))
+                                    .remove::<Active>();
                             }
-                            // Now set the new active character
-                            commands
-                                .entity(hero_entity)
-                                .insert(MeshMaterial3d(mats.blue.clone()))
-                                .insert(Active);
-                        } else {
-                            println!("Using first character");
-                            let first_character = characters_data[0].0;
-                            // Remove Active from all currently active characters across all arenas
-                            for (entity, active) in characters_q.iter() {
-                                if active.is_some() {
-                                    commands
-                                        .entity(entity)
-                                        .insert(MeshMaterial3d(mats.gray.clone()))
-                                        .remove::<Active>();
-                                }
-                            }
-                            // Now set the new active character
-                            commands
-                                .entity(first_character)
-                                .insert(MeshMaterial3d(mats.blue.clone()))
-                                .insert(Active);
-                            commands
-                                .entity(arena_entity)
-                                .insert(LastActiveHero(Some(first_character)));
                         }
+                        // Now set the new active character
+                        commands
+                            .entity(hero_entity)
+                            .insert(MeshMaterial3d(mats.blue.clone()))
+                            .insert(Active);
+                    } else {
+                        println!("Using first character");
+                        let first_character = characters_data[0].0;
+                        // Remove Active from all currently active characters across all arenas
+                        for (entity, active) in characters_q.iter() {
+                            if active.is_some() {
+                                commands
+                                    .entity(entity)
+                                    .insert(MeshMaterial3d(mats.gray.clone()))
+                                    .remove::<Active>();
+                            }
+                        }
+                        // Now set the new active character
+                        commands
+                            .entity(first_character)
+                            .insert(MeshMaterial3d(mats.blue.clone()))
+                            .insert(Active);
+                        commands
+                            .entity(current_arena_entity)
+                            .insert(LastActiveHero(Some(first_character)));
                     }
                 }
             }

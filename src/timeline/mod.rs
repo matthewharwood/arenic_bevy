@@ -1,7 +1,7 @@
 mod tests;
 
 use crate::ability::AbilityType;
-use crate::arena::{Arena, ArenaId, CurrentArena};
+use crate::arena::{Arena, ArenaEntities, ArenaId, CurrentArena};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
 use bevy::math::IVec2;
@@ -411,25 +411,21 @@ pub fn control_virtual_time_pause(
     }
 }
 
-/// System to display current clock values (for debugging)
+/// System to display current clock values (for debugging) - O(1) arena lookup
 pub fn debug_timeline_clocks(
     arena_q: Query<(&Arena, &TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,
     current_arena: Res<CurrentArena>,
 ) {
-    // Get the current arena entity
-    let current_arena = &*current_arena;
+    // O(1) lookup for current arena entity
+    let current_arena_entity = arena_entities.get(current_arena.name());
 
-    // Use let-else for early return pattern - more idiomatic Rust
-    let Some((arena, clock)) = arena_q
-        .iter()
-        .find(|(arena, _)| arena.name() == current_arena.name())
-    else {
-        return;
-    };
-
-    // PR Gate: Using trace! for per-frame logs instead of info!
-    if (clock.current().as_secs() % 1.0) < 0.02 {
-        trace!("{}: {:.1}s", arena, clock.current().as_secs());
+    // Direct query for the current arena - no iteration needed
+    if let Ok((arena, clock)) = arena_q.get(current_arena_entity) {
+        // PR Gate: Using trace! for per-frame logs instead of info!
+        if (clock.current().as_secs() % 1.0) < 0.02 {
+            trace!("{}: {:.1}s", arena, clock.current().as_secs());
+        }
     }
 }
 

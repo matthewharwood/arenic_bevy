@@ -18,7 +18,7 @@ use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
 use crate::arena::{
-    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaId, ArenaName, CameraUpdate, CharacterMoved, CurrentArena,
+    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaEntities, ArenaId, ArenaName, CameraUpdate, CharacterMoved, CurrentArena,
     DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero, TILE_SIZE, TOTAL_ARENAS, arena_update,
     decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena,
 };
@@ -114,6 +114,9 @@ fn setup_scene(
     let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
     commands.spawn(Debug);
 
+    // Collect arena entities for O(1) lookup resource
+    let mut arena_entity_pairs = Vec::new();
+
     commands
         .spawn((
             BattleGround,
@@ -132,8 +135,9 @@ fn setup_scene(
                 let offset_y = -((arena_index / 3) as f32) * ARENA_HEIGHT;
                 let class_type = ClassType::index_of(arena_index);
                 let arena_name = ClassType::index_of(arena_index).name();
+                let arena_name_enum = ArenaName::from_index_safe(arena_index);
 
-                battleground
+                let arena_entity = battleground
                     .spawn((
                         Transform::from_xyz(offset_x, offset_y, 0.0),
                         Arena::from_index_safe(arena_index),
@@ -157,9 +161,19 @@ fn setup_scene(
                                 ));
                             }
                         }
-                    });
+                    })
+                    .id();
+
+                arena_entity_pairs.push((arena_name_enum, arena_entity));
             }
         });
+
+    // Convert Vec to array - compile-time guaranteed to have exactly 9 elements
+    let arena_entities_array: [(ArenaName, Entity); 9] = arena_entity_pairs.try_into()
+        .expect("Arena spawn must create exactly 9 arenas");
+
+    // Insert O(1) arena lookup resource
+    commands.insert_resource(ArenaEntities::new(arena_entities_array));
 }
 
 fn spawn_starting_hero(
@@ -167,66 +181,69 @@ fn spawn_starting_hero(
     mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
     current_arena: Res<CurrentArena>,
-    arena_query: Query<(Entity, &Arena)>,
+    arena_entities: Res<ArenaEntities>,
 ) {
-    let current_arena_name = current_arena.name();
-    for (arena_entity, arena) in arena_query.iter() {
-        if arena.name() == current_arena_name {
-            let sphere_radius = 0.125;
-            let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
-            let local_position = get_local_tile_space(36.0, 15.0, 0.125);
+    // O(1) lookup for current arena entity
+    let arena_entity = arena_entities.get(current_arena.name());
+    
+    let sphere_radius = 0.125;
+    let sphere_mesh = meshes.add(Sphere::new(sphere_radius));
+    let local_position = get_local_tile_space(36.0, 15.0, 0.125);
 
-            // Spawn the character as a child and get its entity ID
-            let character_entity = commands
-                .spawn((
-                    Character,
-                    AutoShot::new(16.0),
-                    Active,
-                    Mesh3d(sphere_mesh),
-                    MeshMaterial3d(mats.blue.clone()),
-                    Transform::from_translation(local_position),
-                    ChildOf(arena_entity),
-                ))
-                .id();
-            let sphere_radius_v2 = 0.125;
-            let sphere_mesh_v2 = meshes.add(Sphere::new(sphere_radius_v2));
-            let local_position_v2 = get_local_tile_space(0.0, 0.0, 0.125);
-            commands.entity(arena_entity).with_child((
-                Character,
-                HolyNova,
-                Mesh3d(sphere_mesh_v2),
-                MeshMaterial3d(mats.gray.clone()),
-                Transform::from_translation(local_position_v2),
-            ));
-            println!("Character entity ID: {}", character_entity);
-            // Update the arena's LastActiveHero to point to this character
-            commands
-                .entity(arena_entity)
-                .insert(LastActiveHero(Some(character_entity)));
-        }
-    }
+    // Spawn the character as a child and get its entity ID
+    let character_entity = commands
+        .spawn((
+            Character,
+            AutoShot::new(16.0),
+            Active,
+            Mesh3d(sphere_mesh),
+            MeshMaterial3d(mats.blue.clone()),
+            Transform::from_translation(local_position),
+            ChildOf(arena_entity),
+        ))
+        .id();
+    let sphere_radius_v2 = 0.125;
+    let sphere_mesh_v2 = meshes.add(Sphere::new(sphere_radius_v2));
+    let local_position_v2 = get_local_tile_space(0.0, 0.0, 0.125);
+    commands.entity(arena_entity).with_child((
+        Character,
+        HolyNova,
+        Mesh3d(sphere_mesh_v2),
+        MeshMaterial3d(mats.gray.clone()),
+        Transform::from_translation(local_position_v2),
+    ));
+    println!("Character entity ID: {}", character_entity);
+    // Update the arena's LastActiveHero to point to this character
+    commands
+        .entity(arena_entity)
+        .insert(LastActiveHero(Some(character_entity)));
 }
 
 fn spawn_starting_bosses(
     mut commands: Commands,
     mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
-    query: Query<(Entity, &Arena), With<Arena>>,
+    arena_entities: Res<ArenaEntities>,
 ) {
-    for (arena_entity, arena_id) in query.iter() {
-        let boss_radius = 0.125 * 4.0;
-        let boss_mesh = meshes.add(Sphere::new(boss_radius));
-
-        let local_position = get_local_tile_space(32.0, 10.0, boss_radius);
-        if arena_id.name() == ArenaName::GuildHouse {
-            commands.entity(arena_entity).with_child((
-                Boss,
-                Active,
-                Mesh3d(boss_mesh),
-                MeshMaterial3d(mats.red.clone()),
-                Transform::from_translation(local_position),
-            ));
-        } else {
+    // Spawn boss in GuildHouse only - O(1) lookup
+    let guildhouse_entity = arena_entities.get(ArenaName::GuildHouse);
+    let boss_radius = 0.125 * 4.0;
+    let boss_mesh = meshes.add(Sphere::new(boss_radius));
+    let local_position = get_local_tile_space(32.0, 10.0, boss_radius);
+    
+    commands.entity(guildhouse_entity).with_child((
+        Boss,
+        Active,
+        Mesh3d(boss_mesh.clone()),
+        MeshMaterial3d(mats.red.clone()),
+        Transform::from_translation(local_position),
+    ));
+    
+    // Spawn regular (inactive) bosses in all other arenas
+    for arena_name in ArenaName::ALL_ARENAS {
+        if arena_name != ArenaName::GuildHouse {
+            let arena_entity = arena_entities.get(arena_name);
+            let boss_mesh = meshes.add(Sphere::new(boss_radius));
             commands.entity(arena_entity).with_child((
                 Boss,
                 Mesh3d(boss_mesh),

@@ -30,35 +30,36 @@ Create `src/multi_arena/mod.rs`:
 use bevy::prelude::*;
 use bevy::time::Virtual;
 use bevy::utils::HashMap;  // Use Bevy's HashMap for better performance
-use crate::timeline::{Arena, TimelineClock, PublishTimeline, TimelinePosition, TimeStamp};
-use crate::arena::CurrentArena;
+use crate::timeline::{TimelineClock, PublishTimeline, TimelinePosition, TimeStamp};
+use crate::arena::{Arena, ArenaName, CurrentArena, ArenaEntities};
 use crate::playback::{Ghost, Replaying};
 use crate::character::Character;
 
-/// APPROVED: Simple registry - HashMap is perfect for 8 arenas
+/// APPROVED: Simple registry - HashMap is perfect for 9 arenas
+/// Uses ArenaName as key for efficient ghost tracking per arena
 #[derive(Resource, Default)]
 pub struct ArenaGhostRegistry {
-    /// Map from arena index to list of ghost entities
-    pub ghosts_by_arena: HashMap<Arena, Vec<Entity>>,
+    /// Map from arena name to list of ghost entities
+    pub ghosts_by_arena: HashMap<ArenaName, Vec<Entity>>,
 }
 
 impl ArenaGhostRegistry {
-    pub fn register_ghost(&mut self, arena: Arena, ghost: Entity) {
+    pub fn register_ghost(&mut self, arena_name: ArenaName, ghost: Entity) {
         self.ghosts_by_arena
-            .entry(arena)
+            .entry(arena_name)
             .or_insert_with(Vec::new)
             .push(ghost);
     }
 
-    pub fn unregister_ghost(&mut self, arena: Arena, ghost: Entity) {
-        if let Some(ghosts) = self.ghosts_by_arena.get_mut(&arena) {
+    pub fn unregister_ghost(&mut self, arena_name: ArenaName, ghost: Entity) {
+        if let Some(ghosts) = self.ghosts_by_arena.get_mut(&arena_name) {
             ghosts.retain(|&e| e != ghost);
         }
     }
 
-    pub fn get_arena_ghosts(&self, arena: Arena) -> &[Entity] {
+    pub fn get_arena_ghosts(&self, arena_name: ArenaName) -> &[Entity] {
         self.ghosts_by_arena
-            .get(&arena)
+            .get(&arena_name)
             .map(|v| v.as_slice())
             .unwrap_or(&[])
     }
@@ -81,8 +82,8 @@ pub fn register_new_ghosts(
     for (ghost_entity, parent) in new_ghosts.iter() {
         // Find which arena this ghost belongs to
         if let Ok(arena) = arena_q.get(parent.get()) {
-            registry.register_ghost(*arena, ghost_entity);
-            info!("Registered ghost {:?} in arena {:?}", ghost_entity, arena);
+            registry.register_ghost(arena.0, ghost_entity);
+            info!("Registered ghost {:?} in arena {:?}", ghost_entity, arena.0);
         }
     }
 }
@@ -115,15 +116,17 @@ pub fn playback_arena_ghosts(
         With<Ghost>
     >,
     arena_q: Query<(&Arena, &TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
 ) {
     // Process current arena at full fidelity
-    let current_arena_id = current_arena.id();
+    let current_arena_name = current_arena.name();
     
-    if let Some((_, clock)) = arena_q.iter()
-        .find(|(arena, _)| arena.name() == current_arena_id.name())
-    {
+    // O(1) lookup for current arena entity using ArenaEntities
+    let current_arena_entity = arena_entities.get(current_arena_name);
+    
+    if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
         let current_time = clock.current();
-        let current_arena_ghosts = registry.get_arena_ghosts(current_arena_id.name());
+        let current_arena_ghosts = registry.get_arena_ghosts(current_arena_name);
 
         // PR Gate: Use iter_many_mut for efficient batch processing (cache locality)
         // NO individual get_mut() calls in loops - this is critical for performance
@@ -140,27 +143,32 @@ pub fn playback_arena_ghosts(
         }
     }
 
-    // Process other arenas at reduced fidelity
-    for (arena, clock) in arena_q.iter() {
-        if *arena != current_idx {
-            let current_time = clock.current();
-
-            // Update every 10th frame for distant arenas
-            if (current_time.as_secs() * 10.0) as u32 % 10 != 0 {
-                continue;
-            }
-
-            let arena_ghosts = registry.get_arena_ghosts(arena.0);
-
-            // Use iter_many_mut for batch processing of arena ghosts
-            for (mut position, mut transform, timeline) in
-                ghost_q.iter_many_mut(arena_ghosts)
-            {
-                position.0 = current_time;
-
-                // Simplified interpolation for distant arenas
-                if let Some(pos) = get_nearest_position(timeline, current_time) {
-                    transform.translation = pos;
+    // Process other arenas at reduced fidelity using ArenaName iteration
+    for arena_name in ArenaName::all() {
+        if arena_name != current_arena_name {
+            // O(1) lookup for this arena entity
+            let arena_entity = arena_entities.get(arena_name);
+            
+            if let Ok((_, clock)) = arena_q.get(arena_entity) {
+                let current_time = clock.current();
+    
+                // Update every 10th frame for distant arenas
+                if (current_time.as_secs() * 10.0) as u32 % 10 != 0 {
+                    continue;
+                }
+    
+                let arena_ghosts = registry.get_arena_ghosts(arena_name);
+    
+                // Use iter_many_mut for batch processing of arena ghosts
+                for (mut position, mut transform, timeline) in
+                    ghost_q.iter_many_mut(arena_ghosts)
+                {
+                    position.0 = current_time;
+    
+                    // Simplified interpolation for distant arenas
+                    if let Some(pos) = get_nearest_position(timeline, current_time) {
+                        transform.translation = pos;
+                    }
                 }
             }
         }
@@ -693,11 +701,52 @@ With multi-arena support complete, we can now:
 
 ## Key Takeaways
 
-1. **Arena Registry**: Efficient tracking of ghosts per arena
+1. **Arena Registry**: Efficient tracking of ghosts per arena using ArenaName keys
 2. **LOD System**: Reduced fidelity for distant arenas saves performance
 3. **Batch Processing**: Group operations by arena for cache efficiency
 4. **Explicit Constructors**: Arena::new() validation in multi-arena logic
 5. **Resource Limits**: Prevent performance degradation from too many ghosts
+6. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup instead of arena_q.iter().find() - essential for multi-arena performance with 320+ ghosts
+
+## Performance Optimization Notes
+
+### ArenaEntities O(1) Lookup Optimization
+
+**The Problem:** Multi-arena systems performing O(n) searches become bottlenecks:
+
+```rust
+// OLD WAY - O(n) linear search in multi-arena context (VERY SLOW!)
+if let Some((_, clock)) = arena_q.iter()
+    .find(|(arena, _)| arena.name() == current_arena_id.name())
+{
+    // Process arena...
+}
+```
+
+With 9 arenas and multiple systems per frame, this scales poorly.
+
+**The Solution:** Use ArenaEntities for O(1) arena entity lookup:
+
+```rust
+// NEW WAY - O(1) lookup with ArenaEntities (FAST!)
+let current_arena_entity = arena_entities.get(current_arena_name);
+if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
+    // Process arena...
+}
+```
+
+**Multi-Arena Performance Impact:**
+- OLD: 9 arena comparisons × 10+ systems × 60 FPS = 5,400+ comparisons/second
+- NEW: 1 array access × 10+ systems × 60 FPS = 600 operations/second
+- **90% reduction** in arena lookup overhead allows smooth 320+ ghost simulation
+
+### ArenaGhostRegistry Design
+
+The ArenaGhostRegistry uses `HashMap<ArenaName, Vec<Entity>>` which is optimal for:
+- **Ghost Registration**: O(1) insertion per arena
+- **Ghost Retrieval**: O(1) lookup by arena name
+- **Memory Efficiency**: Only allocates storage for arenas with ghosts
+- **Cache Locality**: Ghosts grouped by arena for batch processing
 
 Multi-arena support is crucial for the full game experience. By optimizing updates based on arena distance and batching
 operations, we can support hundreds of ghosts while maintaining smooth performance.

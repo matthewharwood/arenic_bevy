@@ -30,7 +30,7 @@ Create `src/playback/mod.rs`:
 ```rust
 use bevy::prelude::*;
 use crate::timeline::{PublishTimeline, TimelinePosition, EventType, TimeStamp, TimelineClock};
-use crate::arena::{Arena, ArenaId};
+use crate::arena::{Arena, ArenaId, ArenaEntities};
 use crate::ability::AbilityType;
 use crate::recording::Ghost;
 use crate::character::Character;
@@ -196,14 +196,14 @@ pub fn playback_ghost_movement(
         (With<Ghost>, With<Replaying>)
     >,
     arena_q: Query<(&Arena, &TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
 ) {
     for (timeline, mut position, mut transform, ghost_arena, mut movement_state) in ghost_q.iter_mut() {
-        // PR Gate: Each ghost resolves time via Parent → Arena → TimelineClock
+        // O(1) lookup for ghost's arena entity using ArenaEntities
         // Each ghost uses its parent arena's clock, NOT CurrentArena
-        let Some((_, clock)) = arena_q
-            .iter()
-            .find(|(idx, _)| **idx == ghost_arena.0)
-        else {
+        let ghost_arena_entity = arena_entities.get(ghost_arena.0.name());
+        
+        let Ok((_, clock)) = arena_q.get(ghost_arena_entity) else {
             continue;
         };
         
@@ -265,13 +265,13 @@ pub fn playback_ghost_movement(
 pub fn loop_ghost_timelines(
     mut ghost_q: Query<(&mut TimelinePosition, &GhostArena), With<Ghost>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
+    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
 ) {
     for (mut position, ghost_arena) in ghost_q.iter_mut() {
-        // PR Gate: Each ghost checks its own arena's clock independently
-        let Some((_, clock)) = arena_q
-            .iter()
-            .find(|(idx, _)| **idx == ghost_arena.0)
-        else {
+        // O(1) lookup for ghost's arena entity using ArenaEntities
+        let ghost_arena_entity = arena_entities.get(ghost_arena.0.name());
+        
+        let Ok((_, clock)) = arena_q.get(ghost_arena_entity) else {
             continue;
         };
         
@@ -744,6 +744,7 @@ With playback working, we can now:
 4. **Explicit Constructors**: TimeStamp::new(), Arena::new() throughout playback code
 5. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
 6. **Improved Timeline Queries**: get_movement_intent_at now uses partition_point for cleaner boundary finding
+7. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup in ghost systems - critical for performance with 320+ ghosts across 9 arenas
 
 ## Production Notes
 

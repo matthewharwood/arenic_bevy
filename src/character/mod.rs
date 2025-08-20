@@ -1,5 +1,5 @@
 use crate::arena::{
-    Arena, ArenaId, ArenaName, CharacterMoved, CurrentArena, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
+    Arena, ArenaEntities, ArenaId, ArenaName, CharacterMoved, CurrentArena, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
     TILE_SIZE,
 };
 use crate::materials::Materials;
@@ -23,7 +23,8 @@ pub fn toggle_active_character(
     mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     current_arena: Res<CurrentArena>,
-    arena_q: Query<(Entity, &Arena, &Children), With<Arena>>,
+    arena_entities: Res<ArenaEntities>,
+    arena_q: Query<(&Arena, &Children), With<Arena>>,
     characters_q: Query<(Entity, Option<&Active>), With<Character>>,
     mats: Res<Materials>,
 ) {
@@ -31,54 +32,53 @@ pub fn toggle_active_character(
         return;
     }
 
-    let current_arena = &*current_arena;
-    let current_arena_name = current_arena.name();
+    // O(1) lookup for current arena entity
+    let current_arena_entity = arena_entities.get(current_arena.name());
 
-    for (arena_entity, arena, children) in arena_q.iter() {
-        if arena.name() == current_arena_name {
-            // Get all characters in this arena
-            let characters_data: Vec<(Entity, Option<&Active>)> =
-                characters_q.iter_many(children).collect();
+    // Direct query for the current arena - no iteration needed
+    if let Ok((arena, children)) = arena_q.get(current_arena_entity) {
+        // Get all characters in this arena
+        let characters_data: Vec<(Entity, Option<&Active>)> =
+            characters_q.iter_many(children).collect();
 
-            // Need at least 2 characters to cycle
-            if characters_data.len() < 2 {
-                println!("Not enough characters to cycle in {}", arena);
-                return;
-            }
+        // Need at least 2 characters to cycle
+        if characters_data.len() < 2 {
+            println!("Not enough characters to cycle in {}", arena);
+            return;
+        }
 
-            // Find the currently active character's index
-            let active_index = characters_data
-                .iter()
-                .position(|(_, active)| active.is_some());
+        // Find the currently active character's index
+        let active_index = characters_data
+            .iter()
+            .position(|(_, active)| active.is_some());
 
-            if let Some(current_index) = active_index {
-                // Calculate next index (cyclical)
-                let next_index = (current_index + 1) % characters_data.len();
+        if let Some(current_index) = active_index {
+            // Calculate next index (cyclical)
+            let next_index = (current_index + 1) % characters_data.len();
 
-                // Remove Active from current character
-                let current_entity = characters_data[current_index].0;
-                commands
-                    .entity(current_entity)
-                    .insert(MeshMaterial3d(mats.gray.clone()))
-                    .remove::<Active>();
+            // Remove Active from current character
+            let current_entity = characters_data[current_index].0;
+            commands
+                .entity(current_entity)
+                .insert(MeshMaterial3d(mats.gray.clone()))
+                .remove::<Active>();
 
-                // Add Active to next character
-                let next_entity = characters_data[next_index].0;
-                commands
-                    .entity(next_entity)
-                    .insert(MeshMaterial3d(mats.blue.clone()))
-                    .insert(Active);
+            // Add Active to next character
+            let next_entity = characters_data[next_index].0;
+            commands
+                .entity(next_entity)
+                .insert(MeshMaterial3d(mats.blue.clone()))
+                .insert(Active);
 
-                // Update LastActiveHero
-                commands
-                    .entity(arena_entity)
-                    .insert(LastActiveHero(Some(next_entity)));
+            // Update LastActiveHero
+            commands
+                .entity(current_arena_entity)
+                .insert(LastActiveHero(Some(next_entity)));
 
-                println!(
-                    "Cycled from character {:?} to {:?} in {}",
-                    current_entity, next_entity, arena
-                );
-            }
+            println!(
+                "Cycled from character {:?} to {:?} in {}",
+                current_entity, next_entity, arena
+            );
         }
     }
 }
@@ -88,7 +88,7 @@ pub fn move_active_character(
     keycode: Res<ButtonInput<KeyCode>>,
     mut current_arena: ResMut<CurrentArena>,
     active_character_q: Single<(Entity, &mut Transform), (With<Character>, With<Active>)>,
-    arena_q: Query<(Entity, &Arena), With<Arena>>,
+    arena_entities: Res<ArenaEntities>,
     mut character_moved_event: EventWriter<CharacterMoved>,
 ) {
     let mut movement = Vec3::ZERO;
@@ -143,15 +143,11 @@ pub fn move_active_character(
             // Update CurrentArena after character movement
             current_arena.0 = new_arena_id;
 
-            // Reparent character to new arena
-            if let Some((new_arena_entity, _)) = arena_q
-                .iter()
-                .find(|(_, arena)| arena.name() == new_arena_name)
-            {
-                commands
-                    .entity(character_entity)
-                    .insert(ChildOf(new_arena_entity));
-            }
+            // Reparent character to new arena - O(1) lookup
+            let new_arena_entity = arena_entities.get(new_arena_name);
+            commands
+                .entity(character_entity)
+                .insert(ChildOf(new_arena_entity));
             println!("Moved to {} (left)", new_arena_name);
             // Send character moved event
             character_moved_event.write(CharacterMoved {
@@ -178,15 +174,11 @@ pub fn move_active_character(
             // Update CurrentArena after character movement
             current_arena.0 = new_arena_id;
 
-            // Reparent character to new arena
-            if let Some((new_arena_entity, _)) = arena_q
-                .iter()
-                .find(|(_, arena)| arena.name() == new_arena_name)
-            {
-                commands
-                    .entity(character_entity)
-                    .insert(ChildOf(new_arena_entity));
-            }
+            // Reparent character to new arena - O(1) lookup
+            let new_arena_entity = arena_entities.get(new_arena_name);
+            commands
+                .entity(character_entity)
+                .insert(ChildOf(new_arena_entity));
             println!("Moved to {} (right)", new_arena_name);
             // Send character moved event
             character_moved_event.write(CharacterMoved {
@@ -213,15 +205,11 @@ pub fn move_active_character(
             // Update CurrentArena after character movement
             current_arena.0 = new_arena_id;
 
-            // Reparent character to new arena
-            if let Some((new_arena_entity, _)) = arena_q
-                .iter()
-                .find(|(_, arena)| arena.name() == new_arena_name)
-            {
-                commands
-                    .entity(character_entity)
-                    .insert(ChildOf(new_arena_entity));
-            }
+            // Reparent character to new arena - O(1) lookup
+            let new_arena_entity = arena_entities.get(new_arena_name);
+            commands
+                .entity(character_entity)
+                .insert(ChildOf(new_arena_entity));
             println!("Moved to {} (down)", new_arena_name);
             // Send character moved event
             character_moved_event.write(CharacterMoved {
@@ -248,15 +236,11 @@ pub fn move_active_character(
             // Update CurrentArena after character movement
             current_arena.0 = new_arena_id;
 
-            // Reparent character to new arena
-            if let Some((new_arena_entity, _)) = arena_q
-                .iter()
-                .find(|(_, arena)| arena.name() == new_arena_name)
-            {
-                commands
-                    .entity(character_entity)
-                    .insert(ChildOf(new_arena_entity));
-            }
+            // Reparent character to new arena - O(1) lookup
+            let new_arena_entity = arena_entities.get(new_arena_name);
+            commands
+                .entity(character_entity)
+                .insert(ChildOf(new_arena_entity));
             println!("Moved to {} (up)", new_arena_name);
             // Send character moved event
             character_moved_event.write(CharacterMoved {
