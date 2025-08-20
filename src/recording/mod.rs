@@ -1,3 +1,4 @@
+use crate::arena::Arena;
 use bevy::prelude::*;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::time::Duration;
@@ -87,4 +88,15 @@ impl RecordingCountdown {
             _ => None,
         }
     }
+}
+
+/// Marker for entities that already have a published timeline
+#[derive(Component)]
+pub struct Ghost;
+
+/// Event to start recording a character
+#[derive(Event)]
+pub struct StartRecording {
+    pub character: Entity,
+    pub arena: Arena,
 }
