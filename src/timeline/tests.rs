@@ -203,4 +203,53 @@ mod tests {
         let empty_error = crate::timeline::TimelineError::EmptyTimeline;
         assert_eq!(empty_error.to_string(), "Timeline is empty");
     }
+
+    #[test]
+    fn test_character_timelines_multi_arena_storage() {
+        // Test the critical architectural fix: CharacterTimelines stores multiple timelines per character
+        let mut character_timelines = CharacterTimelines::new();
+        
+        // Create test timelines for different arenas
+        let mut draft_labyrinth = DraftTimeline::new();
+        draft_labyrinth.add_event(TimelineEvent {
+            timestamp: TimeStamp::new(10.0),
+            event_type: EventType::Movement(GridPos::new(0, 0)),
+        }).expect("Failed to add event");
+        let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth).expect("Failed to create timeline");
+        
+        let mut draft_gala = DraftTimeline::new();
+        draft_gala.add_event(TimelineEvent {
+            timestamp: TimeStamp::new(30.0),
+            event_type: EventType::Ability(AbilityType::AutoShot, None),
+        }).expect("Failed to add event");
+        let timeline_gala = PublishTimeline::from_draft(draft_gala).expect("Failed to create timeline");
+        
+        // Store timelines for different arenas
+        let labyrinth_id = ArenaId::from_index_safe(0); // Labyrinth
+        let gala_id = ArenaId::from_index_safe(8);      // Gala
+        
+        character_timelines.store_timeline(labyrinth_id, timeline_labyrinth);
+        character_timelines.store_timeline(gala_id, timeline_gala);
+        
+        // Verify separate timeline storage
+        assert_eq!(character_timelines.arena_count(), 2);
+        assert!(character_timelines.has_recording_for(labyrinth_id));
+        assert!(character_timelines.has_recording_for(gala_id));
+        assert!(!character_timelines.has_recording_for(ArenaId::from_index_safe(1))); // GuildHouse - no recording
+        
+        // Verify we can retrieve specific arena timelines
+        let labyrinth_timeline = character_timelines.get_timeline(labyrinth_id).unwrap();
+        assert_eq!(labyrinth_timeline.events.len(), 1);
+        assert_eq!(labyrinth_timeline.events[0].timestamp, TimeStamp::new(10.0));
+        
+        let gala_timeline = character_timelines.get_timeline(gala_id).unwrap();
+        assert_eq!(gala_timeline.events.len(), 1);
+        assert_eq!(gala_timeline.events[0].timestamp, TimeStamp::new(30.0));
+        
+        // Verify recorded arenas iterator
+        let recorded: Vec<_> = character_timelines.recorded_arenas().collect();
+        assert_eq!(recorded.len(), 2);
+        assert!(recorded.contains(&labyrinth_id));
+        assert!(recorded.contains(&gala_id));
+    }
 }

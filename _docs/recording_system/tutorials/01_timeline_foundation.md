@@ -876,6 +876,55 @@ mod tests {
         let vec: IVec2 = pos.into();
         assert_eq!(vec, IVec2::new(5, -3));
     }
+
+    #[test]
+    fn test_character_timelines_multi_arena_storage() {
+        // Test the critical architectural fix: CharacterTimelines stores multiple timelines per character
+        let mut character_timelines = CharacterTimelines::new();
+        
+        // Create test timelines for different arenas
+        let mut draft_labyrinth = DraftTimeline::new();
+        draft_labyrinth.add_event(TimelineEvent {
+            timestamp: TimeStamp::new(10.0),
+            event_type: EventType::Movement(GridPos::new(0, 0)),
+        }).expect("Failed to add event");
+        let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth).expect("Failed to create timeline");
+        
+        let mut draft_gala = DraftTimeline::new();
+        draft_gala.add_event(TimelineEvent {
+            timestamp: TimeStamp::new(30.0),
+            event_type: EventType::Ability(AbilityType::AutoShot, None),
+        }).expect("Failed to add event");
+        let timeline_gala = PublishTimeline::from_draft(draft_gala).expect("Failed to create timeline");
+        
+        // Store timelines for different arenas
+        let labyrinth_id = ArenaId::from_index_safe(0); // Labyrinth
+        let gala_id = ArenaId::from_index_safe(8);      // Gala
+        
+        character_timelines.store_timeline(labyrinth_id, timeline_labyrinth);
+        character_timelines.store_timeline(gala_id, timeline_gala);
+        
+        // Verify separate timeline storage
+        assert_eq!(character_timelines.arena_count(), 2);
+        assert!(character_timelines.has_recording_for(labyrinth_id));
+        assert!(character_timelines.has_recording_for(gala_id));
+        assert!(!character_timelines.has_recording_for(ArenaId::from_index_safe(1))); // GuildHouse - no recording
+        
+        // Verify we can retrieve specific arena timelines
+        let labyrinth_timeline = character_timelines.get_timeline(labyrinth_id).unwrap();
+        assert_eq!(labyrinth_timeline.events.len(), 1);
+        assert_eq!(labyrinth_timeline.events[0].timestamp, TimeStamp::new(10.0));
+        
+        let gala_timeline = character_timelines.get_timeline(gala_id).unwrap();
+        assert_eq!(gala_timeline.events.len(), 1);
+        assert_eq!(gala_timeline.events[0].timestamp, TimeStamp::new(30.0));
+        
+        // Verify recorded arenas iterator
+        let recorded: Vec<_> = character_timelines.recorded_arenas().collect();
+        assert_eq!(recorded.len(), 2);
+        assert!(recorded.contains(&labyrinth_id));
+        assert!(recorded.contains(&gala_id));
+    }
 }
 ```
 
@@ -903,8 +952,22 @@ With the timeline foundation in place, we can now:
 11. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust
     error handling
 12. **🆕 Compile-Time Safe Arena Creation**: Use `from_index_safe()` for all arena creation - no runtime validation needed
+13. **🎯 Multi-Arena Timeline Storage**: CharacterTimelines component stores HashMap<ArenaId, PublishTimeline> to support characters recording in all 9 arenas with separate timeline storage per arena
+14. **🎯 Arena-Aware Events**: CommitRecording event includes arena context to resolve which arena timeline to commit
 
 ## Production Notes
+
+### Critical Architectural Fix: Multi-Arena Timeline Storage
+
+**The Problem:** The original design assumed characters would only have one timeline, but characters can move between all 9 arenas and need to store separate recordings for each arena they've been in.
+
+**The Solution:** 
+- `CharacterTimelines` component stores `HashMap<ArenaId, PublishTimeline>` per character
+- `CommitRecording` event now includes `arena: ArenaId` context
+- Each character can store up to 9 separate timelines (one per arena)
+- O(1) lookup by arena using HashMap for efficient retrieval
+
+**Why This Matters:** Without this fix, a character's recording in Arena 0 (Labyrinth) would be overwritten when they record in Arena 8 (Gala). Now each arena maintains its own timeline history per character.
 
 ### What We Got Right:
 
@@ -912,6 +975,7 @@ With the timeline foundation in place, we can now:
 - Immutable PublishTimeline with Arc<[T]> prevents mutations and enables cheap cloning
 - Type-safe newtypes with Display/From implementations for clean APIs
 - Recording intent (Movement/Ability) not results (Transform)
+- Multi-arena timeline storage resolves the fundamental storage architecture issue
 
 ### What We Intentionally Simplified:
 

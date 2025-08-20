@@ -1,13 +1,14 @@
 mod tests;
 
 use crate::ability::AbilityType;
-use crate::arena::{Arena, CurrentArena};
+use crate::arena::{Arena, ArenaId, CurrentArena};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
 use bevy::math::IVec2;
 use bevy::prelude::*;
 use bevy::time::{Time, Timer, TimerMode, Virtual};
 use std::cmp::Ordering::Equal;
+use std::collections::HashMap;
 use std::convert::identity;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
@@ -27,7 +28,6 @@ pub enum TimelineError {
 
     #[error("Event comparison failed - invalid timestamp")]
     InvalidComparison,
-
 
     #[error("Grid position out of bounds: ({x}, {y})")]
     InvalidGridPosition { x: i32, y: i32 },
@@ -186,6 +186,54 @@ impl DraftTimeline {
 
 pub struct PublishTimeline {
     pub events: Arc<[TimelineEvent]>,
+}
+
+/// Component to store multiple timelines per character (one per arena)
+/// This solves the critical architectural issue: characters can record in all 9 arenas
+/// and need separate timeline storage for each arena they've recorded in
+#[derive(Component, Default)]
+pub struct CharacterTimelines {
+    /// Map from ArenaId to PublishTimeline - supports up to 9 timelines per character
+    /// Using HashMap for O(1) lookup by arena, typically 1-3 arenas per character
+    pub timelines: HashMap<ArenaId, PublishTimeline>,
+}
+
+impl CharacterTimelines {
+    pub fn new() -> Self {
+        Self {
+            timelines: HashMap::new(),
+        }
+    }
+
+    /// Store a timeline for a specific arena
+    pub fn store_timeline(&mut self, arena: ArenaId, timeline: PublishTimeline) {
+        self.timelines.insert(arena, timeline);
+    }
+
+    /// Get timeline for a specific arena
+    pub fn get_timeline(&self, arena: ArenaId) -> Option<&PublishTimeline> {
+        self.timelines.get(&arena)
+    }
+
+    /// Remove timeline for a specific arena
+    pub fn remove_timeline(&mut self, arena: ArenaId) -> Option<PublishTimeline> {
+        self.timelines.remove(&arena)
+    }
+
+    /// Get all arenas this character has recordings for
+    pub fn recorded_arenas(&self) -> impl Iterator<Item = ArenaId> + '_ {
+        self.timelines.keys().copied()
+    }
+
+    /// Total number of recorded arenas
+    pub fn arena_count(&self) -> usize {
+        self.timelines.len()
+    }
+
+    /// Check if character has a recording for the given arena
+    pub fn has_recording_for(&self, arena: ArenaId) -> bool {
+        self.timelines.contains_key(&arena)
+    }
 }
 
 impl PublishTimeline {

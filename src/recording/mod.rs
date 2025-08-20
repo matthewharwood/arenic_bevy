@@ -100,3 +100,24 @@ pub struct StartRecording {
     pub character: Entity,
     pub arena: ArenaId,
 }
+
+/// Event to stop recording (user interruption)
+#[derive(Event)]
+pub struct StopRecording {
+    pub reason: StopReason,
+}
+
+#[derive(Debug, Clone)]
+pub enum StopReason {
+    UserInterrupted, // User pressed R again
+    TimeComplete,    // 120 seconds elapsed
+    ArenaTransition, // Tried to leave an arena
+    CharacterSwitch, // Tried to switch characters
+}
+/// Event to commit a recorded timeline for a specific character in a specific arena
+/// This fixes the critical architectural issue: we now track which arena the recording is for
+#[derive(Event)]
+pub struct CommitRecording {
+    pub character: Entity,
+    pub arena: ArenaId, // CRITICAL FIX: Added arena context to resolve multi-arena storage issue
+}
