@@ -829,7 +829,7 @@ With the timeline foundation in place, we can now:
     error handling
 12. **🆕 Compile-Time Safe Arena Creation**: Use `from_index_safe()` for all arena creation - no runtime validation needed
 13. **🎯 Multi-Arena Timeline Storage**: CharacterTimelines component stores HashMap<ArenaId, PublishTimeline> to support characters recording in all 9 arenas with separate timeline storage per arena
-14. **🎯 Arena-Aware Events**: CommitRecording event includes arena context to resolve which arena timeline to commit
+14. **🚀 Unified Event Architecture**: Like CameraUpdate, use RecordingUpdate as root orchestration event to prevent event explosion and race conditions
 15. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup instead of O(n) linear search. Performance is critical when supporting 320+ ghosts across 9 arenas!
 
 ## Production Notes
@@ -872,7 +872,7 @@ let Ok((arena, clock)) = arena_q.get(current_arena_entity) else {
 
 **The Solution:** 
 - `CharacterTimelines` component stores `HashMap<ArenaId, PublishTimeline>` per character
-- `CommitRecording` event now includes `arena: ArenaId` context
+- `RecordingRequest::Commit` event uses state.recording_entity and CurrentArena resource
 - Each character can store up to 9 separate timelines (one per arena)
 - O(1) lookup by arena using HashMap for efficient retrieval
 
@@ -935,6 +935,61 @@ pub fn from_draft(draft: DraftTimeline) -> Self {
 This transformation avoids cloning potentially thousands of events when transitioning from draft to published state. The
 key insight is that draft timelines naturally flow one-way into published timelines, so consuming ownership enables
 efficient Vec<T> → Arc<[T]> conversion.
+
+### Critical Architectural Decision: Unified Event Pattern
+
+**The Problem:** Early recording system designs used complex command events (StartRecording, StopRecording, PauseForDialog, etc.) which leads to:
+- Event explosion and race conditions
+- Multiple systems trying to manage state simultaneously
+- Complex coordination logic scattered across multiple systems
+- Debugging nightmares when state transitions conflict
+
+**The Solution:** Apply the successful camera pattern to recording with CRITICAL SIMPLIFICATION:
+
+**INSIGHT: Recording entity = Active Character in Current Arena (ALWAYS!)**
+
+```rust
+// TRIGGER EVENTS - SIMPLIFIED: No entity passing needed!
+#[derive(Event)]
+pub enum RecordingRequest {
+    Start,   // System finds active character automatically  
+    Stop { reason: StopReason },
+    Commit,  // Uses active character with Recording component
+    Clear,   // Uses active character with Recording component
+}
+
+// STATE RESOURCE - SIMPLIFIED: No recording_entity storage needed!
+#[derive(Resource)]
+pub struct RecordingState {
+    pub mode: RecordingMode,
+    pub countdown_remaining: Option<Duration>,
+    // No recording_entity - can always query for (Active, Recording)
+}
+
+// ORCHESTRATOR - SIMPLIFIED: No entity storage, just query for active character
+fn recording_update(
+    mut recording_request_events: EventReader<RecordingRequest>,
+    mut state: ResMut<RecordingState>,
+    active_character_q: Query<Entity, (With<Character>, With<Active>, Without<Ghost>)>,
+    recording_character_q: Query<Entity, (With<Character>, With<Active>, With<Recording>)>,
+) {
+    // Handle ALL recording logic in one place
+    // - State transitions using queries instead of stored entities
+    // - Countdown management  
+    // - Recording component management
+    // - Ghost conversion
+    // Recording entity is ALWAYS the active character!
+}
+```
+
+**Key Benefits:**
+- **Single Orchestrator**: Like arena_update(), one system handles ALL recording coordination
+- **No Race Conditions**: RecordingUpdate triggers are processed sequentially
+- **Clean Separation**: Request events express intent, orchestrator decides what actually happens
+- **Debuggable**: Clear flow from trigger → RecordingUpdate → orchestrator response
+- **Testable**: Single system to test instead of complex multi-system coordination
+
+**Next Tutorial Preview:** Tutorial 02 will implement this unified pattern with the recording_update() orchestrator system that mirrors the successful arena_update() pattern.
 
 This foundation provides a robust base for the entire recording system. The type-safe APIs prevent common errors, the
 sorted event storage makes playback efficient, and recording intent ensures perfect replay fidelity.

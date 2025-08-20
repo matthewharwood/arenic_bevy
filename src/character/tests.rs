@@ -60,7 +60,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
         // Create GuildHouse arena (index 1)
         let guild_house_entity = world
             .spawn((
-                Arena::new(ArenaName::GuildHouse),
+                Arena(ArenaName::GuildHouse),
                 Transform::default(),
                 LastActiveHero(None),
             ))
@@ -69,7 +69,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
         // Create Labyrinth arena (index 0)
         let labyrinth_entity = world
             .spawn((
-                Arena::new(ArenaName::Labyrinth),
+                Arena(ArenaName::Labyrinth),
                 Transform::default(),
                 LastActiveHero(None),
             ))
@@ -87,6 +87,20 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
 
         // Insert the current arena as a resource
         world.insert_resource(CurrentArena(ArenaId::new(ArenaName::GuildHouse)));
+        
+        // Add ArenaEntities resource for system that needs it
+        let arena_entities = ArenaEntities::new([
+            (ArenaName::Labyrinth, labyrinth_entity),
+            (ArenaName::GuildHouse, guild_house_entity),
+            (ArenaName::Sanctum, Entity::PLACEHOLDER),
+            (ArenaName::Mountain, Entity::PLACEHOLDER),
+            (ArenaName::Bastion, Entity::PLACEHOLDER),
+            (ArenaName::Pawnshop, Entity::PLACEHOLDER),
+            (ArenaName::Crucible, Entity::PLACEHOLDER),
+            (ArenaName::Casino, Entity::PLACEHOLDER),
+            (ArenaName::Gala, Entity::PLACEHOLDER),
+        ]);
+        world.insert_resource(arena_entities);
 
         println!(
             "Test setup: Character {:?} spawned in GuildHouse with Active marker",
@@ -181,7 +195,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
                     // Reparent character to new arena
                     if let Some((new_arena_entity, _)) = arena_q
                         .iter()
-                        .find(|(_, arena)| arena.name() == new_arena_name)
+                        .find(|(_, arena)| arena.0 == new_arena_name)
                     {
                         commands
                             .entity(character_entity)
@@ -242,7 +256,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
             if let Some(parent) = parent {
                 let labyrinth_entity = arena_q
                     .iter()
-                    .find(|(_, arena)| arena.name() == ArenaName::Labyrinth)
+                    .find(|(_, arena)| arena.0 == ArenaName::Labyrinth)
                     .map(|(entity, _)| entity);
 
                 if let Some(labyrinth_entity) = labyrinth_entity {

@@ -31,5 +31,5 @@ pub const DEBUG_COLORS: [Color; 9] = [
 
 /// Get debug color for specific arena
 pub fn get_arena_color(arena: ArenaName) -> Color {
-    DEBUG_COLORS[arena.as_u8() as usize]
+    DEBUG_COLORS[arena as usize]
 }

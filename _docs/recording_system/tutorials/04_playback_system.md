@@ -86,21 +86,80 @@ impl Default for GhostVisuals {
 }
 ```
 
-### Step 2: Create Timeline Commit System
+### Step 2: Ghost Replay Feature - Simple Timeline Playback
+
+Ghosts simply play whatever timeline exists in their `CharacterTimelines` hashmap for the current arena. No special replay states needed.
 
 Add to `src/playback/mod.rs`:
 
 ```rust
-use crate::recording::{CommitRecording, ClearRecording, Recording};
+/// Event for showing replay dialog when user presses R on ghost
+#[derive(Event)]
+pub struct ShowGhostReplayDialog {
+    pub ghost_entity: Entity,
+    pub arena: ArenaId,
+    pub has_previous_recording: bool,
+}
+
+/// Handle user's choice for ghost replay
+pub fn handle_ghost_replay_choice(
+    mut commands: Commands,
+    mut replay_events: EventReader<GhostReplayChoice>,
+    mut ghost_q: Query<&mut TimelinePosition, With<Ghost>>,
+) {
+    for event in replay_events.read() {
+        match event.choice {
+            ReplayChoice::DraftNew => {
+                // Convert ghost back to normal character for new recording
+                commands.entity(event.ghost_entity)
+                    .remove::<Ghost>()
+                    .remove::<Replaying>();
+                info!("Ghost {:?} converted to character for new recording", event.ghost_entity);
+            }
+            ReplayChoice::KeepExisting => {
+                // Reset position to replay from the beginning
+                if let Ok(mut position) = ghost_q.get_mut(event.ghost_entity) {
+                    position.0 = TimeStamp::ZERO;
+                }
+                info!("Ghost {:?} will replay existing recording", event.ghost_entity);
+            }
+            ReplayChoice::Cancel => {
+                // Continue normal playback - no action needed
+                info!("Ghost replay cancelled");
+            }
+        }
+    }
+}
+
+#[derive(Event)]
+pub struct GhostReplayChoice {
+    pub ghost_entity: Entity,
+    pub choice: ReplayChoice,
+}
+
+#[derive(Debug)]
+pub enum ReplayChoice {
+    KeepExisting,    // Keep playing existing recording (reset to start)
+    DraftNew,        // Start a new recording (convert ghost to character)
+    Cancel,          // Continue without changes
+}
+```
+
+### Step 3: Create Timeline Commit System
+
+Add to `src/playback/mod.rs`:
+
+```rust
+use crate::recording::{RecordingRequest, Recording, RecordingState};
 use crate::timeline::DraftTimeline;
 use crate::materials::Materials;
 use crate::arena::CurrentArena;
 use bevy::prelude::Parent;
 
 /// Commit a draft timeline to published timeline
-pub fn commit_recording_to_timeline(
+pub fn handle_commit_recording(
     mut commands: Commands,
-    mut commit_events: EventReader<CommitRecording>,
+    recording_state: Res<RecordingState>,
     draft_q: Query<(Entity, &DraftTimeline, &Parent), With<Recording>>,
     arena_q: Query<&Arena>,
 ) {
@@ -139,15 +198,15 @@ pub fn commit_recording_to_timeline(
                 .insert(TriggeredAbilities::default())
                 .insert(GhostVisuals::default())
                 .insert(GhostMovementState::default())
-                .insert(GhostArena(*arena_idx)); // Track which arena this ghost belongs to
+                .insert(GhostArena(arena_id)); // Track which arena this ghost belongs to
         }
     }
 }
 
 /// Clear a recording without committing
-pub fn clear_recording_timeline(
+pub fn handle_clear_recording(
     mut commands: Commands,
-    mut clear_events: EventReader<ClearRecording>,
+    recording_state: Res<RecordingState>,
     recording_q: Query<Entity, With<Recording>>,
 ) {
     for event in clear_events.read() {
@@ -190,21 +249,33 @@ impl Default for GhostMovementState {
 }
 
 /// Replay ghost movement from published timelines with deterministic interpolation
+/// IMPORTANT: Ghosts only play when they have the Replaying component
+/// The Replaying component is added in two scenarios:
+/// 1. When committing a recording (ghost starts playing immediately)
+/// 2. When player chooses "Keep Existing" in replay dialog (player-initiated)
+/// Ghosts do NOT automatically start playing when entering an arena!
 pub fn playback_ghost_movement(
     mut ghost_q: Query<
-        (&PublishTimeline, &mut TimelinePosition, &mut Transform, &GhostArena, &mut GhostMovementState),
-        (With<Ghost>, With<Replaying>)
+        (&CharacterTimelines, &mut TimelinePosition, &mut Transform, &GhostArena, &mut GhostMovementState),
+        (With<Ghost>, With<Replaying>)  // Only ghosts with Replaying component actually play
     >,
     arena_q: Query<(&Arena, &TimelineClock)>,
     arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
+    current_arena: Res<CurrentArena>,
 ) {
-    for (timeline, mut position, mut transform, ghost_arena, mut movement_state) in ghost_q.iter_mut() {
+    for (timelines, mut position, mut transform, ghost_arena, mut movement_state) in ghost_q.iter_mut() {
         // O(1) lookup for ghost's arena entity using ArenaEntities
         // Each ghost uses its parent arena's clock, NOT CurrentArena
         let ghost_arena_entity = arena_entities.get(ghost_arena.0.name());
         
         let Ok((_, clock)) = arena_q.get(ghost_arena_entity) else {
             continue;
+        };
+        
+        // Simple rule: Ghost plays timeline for its current arena (from its CharacterTimelines hashmap)
+        // If no timeline exists for this arena, ghost has nothing to play (stays idle)
+        let Some(timeline) = timelines.get_timeline(current_arena.id()) else {
+            continue; // No timeline stored for current arena - ghost stays idle
         };
         
         let current_time = clock.current();
@@ -485,6 +556,8 @@ impl Plugin for PlaybackPlugin {
         app
             // Events
             .add_event::<GhostAbilityTrigger>()
+            .add_event::<ShowGhostReplayDialog>()
+            .add_event::<GhostReplayChoice>()
 
             // Configure system sets with strict ordering
             // APPROVED: Show both .chain() and .after() for educational purposes
@@ -501,8 +574,9 @@ impl Plugin for PlaybackPlugin {
 
             // Systems - Commit/Clear
             .add_systems(Update, (
-                commit_recording_to_timeline,
-                clear_recording_timeline,
+                handle_commit_recording,
+                handle_clear_recording,
+                handle_ghost_replay_choice,
             ).in_set(PlaybackSet::Commit))
 
             // Systems - Movement playback  
@@ -550,14 +624,11 @@ pub fn debug_force_commit(
     // Use Option<Single> for the single recording entity
     recording_entity: Option<Single<Entity, With<Recording>>>,
     current_arena: Res<CurrentArena>,
-    mut commit_events: EventWriter<CommitRecording>,
+    mut recording_state: ResMut<RecordingState>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyF) {
-        if let Some(entity_single) = recording_entity {
-            commit_events.write(CommitRecording {
-                character: *entity_single,
-                arena: current_arena.id(),
-            });
+        if recording_entity.is_some() {
+            recording_state.pending_request = Some(RecordingRequest::Commit);
             info!("Force committed recording");
         }
     }
@@ -738,13 +809,14 @@ With playback working, we can now:
 
 ## Key Takeaways
 
-1. **Timeline Replay**: Interpolation creates smooth movement from keyframes
-2. **Ability Triggers**: Deterministic range-based detection using [prev, curr] slices prevents duplicate triggers
-3. **Visual Distinction**: Ghosts have transparency and glow effects
-4. **Explicit Constructors**: TimeStamp::new(), Arena::new() throughout playback code
-5. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
-6. **Improved Timeline Queries**: get_movement_intent_at now uses partition_point for cleaner boundary finding
-7. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup in ghost systems - critical for performance with 320+ ghosts across 9 arenas
+1. **Simple Timeline Lookup**: Ghosts play `timelines.get_timeline(current_arena.id())` - no complex state needed
+2. **Timeline Replay**: Interpolation creates smooth movement from keyframes  
+3. **Ability Triggers**: Deterministic range-based detection using [prev, curr] slices prevents duplicate triggers
+4. **Visual Distinction**: Ghosts have transparency and glow effects
+5. **Explicit Constructors**: TimeStamp::new(), ArenaId construction throughout playback code
+6. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
+7. **CharacterTimelines as Source of Truth**: The hashmap IS the ghost's behavior - no additional state tracking needed
+8. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup in ghost systems - critical for performance with 320+ ghosts across 9 arenas
 
 ## Production Notes
 

@@ -40,7 +40,9 @@
       "Bash(./prompt \"debug bevy ecs performance issues\")",
       "Bash(./prompt \"refactor timeline system architecture\")",
       "Bash(./prompt \"test prompts\")",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(timeout 10s cargo run)",
+      "Bash(true)"
     ],
     "deny": []
   },

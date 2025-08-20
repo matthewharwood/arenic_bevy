@@ -21,7 +21,7 @@ After Jon's production-focused review, these patterns have been refined:
 - **Type-Safe Newtypes**: `TimeStamp`, `Arena`, `GridPos` with From/Display traits
 - **Arc<[T]> for Published Data**: Immutable timelines with zero-cost cloning
 - **Intent Recording Only**: Record WASD keys, never Transform changes
-- **Command Pattern**: `RecordingCommand` with state machine validation for safety
+- **Unified Event Architecture**: `RecordingUpdate` orchestration pattern like successful camera system
 - **SystemSets with .chain()**: Deterministic ordering with both patterns shown
 - **Zero-Alloc Helpers**: `events_in_range()`, `slice()`, binary search throughout
 - **Const Keymaps**: `const KEY_ABILITIES: [(KeyCode, AbilityType); 4]`
@@ -67,10 +67,10 @@ Build the core data structures and recording mechanism.
 
 #### [Tutorial 02: Recording State Machine](02_recording_state.md)
 - **Time**: 30 minutes
-- **Focus**: Command pattern state management
-- **Key Components**: RecordingState, RecordingCommand/RecordingStateChanged events, command pattern
-- **Key Patterns**: Event boundaries, let-else returns, transition testing
-- **Outcome**: Traceable state transitions with full event history
+- **Focus**: Unified event architecture (like camera system)
+- **Key Components**: RecordingState, RecordingUpdate orchestration event, recording_update() system
+- **Key Patterns**: Single orchestrator pattern, event-driven coordination, let-else returns
+- **Outcome**: Unified recording architecture that prevents event explosion and race conditions
 
 #### [Tutorial 03: Movement Capture](03_movement_capture.md)
 - **Time**: 30 minutes
@@ -191,7 +191,7 @@ Week 1, Day 5 - Week 2, Day 1:
 Every piece of state is a component. Single-purpose, single-value components enable efficient queries and clear ownership.
 
 ### 2. **Events for Communication**  
-Systems communicate through events, never direct mutation. This ensures loose coupling and traceable state changes.
+Systems communicate through events, never direct mutation. Uses proven orchestration pattern from camera system: simple root events (RecordingUpdate) trigger single coordinator systems that handle all complex logic.
 
 ### 3. **Marker Components**
 Zero-sized marker components (`Recording`, `Ghost`, `Replaying`) efficiently categorize entities for queries.
@@ -205,7 +205,7 @@ Each system does one job well. Systems under 50 lines are easier to understand, 
 ## Architectural Decisions Made
 
 ### What We Keep Simple (Jon-Approved)
-- **State Machine**: 4-state enum with event transitions
+- **Event Architecture**: Unified RecordingUpdate pattern (like successful camera system)
 - **Interpolation**: Linear lerp with intent replay
 - **Compression**: Basic RLE, advanced topics in "Further Reading"
 - **Spatial**: HashMap grid for 320 entities

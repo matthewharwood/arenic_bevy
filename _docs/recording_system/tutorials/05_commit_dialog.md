@@ -31,7 +31,7 @@ Create `src/dialog/mod.rs`:
 use bevy::prelude::*;
 // APPROVED: Using CSS palette constants improves readability
 use bevy::color::palettes::css::WHITE;
-use crate::recording::{StopReason, CommitRecording, ClearRecording};
+use crate::recording::{StopReason, RecordingRequest, RecordingState, RecordingUpdate};
 use crate::arena::{ArenaId, CurrentArena};
 
 /// Resource for active dialog state
@@ -59,6 +59,12 @@ pub enum DialogType {
     EndRecording,
     /// Retry existing ghost
     RetryGhost { ghost_entity: Entity },
+    /// User pressed R on ghost with existing recording
+    GhostReplay { 
+        ghost_entity: Entity, 
+        arena: ArenaId,
+        has_recording: bool 
+    },
 }
 // APPROVED: Enum with data is cleaner than separate dialog structs
 // REJECTED: "Use trait objects for dialogs" - Unnecessary indirection
@@ -70,6 +76,8 @@ pub enum DialogChoice {
     Clear,
     Cancel,
     Retry,
+    KeepExisting,    // For ghost replay dialog - keep playing current recording
+    DraftNew,        // For ghost replay dialog - convert to character for new recording
 }
 
 /// Component for dialog UI root entity
@@ -123,7 +131,7 @@ pub struct PauseAllTimelines;
 
 /// Event to resume all arena timelines
 #[derive(Event)]
-pub struct ResumeAllTimelines;
+// ResumeAllTimelines removed - handled by recording_update orchestrator
 ```
 
 ### Step 3: Create Dialog UI Spawning
@@ -288,6 +296,20 @@ fn spawn_dialog_buttons(buttons: &mut ChildBuilder, dialog_type: &DialogType) {
                 ("Cancel", DialogChoice::Cancel),
             ]
         }
+        DialogType::GhostReplay { has_recording, .. } => {
+            if *has_recording {
+                vec![
+                    ("Keep Existing", DialogChoice::KeepExisting),
+                    ("Draft New", DialogChoice::DraftNew),
+                    ("Cancel", DialogChoice::Cancel),
+                ]
+            } else {
+                vec![
+                    ("Draft New", DialogChoice::DraftNew),
+                    ("Cancel", DialogChoice::Cancel),
+                ]
+            }
+        }
     };
 
     for (label, choice) in button_choices {
@@ -319,6 +341,7 @@ fn get_dialog_title(dialog_type: &DialogType) -> &'static str {
         DialogType::MidRecording { .. } => "Recording Interrupted",
         DialogType::EndRecording => "Recording Complete",
         DialogType::RetryGhost { .. } => "Retry Ghost Recording?",
+        DialogType::GhostReplay { .. } => "Ghost Replay Options",
     }
 }
 
@@ -332,6 +355,13 @@ fn get_dialog_description(dialog_type: &DialogType) -> &'static str {
         },
         DialogType::EndRecording => "You've recorded a full 2-minute cycle. Save this recording?",
         DialogType::RetryGhost { .. } => "This character has a recording. Start a new one?",
+        DialogType::GhostReplay { has_recording, .. } => {
+            if *has_recording {
+                "This ghost has a recording for this arena. Keep playing it or draft a new one?"
+            } else {
+                "This ghost has no recording for this arena. Start a new recording?"
+            }
+        },
     }
 }
 ```
@@ -411,41 +441,39 @@ pub fn handle_dialog_keyboard(
 Add to `src/dialog/mod.rs`:
 
 ```rust
-use crate::recording::{StartRecording, RecordingState, RecordingMode};
+use crate::recording::{RecordingRequest, RecordingState, RecordingMode, RecordingUpdate};
 use crate::arena::CurrentArena;
+use crate::playback::{Ghost, Replaying};
+use crate::timeline::{TimelinePosition, TimeStamp};
 
 /// Process dialog choices and trigger appropriate actions
 pub fn process_dialog_choices(
+    mut commands: Commands,
     mut choice_events: EventReader<DialogChoiceEvent>,
-    mut commit_events: EventWriter<CommitRecording>,
-    mut clear_events: EventWriter<ClearRecording>,
-    mut start_events: EventWriter<StartRecording>,
-    mut resume_events: EventWriter<ResumeAllTimelines>,
     mut recording_state: ResMut<RecordingState>,
+    mut recording_update_events: EventWriter<RecordingUpdate>,
+    mut resume_events: EventWriter<ResumeAllTimelines>,
+    mut ghost_q: Query<&mut TimelinePosition, With<Ghost>>,
     dialog_state: Res<DialogState>,
     current_arena: Res<CurrentArena>,
 ) {
     for event in choice_events.read() {
         match event.choice {
             DialogChoice::Commit => {
-                if let Some(entity) = event.recording_entity {
-                    commit_events.write(CommitRecording {
-                        character: entity,
-                        arena: current_arena.id(),
-                    });
+                if event.recording_entity.is_some() {
+                    recording_state.pending_request = Some(RecordingRequest::Commit);
+                    recording_update_events.write(RecordingUpdate);
                     recording_state.mode = RecordingMode::Idle;
-                    resume_events.write(ResumeAllTimelines);
+                    // Timeline resume handled by recording_update orchestrator
                     info!("Committed recording");
                 }
             }
             DialogChoice::Clear => {
-                if let Some(entity) = event.recording_entity {
-                    clear_events.write(ClearRecording {
-                        character: entity,
-                        arena: current_arena.id(),
-                    });
+                if event.recording_entity.is_some() {
+                    recording_state.pending_request = Some(RecordingRequest::Clear);
+                    recording_update_events.write(RecordingUpdate);
                     recording_state.mode = RecordingMode::Idle;
-                    resume_events.write(ResumeAllTimelines);
+                    // Timeline resume handled by recording_update orchestrator
                     info!("Cleared recording");
                 }
             }
@@ -459,18 +487,35 @@ pub fn process_dialog_choices(
             }
             DialogChoice::Retry => {
                 if let Some(entity) = event.recording_entity {
-                    // Use ArenaId for retry logic
-                    let arena_id = current_arena.id();
-                        warn!("Invalid arena index for retry: {}", current_arena.0);
-                        return;
-                    };
-                    
-                    start_events.write(StartRecording {
-                        character: entity,
-                        arena: arena_idx,
+                    recording_state.pending_request = Some(RecordingRequest::Start {
+                        entity,
                     });
+                    recording_update_events.write(RecordingUpdate);
                     info!("Retrying recording");
                 }
+            }
+            DialogChoice::KeepExisting => {
+                // Reset ghost timeline position and enable replay
+                if let Some(DialogType::GhostReplay { ghost_entity, .. }) = &dialog_state.active_dialog {
+                    // Add Replaying component to actually start playback
+                    commands.entity(*ghost_entity).insert(Replaying);
+                    
+                    if let Ok(mut position) = ghost_q.get_mut(*ghost_entity) {
+                        position.0 = TimeStamp::ZERO;
+                        info!("Ghost {:?} starting replay of existing recording", ghost_entity);
+                    }
+                }
+                resume_events.write(ResumeAllTimelines);
+            }
+            DialogChoice::DraftNew => {
+                // Convert ghost back to character for new recording
+                if let Some(DialogType::GhostReplay { ghost_entity, .. }) = &dialog_state.active_dialog {
+                    commands.entity(*ghost_entity)
+                        .remove::<Ghost>()
+                        .remove::<Replaying>();
+                    info!("Ghost {:?} converted to character for new recording", ghost_entity);
+                }
+                resume_events.write(ResumeAllTimelines);
             }
         }
     }
@@ -527,7 +572,7 @@ pub fn pause_all_arena_timelines(
 
 /// Resume all arena timeline clocks
 pub fn resume_all_arena_timelines(
-    mut resume_events: EventReader<ResumeAllTimelines>,
+    // Resume events now handled by recording_update orchestrator
     mut arena_q: Query<&mut TimelineClock, With<Arena>>,
 ) {
     for _ in resume_events.read() {
@@ -606,7 +651,7 @@ impl Plugin for DialogPlugin {
             .add_event::<DialogChoiceEvent>()
             .add_event::<CloseDialog>()
             .add_event::<PauseAllTimelines>()
-            .add_event::<ResumeAllTimelines>()
+            // ResumeAllTimelines event removed - handled by recording_update
 
             // PR Gate: Configure sets with strict ordering
             // DialogSet sequence: PauseClocks → SpawnUI → HandleInput → ProcessChoice → CloseUI → ResumeClocks
@@ -757,8 +802,9 @@ Test sequence:
 1. Press R to start recording
 2. Press R again during recording - MidRecording dialog appears
 3. Press 1 (Commit), 2 (Clear), or 3 (Cancel) to make choice
-4. Start another recording and wait TimeStamp::MAX seconds - EndRecording dialog
-5. Try controlling a ghost - RetryGhost dialog should appear
+4. Start another recording and wait 2 minutes - EndRecording dialog
+5. Press R on a ghost with existing recording - GhostReplay dialog with "Keep Existing" or "Draft New"
+6. Test both choices to verify ghost behavior
 
 ## Next Steps
 

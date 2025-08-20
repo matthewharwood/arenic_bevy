@@ -20,6 +20,25 @@ We'll create:
 - Performance optimization for multiple arenas
 - Arena-aware playback systems
 
+## Key Concepts
+
+### Character Timelines Per Arena
+Each character stores a separate timeline for each arena they've recorded in:
+- `CharacterTimelines` component contains `HashMap<ArenaId, PublishTimeline>`
+- Characters can have up to 9 separate recordings (one per arena)
+- When a ghost moves between arenas, they can replay different recordings
+
+### Ghost Replay Feature
+Ghosts automatically play whatever timeline exists in their `CharacterTimelines` hashmap for their current arena:
+1. **If timeline exists for current arena** → Ghost plays it automatically
+2. **If no timeline exists** → Ghost stays idle (nothing to play)
+3. **If user presses R on ghost** → Dialog appears with options:
+   - **Keep Existing**: Reset timeline to start and keep playing current recording
+   - **Draft New**: Convert ghost back to character for new recording
+   - **Cancel**: Continue current playback
+
+This is much simpler - the hashmap IS the source of truth, no complex state tracking needed.
+
 ## Implementation Steps
 
 ### Step 1: Create Arena Ghost Management
@@ -399,7 +418,81 @@ pub fn apply_ghost_lod(
 }
 ```
 
-### Step 6: Create Arena Statistics
+### Step 6: Multi-Arena Timeline Storage
+
+When a recording is committed, it's stored in the character's `CharacterTimelines` hashmap with the arena as the key:
+
+```rust
+/// System to commit recording to the appropriate arena slot
+pub fn commit_recording_to_arena(
+    mut commands: Commands,
+    current_arena: Res<CurrentArena>,
+    mut recording_q: Query<(Entity, &DraftTimeline, &mut CharacterTimelines), With<Recording>>,
+) {
+    for (entity, draft, mut timelines) in recording_q.iter_mut() {
+        // Convert draft to published timeline
+        let published = PublishTimeline::from_draft(draft.clone());
+        
+        // Store in the hashmap with current arena as key
+        // This allows the same character to have different recordings per arena
+        timelines.store_timeline(current_arena.id(), published);
+        
+        // Convert character to ghost
+        commands.entity(entity)
+            .remove::<Recording>()
+            .insert(Ghost);
+            
+        info!("Committed recording for arena {:?}", current_arena.id());
+    }
+}
+
+/// Simple ghost replay - just check if timeline exists when user presses R
+pub fn handle_ghost_replay_input(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    current_character: Option<Single<(Entity, &CharacterTimelines), (With<Character>, With<Active>, With<Ghost>)>>,
+    mut dialog_events: EventWriter<ShowDialog>,
+    current_arena: Res<CurrentArena>,
+) {
+    if !keyboard.just_pressed(KeyCode::KeyR) {
+        return;
+    }
+    
+    let Some((entity, timelines)) = current_character else {
+        return;
+    };
+    
+    // Check if this ghost has a recording for the current arena
+    let has_recording = timelines.has_recording_for(current_arena.id());
+    
+    // Show dialog for ghost replay choice
+    dialog_events.write(ShowDialog {
+        dialog_type: DialogType::GhostReplay {
+            ghost_entity: entity,
+            arena: current_arena.id(),
+            has_recording,
+        },
+        recording_entity: None,
+    });
+}
+```
+
+### Important: Ghost Playback Behavior
+
+**Ghosts DO NOT automatically start playing when entering an arena!** This is a critical design decision to preserve the arena timer restart behavior for new recordings. Here's how it works:
+
+1. **Ghost enters arena with recording**: Ghost stays idle, timeline exists in hashmap but not playing
+2. **Player presses R on ghost**: Shows replay dialog with options
+3. **Player chooses "Keep Existing"**: `Replaying` component added, ghost starts playing from beginning
+4. **Player chooses "Draft New"**: Ghost converted to character, can start new recording
+
+This ensures:
+- Arena timers can properly restart for new recordings
+- Players have explicit control over when ghosts replay
+- No unexpected playback when moving ghosts between arenas
+
+The `Replaying` component is the gatekeeper - without it, ghosts remain idle even if they have a timeline for the current arena.
+
+### Step 7: Create Arena Statistics
 
 Add to `src/multi_arena/mod.rs`:
 
@@ -407,9 +500,9 @@ Add to `src/multi_arena/mod.rs`:
 /// Resource tracking arena statistics
 #[derive(Resource, Default)]
 pub struct ArenaStatistics {
-    pub ghost_counts: HashMap<u8, usize>,
-    pub recording_counts: HashMap<u8, usize>,
-    pub total_events: HashMap<u8, usize>,
+    pub ghost_counts: HashMap<ArenaName, usize>,
+    pub recording_counts: HashMap<ArenaName, usize>,
+    pub total_events: HashMap<ArenaName, usize>,
 }
 
 /// Update arena statistics
@@ -562,6 +655,7 @@ impl Plugin for MultiArenaPlugin {
             .add_systems(Update, (
                 register_new_ghosts,
                 cleanup_removed_ghosts,
+                handle_ghost_replay_input,
             ))
 
             // Systems - Playback
@@ -747,6 +841,41 @@ The ArenaGhostRegistry uses `HashMap<ArenaName, Vec<Entity>>` which is optimal f
 - **Ghost Retrieval**: O(1) lookup by arena name
 - **Memory Efficiency**: Only allocates storage for arenas with ghosts
 - **Cache Locality**: Ghosts grouped by arena for batch processing
+
+## Ghost Replay Feature Summary
+
+The simplified ghost replay system is elegant and straightforward:
+
+### Core Principle
+**The `CharacterTimelines` hashmap IS the source of truth** - no additional state tracking needed.
+
+### How It Works
+1. **Storage**: Each character entity has a `CharacterTimelines` component containing `HashMap<ArenaId, PublishTimeline>`
+2. **Recording**: When a recording is committed, it's stored with the current arena as the key
+3. **Automatic Playback**: Ghost plays `timelines.get_timeline(current_arena.id())` - if no timeline exists, ghost stays idle
+4. **User Control**: Press R on ghost → dialog offers "Keep Existing" or "Draft New"
+
+### Example Flow
+```rust
+// Character records in Arena 0 (Labyrinth)
+CharacterTimelines.store_timeline(ArenaId::Labyrinth, timeline_labyrinth);
+
+// Character moves to Arena 8 (Gala) and records there
+CharacterTimelines.store_timeline(ArenaId::Gala, timeline_gala);
+
+// Ghost in Arena 0: timelines.get_timeline(ArenaId::Labyrinth) → plays timeline_labyrinth
+// Ghost in Arena 8: timelines.get_timeline(ArenaId::Gala) → plays timeline_gala  
+// Ghost in Arena 5: timelines.get_timeline(ArenaId::Forest) → None → stays idle
+```
+
+### Benefits
+- **Simple**: No complex state machines or replay states
+- **Automatic**: Ghosts play the right timeline for their arena without intervention
+- **Memory Efficient**: Only stores timelines for arenas where character recorded
+- **Player Control**: Dialog system when user wants to change behavior
+- **Source of Truth**: HashMap contains all the information needed
+
+This architecture allows a single character to have different behaviors per arena, all managed seamlessly through the timeline hashmap.
 
 Multi-arena support is crucial for the full game experience. By optimizing updates based on arena distance and batching
 operations, we can support hundreds of ghosts while maintaining smooth performance.

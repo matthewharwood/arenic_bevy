@@ -44,7 +44,7 @@ Build a guild powerful enough to simultaneously manage 8 different arenas, each 
 | **Tab** | Switch to next character in current arena |
 | **Shift+Tab** | Switch to previous character in current arena |
 | **1-4** | Activate character abilities (when available) |
-| **R** | Start recording a 2-minute timeline for active character |
+| **R** | Start recording (character) / Show replay dialog (ghost with recording in arena) |
 | **F** | Finalize and commit the current recording |
 | **Enter** | Open guild house management menu |
 | **Q/E** | Rotate between different arena faces |
@@ -62,6 +62,7 @@ The recording system allows you to capture 2-minute sequences of character actio
 
 **Starting a Recording**
 - Press R while controlling any non-ghost character to begin recording
+- If pressed on a ghost that has a recording in current arena, shows replay dialog instead
 - A 3-second countdown prepares you before capture starts
 - The arena timer resets to 0:00 when recording begins
 - All your movements (WASD) and abilities (1-4 keys) are captured as intent
@@ -113,6 +114,27 @@ The recording system allows you to capture 2-minute sequences of character actio
 - Use the arena status panel to track ghost counts per arena
 - Maximum of 40 ghosts per arena, 320 total across all arenas
 - Performance automatically adjusts update rates for distant arenas
+
+### Ghost Replay Feature
+
+**Arena-Specific Recordings**
+- Each character can store separate recordings for each of the 9 arenas
+- Recordings are stored in a per-character hashmap with arena as the key
+- Characters effectively become "multiple ghosts" - one per arena recorded in
+
+**Returning to Previous Arenas**
+- When a ghost returns to an arena where they have a previous recording, a dialog appears
+- Options presented:
+  - **Replay Previous**: Use the stored recording for this arena
+  - **Draft New**: Convert ghost back to character for new recording
+  - **Cancel**: Continue without replaying
+- This allows the same character to have different tactical roles in different arenas
+
+**Strategic Applications**
+- Create arena-specific strategies with the same character
+- Build up recordings progressively as you learn each arena
+- Reuse successful recordings when returning to farm or practice
+- Maintain separate recordings for Normal/Heroic/Mythic difficulties
 
 ### Recording Best Practices
 

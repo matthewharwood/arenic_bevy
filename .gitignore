@@ -1,3 +1,5 @@
+#Obsidian
+_docs/.obsidian/**/*
 # Rust
 /target/
 **/Cargo.lock
