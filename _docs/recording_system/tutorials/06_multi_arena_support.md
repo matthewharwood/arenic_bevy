@@ -605,6 +605,7 @@ Create `src/multi_arena/tests.rs`:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::mem;
 
     #[test]
     fn test_arena_ghost_registry() {
@@ -634,8 +635,8 @@ mod tests {
         };
 
         assert_ne!(
-            std::mem::discriminant(&independent),
-            std::mem::discriminant(&synchronized)
+            mem::discriminant(&independent),
+            mem::discriminant(&synchronized)
         );
     }
 

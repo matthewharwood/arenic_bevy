@@ -9,6 +9,7 @@ mod ability;
 mod character;
 mod class_type;
 mod materials;
+mod recording;
 mod selectors;
 mod timeline;
 

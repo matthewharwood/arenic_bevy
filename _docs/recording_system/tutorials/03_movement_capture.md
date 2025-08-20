@@ -567,6 +567,7 @@ Create tests in `src/recording/capture.rs`:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
     use crate::timeline::query::*;
 
     #[test]
@@ -676,7 +677,7 @@ mod tests {
         assert_eq!(KEY_ABILITIES.len(), 4);
         
         // Test that each ability ID is unique
-        let mut seen_abilities = std::collections::HashSet::new();
+        let mut seen_abilities = HashSet::new();
         for (_, ability) in &KEY_ABILITIES {
             assert!(seen_abilities.insert(ability));
         }

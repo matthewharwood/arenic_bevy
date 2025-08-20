@@ -30,6 +30,9 @@ Create `src/recording/mod.rs`:
 ```rust
 use bevy::prelude::*;
 use bevy::time::Virtual;
+use std::fmt::{self, Display, Formatter};
+use std::error::Error;
+use std::time::Duration;
 use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, Arena, GridPos, TimelineClock};
 use crate::ability::AbilityType;
 use crate::character::Character;
@@ -64,8 +67,8 @@ pub enum RecordingMode {
     DialogPaused,
 }
 
-impl std::fmt::Display for RecordingMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for RecordingMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Idle => write!(f, "Idle"),
             Self::Countdown => write!(f, "Countdown"),
@@ -102,28 +105,29 @@ pub struct Recording;
 /// Countdown timer before recording starts
 #[derive(Component)]
 pub struct RecordingCountdown {
-    pub remaining: f32,
-    pub initial: f32,
+    pub remaining: Duration,
+    pub initial: Duration,
 }
 
 impl RecordingCountdown {
-    pub fn new(duration: f32) -> Self {
+    pub fn new(duration: Duration) -> Self {
         Self {
             remaining: duration,
             initial: duration,
         }
     }
 
-    pub fn tick(&mut self, delta: f32) -> bool {
-        self.remaining -= delta;
-        self.remaining <= 0.0
+    pub fn tick(&mut self, delta: Duration) -> bool {
+        self.remaining = self.remaining.saturating_sub(delta);
+        self.remaining.is_zero()
     }
 
     pub fn get_display_number(&self) -> Option<u8> {
-        match self.remaining {
-            r if r > 2.0 => Some(3),
-            r if r > 1.0 => Some(2),
-            r if r > 0.0 => Some(1),
+        let secs = self.remaining.as_secs_f32();
+        match secs {
+            s if s > 2.0 => Some(3),
+            s if s > 1.0 => Some(2),
+            s if s > 0.0 => Some(1),
             _ => None,
         }
     }
@@ -333,7 +337,7 @@ pub fn initialize_recording(
         commands.entity(event.character)
             .insert(Recording)
             .insert(draft) // Zero-copy: DraftTimeline ownership transfers to ECS
-            .insert(RecordingCountdown::new(3.0));
+            .insert(RecordingCountdown::new(Duration::from_secs(3)));
 
         // Trigger state transition
         transition_events.write(RecordingTransition {
@@ -384,7 +388,7 @@ pub fn update_recording_countdown(
         return;
     }
 
-    let delta = virtual_time.delta_secs();
+    let delta = virtual_time.delta();
 
     for (entity, mut countdown) in countdown_q.iter_mut() {
         let prev_display = countdown.get_display_number();
@@ -594,18 +598,18 @@ mod tests {
 
     #[test]
     fn test_recording_countdown() {
-        let mut countdown = RecordingCountdown::new(3.0);
+        let mut countdown = RecordingCountdown::new(Duration::from_secs(3));
 
         assert_eq!(countdown.get_display_number(), Some(3));
 
-        countdown.tick(1.5);
+        countdown.tick(Duration::from_millis(1500));
         assert_eq!(countdown.get_display_number(), Some(2));
 
-        countdown.tick(1.0);
+        countdown.tick(Duration::from_secs(1));
         assert_eq!(countdown.get_display_number(), Some(1));
 
-        assert!(!countdown.tick(0.4)); // Not done yet
-        assert!(countdown.tick(0.2));  // Now it's done
+        assert!(!countdown.tick(Duration::from_millis(400))); // Not done yet
+        assert!(countdown.tick(Duration::from_millis(200)));  // Now it's done
     }
 
     #[test]

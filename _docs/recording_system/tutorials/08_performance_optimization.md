@@ -30,6 +30,7 @@ Create `src/optimization/mod.rs`:
 ```rust
 use bevy::prelude::*;
 use bevy::time::Virtual;
+use std::mem;
 use crate::timeline::{TimelineEvent, EventType, PublishTimeline, DraftTimeline};
 
 /// Settings for timeline compression
@@ -212,8 +213,8 @@ impl CompressedTimeline {
 
     /// Get memory usage in bytes
     pub fn memory_usage(&self) -> usize {
-        std::mem::size_of::<Self>() +
-            self.events.len() * std::mem::size_of::<CompressedEvent>()
+        mem::size_of::<Self>() +
+            self.events.len() * mem::size_of::<CompressedEvent>()
     }
 }
 
@@ -557,7 +558,7 @@ pub fn use_pooled_timeline_vectors(
     for mut draft in draft_q.iter_mut() {
         // Replace default vector with pooled one
         let mut pooled = pool.get();
-        std::mem::swap(&mut draft.events, &mut pooled);
+        mem::swap(&mut draft.events, &mut pooled);
 
         // Return old vector to pool if it was small
         if pooled.capacity() < 1000 {
@@ -616,7 +617,7 @@ pub fn monitor_performance(
 
     // Calculate memory usage
     let timeline_memory: usize = timeline_q.iter()
-        .map(|t| t.events.len() * std::mem::size_of::<TimelineEvent>())
+        .map(|t| t.events.len() * mem::size_of::<TimelineEvent>())
         .sum();
 
     let compressed_memory: usize = compressed_q.iter()

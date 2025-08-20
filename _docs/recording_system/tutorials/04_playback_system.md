@@ -563,6 +563,7 @@ Create `src/playback/tests.rs`:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn test_triggered_abilities_tracking() {
@@ -595,7 +596,7 @@ mod tests {
         let mut position = TimelinePosition(TimeStamp::new(10.0));
         let clock = TimelineClock {
             timer: bevy::time::Timer::new(
-                std::time::Duration::from_secs(120),
+                Duration::from_secs(120),
                 bevy::time::TimerMode::Repeating,
             ),
             is_paused: false,

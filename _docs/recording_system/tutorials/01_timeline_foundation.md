@@ -32,8 +32,10 @@ use bevy::prelude::*;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
 use bevy::time::Virtual;
-use std::fmt;
+use std::fmt::{self, Display, Formatter};
 use std::convert::identity;
+use std::cmp::Ordering;
+use std::time::Duration;
 
 /// A single recorded event in a timeline
 #[derive(Clone, Debug)]
@@ -87,8 +89,8 @@ impl TimeStamp {
 }
 
 
-impl fmt::Display for TimeStamp {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for TimeStamp {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:.1}s", self.0)
     }
 }
@@ -159,8 +161,8 @@ impl ArenaName {
     }
 }
 
-impl fmt::Display for ArenaName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for ArenaName {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Labyrinth => write!(f, "Labyrinth"),
             Self::GuildHouse => write!(f, "Guild House"),
@@ -213,8 +215,8 @@ impl TryFrom<u8> for Arena {
     }
 }
 
-impl fmt::Display for Arena {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Arena {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{} ({})", self.0, self.as_u8())
     }
 }
@@ -253,8 +255,8 @@ impl From<GridPos> for IVec2 {
     }
 }
 
-impl fmt::Display for GridPos {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for GridPos {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "({}, {})", self.0.x, self.0.y)
     }
 }
@@ -299,7 +301,7 @@ impl DraftTimeline {
                 .ok_or(TimelineError::InvalidComparison)
         };
 
-        match self.events.binary_search_by(|e| comparison(e).unwrap_or(std::cmp::Ordering::Equal)) {
+        match self.events.binary_search_by(|e| comparison(e).unwrap_or(Ordering::Equal)) {
             Ok(pos) | Err(pos) => {
                 self.events.insert(pos, event);
                 Ok(())
@@ -409,7 +411,7 @@ impl Default for TimelineClock {
         Self {
             // PR Gate: Using bevy::time::Timer instead of f32
             timer: bevy::time::Timer::new(
-                std::time::Duration::from_secs(120),
+                Duration::from_secs(120),
                 bevy::time::TimerMode::Repeating,
             ),
             is_paused: false,
@@ -418,7 +420,7 @@ impl Default for TimelineClock {
 }
 
 impl TimelineClock {
-    pub fn tick(&mut self, delta: std::time::Duration) {
+    pub fn tick(&mut self, delta: Duration) {
         if !self.is_paused {
             self.timer.tick(delta);
         }
