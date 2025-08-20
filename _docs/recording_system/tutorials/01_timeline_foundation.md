@@ -34,6 +34,7 @@ use bevy::prelude::*;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
 use bevy::time::Virtual;
+use bevy::utils::HashMap;  // Use Bevy's HashMap for better performance
 use std::fmt::{self, Display, Formatter};
 use std::convert::identity;
 use std::cmp::Ordering;
@@ -401,6 +402,41 @@ pub struct PublishTimeline {
     /// APPROVED: Arc<[T]> for immutable shared timeline data
     /// Zero-cost cloning, cache-friendly iteration
     pub events: Arc<[TimelineEvent]>,
+}
+
+/// Component that stores multiple timelines per character (one per arena)
+/// Resolves the architectural issue where characters need separate recordings per arena
+#[derive(Component, Default)]
+pub struct CharacterTimelines {
+    pub timelines: HashMap<ArenaId, PublishTimeline>,
+}
+
+impl CharacterTimelines {
+    pub fn new() -> Self {
+        Self {
+            timelines: HashMap::new(),
+        }
+    }
+
+    pub fn store_timeline(&mut self, arena: ArenaId, timeline: PublishTimeline) {
+        self.timelines.insert(arena, timeline);
+    }
+
+    pub fn get_timeline(&self, arena: ArenaId) -> Option<&PublishTimeline> {
+        self.timelines.get(&arena)
+    }
+
+    pub fn has_recording_for(&self, arena: ArenaId) -> bool {
+        self.timelines.contains_key(&arena)
+    }
+
+    pub fn arena_count(&self) -> usize {
+        self.timelines.len()
+    }
+
+    pub fn recorded_arenas(&self) -> impl Iterator<Item = ArenaId> + '_ {
+        self.timelines.keys().copied()
+    }
 }
 
 impl PublishTimeline {

@@ -144,14 +144,12 @@ pub fn update_timeline_progress(
     current_arena: Res<CurrentArena>,
     mut progress_q: Query<&mut Node, With<TimelineProgressBar>>,
 ) {
-    // Use explicit Arena::from_u8() constructor for type safety
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
+    // Use ArenaId for current arena comparison
+    let current_arena_id = current_arena.id();
     
     let current_time = arena_q
         .iter()
-        .find(|(arena, _)| **arena == current_idx)
+        .find(|(arena, _)| arena.name() == current_arena_id.name())
         .map(|(_, clock)| clock.current().as_secs())
         .unwrap_or(0.0);
 
@@ -659,11 +657,9 @@ pub fn update_arena_status_display(
         let ghost_count = stats.ghost_counts.get(&arena_idx).unwrap_or(&0);
         let recording_count = stats.recording_counts.get(&arena_idx).unwrap_or(&0);
 
-        let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-            return;
-        };
+        let current_arena_id = current_arena.id();
         
-        let color = if arena_idx == current_idx.as_u8() {
+        let color = if arena_idx == current_arena_id.as_u8() {
             Color::srgb(0.2, 0.5, 0.2) // Green for current
         } else if *recording_count > 0 {
             Color::srgb(0.5, 0.2, 0.2) // Red for recording

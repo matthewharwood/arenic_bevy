@@ -33,7 +33,8 @@ use bevy::time::Virtual;
 use std::fmt::{self, Display, Formatter};
 use std::error::Error;
 use std::time::Duration;
-use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, Arena, GridPos, TimelineClock};
+use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, GridPos, TimelineClock};
+use crate::arena::{Arena, ArenaId, CurrentArena};
 use crate::ability::AbilityType;
 use crate::character::Character;
 use crate::selectors::Active;
@@ -147,7 +148,7 @@ Add to `src/recording/mod.rs`:
 #[derive(Event)]
 pub struct StartRecording {
     pub character: Entity,
-    pub arena: Arena,
+    pub arena: ArenaId,
 }
 
 /// Event to stop recording (user interruption)
@@ -168,18 +169,20 @@ pub enum StopReason {
 #[derive(Event)]
 pub struct CommitRecording {
     pub character: Entity,
+    pub arena: ArenaId,
 }
 
 /// Event to clear/cancel the current recording
 #[derive(Event)]
 pub struct ClearRecording {
     pub character: Entity,
+    pub arena: ArenaId,
 }
 
 /// Event to reset arena timeline to start
 #[derive(Event)]
 pub struct ResetArenaTimeline {
-    pub arena: Arena,
+    pub arena: ArenaId,
 }
 ```
 
@@ -220,15 +223,12 @@ pub fn detect_recording_input(
                 return;
             };
 
-            // Use explicit Arena::from_u8() constructor for type safety
-            let Ok(arena_idx) = Arena::from_u8(current_arena.0) else {
-                warn!("Invalid arena index: {}", current_arena.0);
-                return;
-            };
+            // Use ArenaId::from_index_safe() for compile-time safe conversion
+            let arena_id = ArenaId::from_index_safe(current_arena.as_u8());
 
             start_events.write(StartRecording {
                 character: *character_single,
-                arena: arena_idx,
+                arena: arena_id,
             });
             info!("Starting recording for character {:?}", *character_single);
         }
@@ -359,7 +359,7 @@ pub fn reset_arena_timeline(
         // Use iterator find with proper Arena comparison
         let Some((_, mut clock)) = arena_q
             .iter_mut()
-            .find(|(idx, _)| **idx == event.arena)
+            .find(|(arena, _)| arena.name() == event.arena.name())
         else {
             continue;
         };
@@ -468,15 +468,13 @@ pub fn check_recording_time_limit(
         return;
     }
 
-    // Use explicit Arena::from_u8() constructor for type safety
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
+    // Use ArenaId for current arena comparison
+    let current_arena_id = current_arena.id();
 
     // Check current arena timer using let-else
     let Some((_, clock)) = arena_q
         .iter()
-        .find(|(idx, _)| **idx == current_idx)
+        .find(|(arena, _)| arena.name() == current_arena_id.name())
     else {
         return;
     };

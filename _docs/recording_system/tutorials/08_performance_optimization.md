@@ -387,10 +387,8 @@ pub fn adjust_ghost_update_frequency(
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
-            // Use explicit Arena::from_u8() constructor for comparison
-            let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-                continue;
-            };
+            // Use ArenaId for current arena comparison
+            let current_arena_id = current_arena.id();
             
             // Calculate update frequency based on arena distance
             let frequency = if arena.0 == current_idx.as_u8() {
@@ -431,10 +429,8 @@ pub fn frequency_limited_ghost_update(
     let current_time = time.elapsed().as_secs_f32();
 
     // Process current arena ghosts first (high priority)
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
-    let current_ghosts = registry.get_arena_ghosts(current_idx);
+    let current_arena_id = current_arena.id();
+    let current_ghosts = registry.get_arena_ghosts(current_arena_id.name());
     if !current_ghosts.is_empty() {
         // Use iter_many_mut for current arena ghosts
         for (mut transform, mut frequency, position, timeline) in

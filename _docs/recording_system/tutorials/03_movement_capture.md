@@ -46,7 +46,8 @@ Create `src/recording/capture.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, GridPos, Target, TimelineClock, Arena};
+use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, GridPos, Target, TimelineClock};
+use crate::arena::{Arena, ArenaId, CurrentArena};
 use crate::ability::AbilityType;
 use crate::recording::{Recording, RecordingMode, RecordingState};
 use crate::arena::CurrentArena;
@@ -96,15 +97,13 @@ pub fn capture_movement_intent(
         return;
     }
 
-    // Use explicit Arena::from_u8() constructor for type safety
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
+    // Use ArenaId for current arena comparison
+    let current_arena_id = current_arena.id();
 
     // Get current arena timer using let-else
     let Some((_, clock)) = arena_q
         .iter()
-        .find(|(idx, _)| **idx == current_idx)
+        .find(|(arena, _)| arena.name() == current_arena_id.name())
     else {
         return;
     };
@@ -180,15 +179,13 @@ pub fn optimize_movement_recording(
 
     let movement_dir = get_movement_direction(&keyboard);
 
-    // Use explicit Arena::from_u8() constructor for type safety
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
+    // Use ArenaId for current arena comparison
+    let current_arena_id = current_arena.id();
 
     // Get current arena timer
     let Some((_, clock)) = arena_q
         .iter()
-        .find(|(idx, _)| **idx == current_idx)
+        .find(|(arena, _)| arena.name() == current_arena_id.name())
     else {
         return;
     };
@@ -267,15 +264,13 @@ pub fn capture_ability_intent(
         return;
     };
 
-    // Use explicit Arena::from_u8() constructor for type safety
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
+    // Use ArenaId for current arena comparison
+    let current_arena_id = current_arena.id();
 
     // Get current arena timer
     let Some((_, clock)) = arena_q
         .iter()
-        .find(|(idx, _)| **idx == current_idx)
+        .find(|(arena, _)| arena.name() == current_arena_id.name())
     else {
         return;
     };

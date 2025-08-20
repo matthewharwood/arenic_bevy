@@ -32,6 +32,7 @@ use bevy::prelude::*;
 // APPROVED: Using CSS palette constants improves readability
 use bevy::color::palettes::css::WHITE;
 use crate::recording::{StopReason, CommitRecording, ClearRecording};
+use crate::arena::{ArenaId, CurrentArena};
 
 /// Resource for active dialog state
 #[derive(Resource)]
@@ -430,6 +431,7 @@ pub fn process_dialog_choices(
                 if let Some(entity) = event.recording_entity {
                     commit_events.write(CommitRecording {
                         character: entity,
+                        arena: current_arena.id(),
                     });
                     recording_state.mode = RecordingMode::Idle;
                     resume_events.write(ResumeAllTimelines);
@@ -440,6 +442,7 @@ pub fn process_dialog_choices(
                 if let Some(entity) = event.recording_entity {
                     clear_events.write(ClearRecording {
                         character: entity,
+                        arena: current_arena.id(),
                     });
                     recording_state.mode = RecordingMode::Idle;
                     resume_events.write(ResumeAllTimelines);
@@ -456,8 +459,8 @@ pub fn process_dialog_choices(
             }
             DialogChoice::Retry => {
                 if let Some(entity) = event.recording_entity {
-                    // Use explicit Arena::from_u8() constructor for retry
-                    let Ok(arena_idx) = Arena::from_u8(current_arena.0) else {
+                    // Use ArenaId for retry logic
+                    let arena_id = current_arena.id();
                         warn!("Invalid arena index for retry: {}", current_arena.0);
                         return;
                     };

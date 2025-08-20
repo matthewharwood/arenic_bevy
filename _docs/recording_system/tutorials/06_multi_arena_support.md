@@ -117,15 +117,13 @@ pub fn playback_arena_ghosts(
     arena_q: Query<(&Arena, &TimelineClock)>,
 ) {
     // Process current arena at full fidelity
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
+    let current_arena_id = current_arena.id();
     
     if let Some((_, clock)) = arena_q.iter()
-        .find(|(arena, _)| **arena == current_idx)
+        .find(|(arena, _)| arena.name() == current_arena_id.name())
     {
         let current_time = clock.current();
-        let current_arena_ghosts = registry.get_arena_ghosts(current_idx);
+        let current_arena_ghosts = registry.get_arena_ghosts(current_arena_id.name());
 
         // PR Gate: Use iter_many_mut for efficient batch processing (cache locality)
         // NO individual get_mut() calls in loops - this is critical for performance
@@ -287,11 +285,9 @@ pub fn check_ghost_limits(
     current_arena: Res<CurrentArena>,
 ) {
     let total = registry.total_ghost_count();
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
+    let current_arena_id = current_arena.id();
     let current_arena_count = registry
-        .get_arena_ghosts(current_idx)
+        .get_arena_ghosts(current_arena_id.name())
         .len();
 
     if total >= limits.max_total_ghosts {
@@ -348,17 +344,15 @@ pub fn update_ghost_lod(
     ghost_q: Query<(Entity, &Parent), With<Ghost>>,
     arena_q: Query<&Arena>,
 ) {
-    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
-        return;
-    };
+    let current_arena_id = current_arena.id();
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
-            let arena_idx = arena.0;
+            let arena_idx = arena.as_u8();
 
             // Calculate "distance" between arenas
-            let row_diff = (arena_idx / 3).abs_diff(current_idx.as_u8() / 3);
-            let col_diff = (arena_idx % 3).abs_diff(current_idx.as_u8() % 3);
+            let row_diff = (arena_idx / 3).abs_diff(current_arena_id.as_u8() / 3);
+            let col_diff = (arena_idx % 3).abs_diff(current_arena_id.as_u8() % 3);
             let distance = row_diff + col_diff;
 
             let lod_level = match distance {

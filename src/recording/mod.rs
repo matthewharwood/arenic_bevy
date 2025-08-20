@@ -119,5 +119,5 @@ pub enum StopReason {
 #[derive(Event)]
 pub struct CommitRecording {
     pub character: Entity,
-    pub arena: ArenaId, // CRITICAL FIX: Added arena context to resolve multi-arena storage issue
+    pub arena: ArenaId,
 }

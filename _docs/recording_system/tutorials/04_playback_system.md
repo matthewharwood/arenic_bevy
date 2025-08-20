@@ -29,7 +29,8 @@ Create `src/playback/mod.rs`:
 
 ```rust
 use bevy::prelude::*;
-use crate::timeline::{PublishTimeline, TimelinePosition, EventType, TimeStamp, TimelineClock, Arena};
+use crate::timeline::{PublishTimeline, TimelinePosition, EventType, TimeStamp, TimelineClock};
+use crate::arena::{Arena, ArenaId};
 use crate::ability::AbilityType;
 use crate::recording::Ghost;
 use crate::character::Character;
@@ -66,7 +67,7 @@ pub struct GhostSource(pub Entity);
 
 /// Each ghost tracks its own arena for independent clocks
 #[derive(Component)]
-pub struct GhostArena(pub Arena);
+pub struct GhostArena(pub ArenaId);
 
 /// Visual properties for ghosts
 #[derive(Component)]
@@ -93,6 +94,7 @@ Add to `src/playback/mod.rs`:
 use crate::recording::{CommitRecording, ClearRecording, Recording};
 use crate::timeline::DraftTimeline;
 use crate::materials::Materials;
+use crate::arena::CurrentArena;
 use bevy::prelude::Parent;
 
 /// Commit a draft timeline to published timeline
@@ -539,12 +541,14 @@ pub fn debug_force_commit(
     keyboard: Res<ButtonInput<KeyCode>>,
     // Use Option<Single> for the single recording entity
     recording_entity: Option<Single<Entity, With<Recording>>>,
+    current_arena: Res<CurrentArena>,
     mut commit_events: EventWriter<CommitRecording>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyF) {
         if let Some(entity_single) = recording_entity {
             commit_events.write(CommitRecording {
                 character: *entity_single,
+                arena: current_arena.id(),
             });
             info!("Force committed recording");
         }
@@ -610,8 +614,8 @@ mod tests {
     #[test]
     fn test_ghost_arena_independence() {
         // Create two ghosts with different arenas using explicit constructors
-        let ghost_arena_0 = GhostArena(Arena::from_u8(0).expect("Arena 0 should be valid"));
-        let ghost_arena_5 = GhostArena(Arena::from_u8(5).expect("Arena 5 should be valid"));
+        let ghost_arena_0 = GhostArena(ArenaId::from_index_safe(0));
+        let ghost_arena_5 = GhostArena(ArenaId::from_index_safe(5));
         
         // Create different clocks for each arena
         let mut clock_0 = TimelineClock::default();
@@ -621,8 +625,8 @@ mod tests {
         
         // Verify ghosts track different times based on their arena
         assert_ne!(clock_0.current().as_secs(), clock_5.current().as_secs());
-        assert_eq!(ghost_arena_0.0, Arena::from_u8(0).expect("Arena 0 should be valid"));
-        assert_eq!(ghost_arena_5.0, Arena::from_u8(5).expect("Arena 5 should be valid"));
+        assert_eq!(ghost_arena_0.0, ArenaId::from_index_safe(0));
+        assert_eq!(ghost_arena_5.0, ArenaId::from_index_safe(5));
         
         // Each ghost will use its own arena's clock during playback
         // This ensures off-screen ghosts advance independently
