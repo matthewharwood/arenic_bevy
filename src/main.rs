@@ -18,7 +18,7 @@ use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
 use crate::arena::{
-    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaName, CameraUpdate, CharacterMoved, CurrentArena,
+    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaId, ArenaName, CameraUpdate, CharacterMoved, CurrentArena,
     DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero, TILE_SIZE, TOTAL_ARENAS, arena_update,
     decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena,
 };
@@ -111,7 +111,7 @@ fn setup_scene(
             BattleGround,
             Transform::default(),
             InheritedVisibility::default(),
-            CurrentArena(ArenaName::GuildHouse), // Arena index 1
+            CurrentArena(ArenaId::new(ArenaName::GuildHouse)), // Arena index 1
         ))
         .with_children(|battleground| {
             for arena_index in 0..TOTAL_ARENAS {
@@ -129,7 +129,7 @@ fn setup_scene(
                 battleground
                     .spawn((
                         Transform::from_xyz(offset_x, offset_y, 0.0),
-                        Arena::from_u8_clamped(arena_index),
+                        Arena::from_index_safe(arena_index),
                         InheritedVisibility::default(),
                         TimelineClock::default(),
                         class_type,

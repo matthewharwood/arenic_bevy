@@ -96,8 +96,8 @@ pub fn capture_movement_intent(
         return;
     }
 
-    // Use explicit Arena::new() constructor
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    // Use explicit Arena::from_u8() constructor for type safety
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
 
@@ -180,8 +180,8 @@ pub fn optimize_movement_recording(
 
     let movement_dir = get_movement_direction(&keyboard);
 
-    // Use explicit Arena::new() constructor
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    // Use explicit Arena::from_u8() constructor for type safety
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
 
@@ -267,8 +267,8 @@ pub fn capture_ability_intent(
         return;
     };
 
-    // Use explicit Arena::new() constructor
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    // Use explicit Arena::from_u8() constructor for type safety
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
 

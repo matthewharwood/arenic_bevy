@@ -117,7 +117,7 @@ pub fn playback_arena_ghosts(
     arena_q: Query<(&Arena, &TimelineClock)>,
 ) {
     // Process current arena at full fidelity
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
     
@@ -287,7 +287,7 @@ pub fn check_ghost_limits(
     current_arena: Res<CurrentArena>,
 ) {
     let total = registry.total_ghost_count();
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
     let current_arena_count = registry
@@ -348,7 +348,7 @@ pub fn update_ghost_lod(
     ghost_q: Query<(Entity, &Parent), With<Ghost>>,
     arena_q: Query<&Arena>,
 ) {
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::arena::{Arena, ArenaName, CharacterMoved, CurrentArena, LastActiveHero};
+use crate::arena::{Arena, ArenaId, ArenaName, CharacterMoved, CurrentArena, LastActiveHero};
 use crate::materials::Materials;
 use crate::selectors::Active;
 use bevy::app::{App, Update};
@@ -86,7 +86,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
             .id();
 
         // Spawn the current arena tracker entity
-        world.spawn(CurrentArena(ArenaName::GuildHouse));
+        world.spawn(CurrentArena(ArenaId::new(ArenaName::GuildHouse)));
 
         println!(
             "Test setup: Character {:?} spawned in GuildHouse with Active marker",
@@ -166,16 +166,17 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
                 if current_arena.name() == ArenaName::GuildHouse
                     && character_transform.translation.x < 0.0
                 {
-                    let from_arena = current_arena.name();
+                    let from_arena = current_arena.id();
                     let new_arena_index = current_arena_index - 1; // 1 - 1 = 0 (Labyrinth)
-                    let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+                    let new_arena_name = ArenaName::from_index_safe(new_arena_index);
+                    let new_arena_id = ArenaId::new(new_arena_name);
 
                     // Teleport character to right side of new arena
                     character_transform.translation.x =
                         (crate::arena::GRID_WIDTH - 1) as f32 * crate::arena::TILE_SIZE;
 
                     // Update CurrentArena after character movement
-                    current_arena.0 = new_arena_name;
+                    current_arena.0 = new_arena_id;
 
                     // Reparent character to new arena
                     if let Some((new_arena_entity, _)) = arena_q
@@ -191,7 +192,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
                     character_moved_event.write(CharacterMoved {
                         character_entity,
                         from_arena,
-                        to_arena: new_arena_name,
+                        to_arena: new_arena_id,
                     });
 
                     println!(
@@ -309,8 +310,8 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
             }
 
             let event = &events[0];
-            assert_eq!(event.from_arena, ArenaName::GuildHouse);
-            assert_eq!(event.to_arena, ArenaName::Labyrinth);
+            assert_eq!(event.from_arena, ArenaId::new(ArenaName::GuildHouse));
+            assert_eq!(event.to_arena, ArenaId::new(ArenaName::Labyrinth));
 
             println!(
                 "✓ CharacterMoved event fired correctly: {} -> {}",

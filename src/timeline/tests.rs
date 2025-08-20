@@ -193,33 +193,13 @@ mod tests {
     fn test_arena_validation() {
         use crate::arena::Arena;
 
-        // Valid arena
-        let valid = Arena::from_u8(5);
-        assert!(valid.is_ok());
-        assert_eq!(valid.unwrap().as_u8(), 5);
-
-        // Invalid arena
-        let invalid = Arena::from_u8(10);
-        assert!(invalid.is_err());
-        match invalid {
-            Err(crate::timeline::TimelineError::InvalidArenaIndex { index }) => {
-                assert_eq!(index, 10);
-            }
-            _ => panic!("Expected InvalidArenaIndex error"),
-        }
-
-        // Clamped arena always succeeds
-        let clamped = Arena::from_u8_clamped(15);
-        assert_eq!(clamped.as_u8(), 8); // Should clamp to max valid arena
+        // Safe index always succeeds
+        let safe = Arena::from_index_safe(15);
+        assert_eq!(safe.as_u8(), 8); // Should clamp to max valid arena
     }
 
     #[test]
     fn test_error_context_and_display() {
-        let error = crate::timeline::TimelineError::InvalidArenaIndex { index: 42 };
-        let error_string = error.to_string();
-        assert!(error_string.contains("42"));
-        assert!(error_string.contains("out of bounds"));
-
         let empty_error = crate::timeline::TimelineError::EmptyTimeline;
         assert_eq!(empty_error.to_string(), "Timeline is empty");
     }

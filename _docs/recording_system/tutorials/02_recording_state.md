@@ -220,8 +220,8 @@ pub fn detect_recording_input(
                 return;
             };
 
-            // Use explicit Arena::new() constructor
-            let Some(arena_idx) = Arena::new(current_arena.0) else {
+            // Use explicit Arena::from_u8() constructor for type safety
+            let Ok(arena_idx) = Arena::from_u8(current_arena.0) else {
                 warn!("Invalid arena index: {}", current_arena.0);
                 return;
             };
@@ -468,8 +468,8 @@ pub fn check_recording_time_limit(
         return;
     }
 
-    // Use explicit Arena::new() constructor
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    // Use explicit Arena::from_u8() constructor for type safety
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
 
@@ -764,7 +764,7 @@ With the event-driven recording state machine complete, we can now:
 1. **Event-Driven Transitions**: All state changes go through RecordingTransition events
 2. **Let-Else Pattern**: Cleaner early returns with proper error handling
 3. **Const Keymaps**: Centralized key definitions prevent magic values
-4. **Explicit Constructors**: Arena::new() instead of raw u8 conversion
+4. **Explicit Constructors**: Arena::from_u8() for safe u8-to-Arena conversion
 5. **Transition Tracing**: Every state change is logged with reason
 6. **Virtual Time**: Uses Time<Virtual> for pause-safe countdown timers
 
@@ -787,7 +787,7 @@ With the event-driven recording state machine complete, we can now:
 
 - **Event Transitions**: Debug any state issue by examining event history
 - **Let-Else**: Reduces cognitive load when reading system code
-- **Explicit Constructors**: Arena::new() makes the common case obvious and validates input
+- **Explicit Constructors**: Arena::from_u8() makes u8-to-Arena conversion type-safe and validates input
 - **Const Keymaps**: Change controls in one place, not scattered throughout
 
 This state machine ensures recording happens in a controlled, traceable manner. The event-driven transitions allow other

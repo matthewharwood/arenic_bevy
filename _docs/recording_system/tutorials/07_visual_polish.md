@@ -144,8 +144,8 @@ pub fn update_timeline_progress(
     current_arena: Res<CurrentArena>,
     mut progress_q: Query<&mut Node, With<TimelineProgressBar>>,
 ) {
-    // Use explicit Arena::new() constructor
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    // Use explicit Arena::from_u8() constructor for type safety
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
     
@@ -659,7 +659,7 @@ pub fn update_arena_status_display(
         let ghost_count = stats.ghost_counts.get(&arena_idx).unwrap_or(&0);
         let recording_count = stats.recording_counts.get(&arena_idx).unwrap_or(&0);
 
-        let Some(current_idx) = Arena::new(current_arena.0) else {
+        let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
             return;
         };
         

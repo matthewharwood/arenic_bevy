@@ -1,4 +1,4 @@
-use crate::arena::Arena;
+use crate::arena::ArenaId;
 use bevy::prelude::*;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::time::Duration;
@@ -98,5 +98,5 @@ pub struct Ghost;
 #[derive(Event)]
 pub struct StartRecording {
     pub character: Entity,
-    pub arena: Arena,
+    pub arena: ArenaId,
 }

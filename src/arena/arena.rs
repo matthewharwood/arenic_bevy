@@ -3,12 +3,12 @@ use crate::arena_camera::{ZOOM, ZoomOut, position_camera_for_arena};
 use crate::character::Character;
 use crate::materials::Materials;
 use crate::selectors::Active;
-use crate::timeline::TimelineError;
 use bevy::prelude::*;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
 /// Arena names enum with explicit discriminants for all 9 arenas
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// This is a VALUE TYPE only - not a Component
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum ArenaName {
     Labyrinth = 0,
@@ -23,6 +23,19 @@ pub enum ArenaName {
 }
 
 impl ArenaName {
+    /// All arenas in index order for compile-time safe iteration
+    pub const ALL_ARENAS: [Self; 9] = [
+        Self::Labyrinth,
+        Self::GuildHouse,
+        Self::Sanctum,
+        Self::Mountain,
+        Self::Bastion,
+        Self::Pawnshop,
+        Self::Crucible,
+        Self::Casino,
+        Self::Gala,
+    ];
+
     const MAX_ARENAS: u8 = 9;
 
     /// Returns the arena's numeric index (0-8)
@@ -31,54 +44,21 @@ impl ArenaName {
         *self as u8
     }
 
-    /// Creates ArenaName from u8 index if valid (0-8)
-    #[must_use]
-    pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
-        match idx {
-            0 => Ok(Self::Labyrinth),
-            1 => Ok(Self::GuildHouse),
-            2 => Ok(Self::Sanctum),
-            3 => Ok(Self::Mountain),
-            4 => Ok(Self::Bastion),
-            5 => Ok(Self::Pawnshop),
-            6 => Ok(Self::Crucible),
-            7 => Ok(Self::Casino),
-            8 => Ok(Self::Gala),
-            _ => Err(TimelineError::InvalidArenaIndex { index: idx }),
-        }
-    }
 
-    /// Creates ArenaName with fallback to Labyrinth if invalid
-    /// Use this for startup/initialization where you need guaranteed success
+    /// Creates ArenaName from index with compile-time safety (clamps to valid range)
+    /// Use this for internal code where we control the input
     #[must_use]
-    pub fn from_u8_clamped(idx: u8) -> Self {
-        Self::from_u8(idx.min(Self::MAX_ARENAS - 1)).unwrap_or(Self::Labyrinth)
+    pub fn from_index_safe(idx: u8) -> Self {
+        let clamped_idx = idx.min(Self::MAX_ARENAS - 1);
+        Self::ALL_ARENAS[clamped_idx as usize]
     }
 
     /// Iterator over all arena names in order
     pub fn all() -> impl Iterator<Item = Self> {
-        [
-            Self::Labyrinth,
-            Self::GuildHouse,
-            Self::Sanctum,
-            Self::Mountain,
-            Self::Bastion,
-            Self::Pawnshop,
-            Self::Crucible,
-            Self::Casino,
-            Self::Gala,
-        ]
-        .into_iter()
+        Self::ALL_ARENAS.into_iter()
     }
 }
 
-impl TryFrom<u8> for ArenaName {
-    type Error = TimelineError;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Self::from_u8(value)
-    }
-}
 
 impl Display for ArenaName {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
@@ -96,28 +76,29 @@ impl Display for ArenaName {
     }
 }
 
-/// Arena component using ArenaName enum instead of raw u8
+/// Arena ID value type for passing arena identifiers in events and data
+/// This is a VALUE TYPE only - not a Component
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ArenaId(pub ArenaName);
+
+/// Arena component that marks arena entities
+/// This is a COMPONENT TYPE only - for attaching to arena entities
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Arena(pub ArenaName);
 
-impl Arena {
-    /// Creates new Arena from ArenaName
+impl ArenaId {
+    /// Creates new ArenaId from ArenaName
     #[must_use]
     pub fn new(name: ArenaName) -> Self {
         Self(name)
     }
 
-    /// Creates new Arena from u8 index if valid (0-8)
-    #[must_use]
-    pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
-        Ok(Self(ArenaName::from_u8(idx)?))
-    }
 
-    /// Creates new Arena with fallback to Labyrinth if invalid
-    /// Use this for startup/initialization where you need guaranteed success
+    /// Creates ArenaId from index with compile-time safety (clamps to valid range)
+    /// Use this for internal code where we control the input
     #[must_use]
-    pub fn from_u8_clamped(idx: u8) -> Self {
-        Self(ArenaName::from_u8_clamped(idx))
+    pub fn from_index_safe(idx: u8) -> Self {
+        Self(ArenaName::from_index_safe(idx))
     }
 
     /// Returns the arena's numeric index (0-8)
@@ -133,11 +114,45 @@ impl Arena {
     }
 }
 
-impl TryFrom<u8> for Arena {
-    type Error = TimelineError;
+impl Arena {
+    /// Creates new Arena from ArenaName
+    #[must_use]
+    pub fn new(name: ArenaName) -> Self {
+        Self(name)
+    }
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Self::from_u8(value)
+
+    /// Creates Arena from index with compile-time safety (clamps to valid range)
+    /// Use this for internal code where we control the input
+    #[must_use]
+    pub fn from_index_safe(idx: u8) -> Self {
+        Self(ArenaName::from_index_safe(idx))
+    }
+
+    /// Returns the arena's numeric index (0-8)
+    #[must_use]
+    pub fn as_u8(&self) -> u8 {
+        self.0.as_u8()
+    }
+
+    /// Returns the ArenaName enum value
+    #[must_use]
+    pub fn name(&self) -> ArenaName {
+        self.0
+    }
+
+    /// Convert Arena component to ArenaId value type
+    #[must_use]
+    pub fn to_id(&self) -> ArenaId {
+        ArenaId(self.0)
+    }
+}
+
+
+
+impl Display for ArenaId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{} ({})", self.0, self.as_u8())
     }
 }
 
@@ -152,28 +167,28 @@ impl Display for Arena {
 pub struct ArenaTile;
 
 #[derive(Component, Debug, Clone)]
-pub struct CurrentArena(pub ArenaName);
+pub struct CurrentArena(pub ArenaId);
 
 impl CurrentArena {
     /// Increment arena cyclically (Labyrinth -> GuildHouse -> ... -> Gala -> Labyrinth)
-    pub fn increment(arena: ArenaName) -> ArenaName {
-        let next_idx = (arena.as_u8() + 1) % 9;
-        ArenaName::from_u8_clamped(next_idx)
+    pub fn increment(arena_id: ArenaId) -> ArenaId {
+        let next_idx = (arena_id.as_u8() + 1) % 9;
+        ArenaId::from_index_safe(next_idx)
     }
 
     /// Decrement arena cyclically (Gala -> Casino -> ... -> Labyrinth -> Gala)
-    pub fn decrement(arena: ArenaName) -> ArenaName {
-        let prev_idx = if arena.as_u8() == 0 {
+    pub fn decrement(arena_id: ArenaId) -> ArenaId {
+        let prev_idx = if arena_id.as_u8() == 0 {
             8
         } else {
-            arena.as_u8() - 1
+            arena_id.as_u8() - 1
         };
-        ArenaName::from_u8_clamped(prev_idx)
+        ArenaId::from_index_safe(prev_idx)
     }
 
     /// Go to specific arena, clamps invalid values
-    pub fn go_to(arena: ArenaName) -> ArenaName {
-        arena
+    pub fn go_to(arena_id: ArenaId) -> ArenaId {
+        arena_id
     }
 
     /// Get the arena's numeric index (0-8)
@@ -183,6 +198,11 @@ impl CurrentArena {
 
     /// Get the ArenaName enum value
     pub fn name(&self) -> ArenaName {
+        self.0.name()
+    }
+
+    /// Get the ArenaId value type
+    pub fn id(&self) -> ArenaId {
         self.0
     }
 }
@@ -233,7 +253,7 @@ pub fn handle_character_moved(
     // Handle character movement between arenas
     for event in character_moved_events.read() {
         // Only update camera if we're not zoomed out and the target arena is the current arena
-        if zoom.is_none() && event.to_arena == current_arena.name() {
+        if zoom.is_none() && event.to_arena.name() == current_arena.name() {
             // Update camera position to the new arena
             position_camera_for_arena(&mut camera_transform, event.to_arena.as_u8(), ZOOM.0);
             commands.entity(camera_entity).remove::<ZoomOut>();
@@ -242,7 +262,7 @@ pub fn handle_character_moved(
         // Update LastActiveHero for the target arena
         if let Some((arena_entity, _)) = arena_q
             .iter()
-            .find(|(_, arena)| arena.name() == event.to_arena)
+            .find(|(_, arena)| arena.name() == event.to_arena.name())
         {
             commands
                 .entity(arena_entity)
@@ -286,12 +306,12 @@ pub fn arena_update(
             }
         }
     } else {
-        let current_arena_name = current_arena.0;
-        position_camera_for_arena(&mut camera_transform, current_arena_name.as_u8(), ZOOM.0);
+        let current_arena_name = current_arena.name();
+        position_camera_for_arena(&mut camera_transform, current_arena.as_u8(), ZOOM.0);
         commands.entity(camera_entity).remove::<ZoomOut>();
 
         for (arena_entity, arena, children, last_active_hero) in arena_q.iter() {
-            if arena.0 == current_arena_name {
+            if arena.name() == current_arena_name {
                 // Check if arena has characters
                 let characters_data: Vec<(Entity, Option<&Active>)> =
                     characters_q.iter_many(children).collect();

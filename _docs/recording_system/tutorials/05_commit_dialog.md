@@ -456,8 +456,8 @@ pub fn process_dialog_choices(
             }
             DialogChoice::Retry => {
                 if let Some(entity) = event.recording_entity {
-                    // Use explicit Arena::new() constructor for retry
-                    let Some(arena_idx) = Arena::new(current_arena.0) else {
+                    // Use explicit Arena::from_u8() constructor for retry
+                    let Ok(arena_idx) = Arena::from_u8(current_arena.0) else {
                         warn!("Invalid arena index for retry: {}", current_arena.0);
                         return;
                     };

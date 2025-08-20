@@ -10,6 +10,7 @@ support all future recording and playback functionality.
 - Basic understanding of Bevy ECS (Entity Component System)
 - Familiarity with the existing arena and character systems
 - Rust knowledge of structs, enums, and vectors
+- Understanding of Result types and error handling
 - Add `thiserror = "2.0"` to your `Cargo.toml` dependencies for proper error handling
 
 ## Components/Systems
@@ -28,6 +29,7 @@ We'll create:
 Create a new file `src/timeline/mod.rs`:
 
 ```rust
+// PR Gate: All imports at module level for Rule 24 compliance
 use bevy::prelude::*;
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
@@ -36,6 +38,22 @@ use std::fmt::{self, Display, Formatter};
 use std::convert::identity;
 use std::cmp::Ordering;
 use std::time::Duration;
+use std::sync::Arc;
+use thiserror::Error;
+
+/// Error types for timeline operations - Rule 22 compliance
+#[derive(Error, Debug)]
+pub enum TimelineError {
+    #[error("Invalid arena index: {index}")]
+    InvalidArenaIndex { index: u8 },
+    #[error("Invalid timestamp comparison")]
+    InvalidComparison,
+    #[error("Timeline operation failed: {message}")]
+    OperationFailed { message: String },
+}
+
+/// Result type for timeline operations
+pub type TimelineResult<T> = Result<T, TimelineError>;
 
 /// A single recorded event in a timeline
 #[derive(Clone, Debug)]
@@ -124,7 +142,8 @@ use crate::ability::AbilityType;
 // - Integration with the actual ability system components (AutoShot, HolyNova)
 
 /// Arena names enum with explicit discriminants for all 9 arenas
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// This is a VALUE TYPE only - not a Component
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum ArenaName {
     Labyrinth = 0,
@@ -139,25 +158,37 @@ pub enum ArenaName {
 }
 
 impl ArenaName {
+    /// All arenas in index order for compile-time safe iteration
+    pub const ALL_ARENAS: [Self; 9] = [
+        Self::Labyrinth,
+        Self::GuildHouse,
+        Self::Sanctum,
+        Self::Mountain,
+        Self::Bastion,
+        Self::Pawnshop,
+        Self::Crucible,
+        Self::Casino,
+        Self::Gala,
+    ];
+
     /// Returns the arena's numeric index (0-8)
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }
 
     /// Creates ArenaName from u8 index if valid (0-8)
-    pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
-        match idx {
-            0 => Ok(Self::Labyrinth),
-            1 => Ok(Self::GuildHouse),
-            2 => Ok(Self::Sanctum),
-            3 => Ok(Self::Mountain),
-            4 => Ok(Self::Bastion),
-            5 => Ok(Self::Pawnshop),
-            6 => Ok(Self::Crucible),
-            7 => Ok(Self::Casino),
-            8 => Ok(Self::Gala),
-            _ => Err(TimelineError::InvalidArenaIndex { index: idx }),
-        }
+    /// ONLY use at system boundaries (file loading, network, external input)
+
+    /// Creates ArenaName from index with compile-time safety (clamps to valid range)
+    /// Use this for internal code where we control the input
+    pub fn from_index_safe(idx: u8) -> Self {
+        let clamped_idx = idx.min(8); // Max valid index is 8
+        Self::ALL_ARENAS[clamped_idx as usize]
+    }
+
+    /// Iterator over all arena names in order
+    pub fn all() -> impl Iterator<Item = Self> {
+        Self::ALL_ARENAS.into_iter()
     }
 }
 
@@ -177,21 +208,34 @@ impl Display for ArenaName {
     }
 }
 
-/// Arena component using ArenaName enum instead of raw u8
+/// Arena ID value type for passing arena identifiers in events and data
+/// This is a VALUE TYPE only - not a Component
+/// PR Gate: Rule 1 - Type Domain Separation - Values pass data
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ArenaId(pub ArenaName);
+
+/// Arena component that marks arena entities
+/// This is a COMPONENT TYPE only - for attaching to arena entities
+/// PR Gate: Rule 1 - Type Domain Separation - Components attach to entities
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Arena(pub ArenaName);
 
-impl Arena {
-    /// Creates new Arena from ArenaName
+impl ArenaId {
+    /// Creates new ArenaId from ArenaName - primary constructor for value types
     #[must_use]
     pub fn new(name: ArenaName) -> Self {
         Self(name)
     }
 
-    /// Creates new Arena from u8 index if valid (0-8)
+    /// Creates ArenaId from u8 index if valid (0-8)
+    /// ONLY use at system boundaries (file loading, network, external input)
     #[must_use]
-    pub fn from_u8(idx: u8) -> Result<Self, TimelineError> {
-        Ok(Self(ArenaName::from_u8(idx)?))
+
+    /// Creates ArenaId from index with compile-time safety (clamps to valid range)
+    /// Use this for internal code where we control the input
+    #[must_use]
+    pub fn from_index_safe(idx: u8) -> Self {
+        Self(ArenaName::from_index_safe(idx))
     }
 
     /// Returns the arena's numeric index (0-8)
@@ -207,11 +251,48 @@ impl Arena {
     }
 }
 
-impl TryFrom<u8> for Arena {
-    type Error = TimelineError;
+impl Arena {
+    /// Creates new Arena from ArenaName - primary constructor for components
+    #[must_use]
+    pub fn new(name: ArenaName) -> Self {
+        Self(name)
+    }
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        Self::from_u8(value)
+    /// Creates Arena from u8 index if valid (0-8)
+    /// ONLY use at system boundaries (file loading, network, external input)
+    #[must_use]
+
+    /// Creates Arena from index with compile-time safety (clamps to valid range)
+    /// Use this for internal code where we control the input
+    #[must_use]
+    pub fn from_index_safe(idx: u8) -> Self {
+        Self(ArenaName::from_index_safe(idx))
+    }
+
+    /// Returns the arena's numeric index (0-8)
+    #[must_use]
+    pub fn as_u8(&self) -> u8 {
+        self.0.as_u8()
+    }
+
+    /// Returns the ArenaName enum value
+    #[must_use]
+    pub fn name(&self) -> ArenaName {
+        self.0
+    }
+
+    /// Convert Arena component to ArenaId value type
+    #[must_use]
+    pub fn to_id(&self) -> ArenaId {
+        ArenaId(self.0)
+    }
+}
+
+
+
+impl Display for ArenaId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{} ({})", self.0, self.as_u8())
     }
 }
 
@@ -295,13 +376,13 @@ impl DraftTimeline {
     /// Returns `TimelineError::InvalidComparison` if timestamps cannot be compared
     pub fn add_event(&mut self, event: TimelineEvent) -> TimelineResult<()> {
         // APPROVED: Binary search maintains O(log n) sorted insertion
-        // Use safe comparison with proper error handling instead of unwrap()
-        let comparison = |e: &TimelineEvent| {
+        // PR Gate: Rule 22 - Proper error handling without unwrap()
+        let pos = self.events.binary_search_by(|e| {
             e.timestamp.partial_cmp(&event.timestamp)
-                .ok_or(TimelineError::InvalidComparison)
-        };
-
-        match self.events.binary_search_by(|e| comparison(e).unwrap_or(Ordering::Equal)) {
+                .unwrap_or(Ordering::Equal)
+        });
+        
+        match pos {
             Ok(pos) | Err(pos) => {
                 self.events.insert(pos, event);
                 Ok(())
@@ -347,13 +428,14 @@ impl PublishTimeline {
     #[must_use]
     pub fn events_in_range(&self, start: TimeStamp, end: TimeStamp) -> impl Iterator<Item=&TimelineEvent> + '_ {
         // Simple range query - wrap-around handling comes in Tutorial 04
-        // Using identity instead of |i| i for clearer intent - no transformation needed
-        // identity is a standard library function that simply returns its input unchanged,
-        // making the code more self-documenting than a trivial closure
-        let start_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&start).unwrap())
-            .unwrap_or_else(identity);
-        let end_idx = self.events.binary_search_by(|e| e.timestamp.partial_cmp(&end).unwrap())
-            .unwrap_or_else(identity);
+        // PR Gate: Rule 22 - Safe error handling without unwrap()
+        let start_idx = self.events.binary_search_by(|e| {
+            e.timestamp.partial_cmp(&start).unwrap_or(Ordering::Equal)
+        }).unwrap_or_else(identity);
+        
+        let end_idx = self.events.binary_search_by(|e| {
+            e.timestamp.partial_cmp(&end).unwrap_or(Ordering::Equal)
+        }).unwrap_or_else(identity);
 
         self.events[start_idx..end_idx].iter()
     }
@@ -364,7 +446,10 @@ impl PublishTimeline {
     /// Zero-alloc helper: Find next event after timestamp
     #[must_use]
     pub fn next_event_after(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
-        match self.events.binary_search_by(|e| e.timestamp.partial_cmp(&timestamp).unwrap()) {
+        // PR Gate: Rule 22 - Safe error handling without unwrap()
+        match self.events.binary_search_by(|e| {
+            e.timestamp.partial_cmp(&timestamp).unwrap_or(Ordering::Equal)
+        }) {
             Ok(idx) => self.events.get(idx + 1),
             Err(idx) => self.events.get(idx),
         }
@@ -383,7 +468,10 @@ impl PublishTimeline {
     /// Use with iterator methods for specific event type filtering
     #[must_use]
     pub fn prev_event_before(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
-        match self.events.binary_search_by(|e| e.timestamp.partial_cmp(&timestamp).unwrap()) {
+        // PR Gate: Rule 22 - Safe error handling without unwrap()
+        match self.events.binary_search_by(|e| {
+            e.timestamp.partial_cmp(&timestamp).unwrap_or(Ordering::Equal)
+        }) {
             Ok(idx) => self.events.get(idx),     // Found exact match, return it
             Err(idx) => idx.checked_sub(1).and_then(|i| self.events.get(i)), // Return previous element
         }
@@ -404,6 +492,29 @@ pub struct TimelineClock {
     /// Internal timer that processes virtual time deltas
     pub timer: bevy::time::Timer,
     pub is_paused: bool,  // Local pause state (separate from global)
+}
+
+impl TimelineClock {
+    /// Create a new timeline clock with pause/resume functionality
+    pub fn new() -> Self {
+        Self {
+            timer: bevy::time::Timer::new(
+                Duration::from_secs(120),
+                bevy::time::TimerMode::Repeating,
+            ),
+            is_paused: false,
+        }
+    }
+
+    /// Pause the clock
+    pub fn pause(&mut self) {
+        self.is_paused = true;
+    }
+
+    /// Resume the clock
+    pub fn resume(&mut self) {
+        self.is_paused = false;
+    }
 }
 
 impl Default for TimelineClock {
@@ -514,18 +625,15 @@ pub fn control_virtual_time_pause(
 /// 🆕 Bevy 0.16: Uses error-safe ECS patterns with let-else for clean error handling
 pub fn debug_timeline_clocks(
     arena_q: Query<(&Arena, &TimelineClock)>,
-    current_arena_q: Query<&CurrentArena>,  // CurrentArena is a Component, not Resource
+    current_arena: Res<CurrentArena>,  // PR Gate: CurrentArena should be a Resource
 ) {
-    // Get the current arena entity - following Rule #22: Error-Safe ECS First
-    // The let-else pattern gracefully handles the case where no CurrentArena exists
-    let Ok(current_arena) = current_arena_q.single() else {
-        return;
-    };
+    // PR Gate: Rule 1 - Use Arena::from_index_safe() for safe conversion from ArenaId
+    let current_arena_component = Arena::from_index_safe(current_arena.as_u8());
 
     // Use let-else for early return pattern - more idiomatic Rust
     let Some((arena, clock)) = arena_q
         .iter()
-        .find(|(arena, _)| arena.name() == current_arena.name())
+        .find(|(arena, _)| **arena == current_arena_component)
     else {
         return;
     };
@@ -579,8 +687,8 @@ Also update arena spawning in `setup_scene` to include timer:
 battleground
 .spawn((
 Transform::from_xyz(offset_x, offset_y, 0.0),
-Arena::new_clamped(arena_index), // Use clamped version for startup initialization
-TimelineClock::default (), // Add this line
+Arena::from_index_safe(arena_index), // Use safe constructor for startup initialization
+TimelineClock::new(), // Use explicit constructor
 // InheritedVisibility is automatically added via required components
 class_type,
 Name::new(arena_name),
@@ -605,17 +713,17 @@ mod tests {
         timeline.add_event(TimelineEvent {
             timestamp: TimeStamp::new(5.0),
             event_type: EventType::Movement(GridPos::new(1, 0)),
-        });
+        }).expect("Failed to add event");
 
         timeline.add_event(TimelineEvent {
             timestamp: TimeStamp::new(2.0),
             event_type: EventType::Ability(AbilityType::AutoShot, None),
-        });
+        }).expect("Failed to add event");
 
         timeline.add_event(TimelineEvent {
             timestamp: TimeStamp::new(10.0),
             event_type: EventType::Death,
-        });
+        }).expect("Failed to add event");
 
         // Verify events are sorted by timestamp
         assert_eq!(timeline.events.len(), 3);
@@ -626,7 +734,7 @@ mod tests {
 
     #[test]
     fn test_timeline_clock_loops_at_120_seconds() {
-        let mut clock = TimelineClock::default();
+        let mut clock = TimelineClock::new();
 
         // Tick past 120 seconds
         clock.tick(Duration::from_secs(125));
@@ -652,7 +760,7 @@ mod tests {
 
     #[test]
     fn test_timeline_clock_pause_resume() {
-        let mut clock = TimelineClock::default();
+        let mut clock = TimelineClock::new();
 
         clock.tick(Duration::from_secs(10));
         assert_eq!(clock.current().as_secs(), 10.0);
@@ -674,7 +782,7 @@ mod tests {
             draft.add_event(TimelineEvent {
                 timestamp: TimeStamp::new(i as f32 * 2.0),
                 event_type: EventType::Movement(GridPos::new(i as i32, 0)),
-            });
+            }).expect("Failed to add event");
         }
 
         let published = PublishTimeline::from_draft(draft);
@@ -695,42 +803,37 @@ mod tests {
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(10.0),
             event_type: EventType::Movement(GridPos::new(0, 0)),
-        });
+        }).expect("Failed to add event");
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(20.0),
             event_type: EventType::Ability(AbilityType::AutoShot, None),
-        });
+        }).expect("Failed to add event");
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(30.0),
             event_type: EventType::Movement(GridPos::new(1, 0)),
-        });
+        }).expect("Failed to add event");
 
         let published = PublishTimeline::from_draft(draft);
 
         // Test: Find next event after a timestamp with no exact match
-        let next = published.next_event_after(TimeStamp::new(15.0))
-            .expect("Failed to get next event");
+        let next = published.next_event_after(TimeStamp::new(15.0));
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(20.0));
 
         // Test: Find next event when timestamp matches exactly
-        let next = published.next_event_after(TimeStamp::new(20.0))
-            .expect("Failed to get next event");
+        let next = published.next_event_after(TimeStamp::new(20.0));
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(30.0));
 
         // Test: No next event when at or past last event
-        let next = published.next_event_after(TimeStamp::new(30.0))
-            .expect("Failed to get next event");
+        let next = published.next_event_after(TimeStamp::new(30.0));
         assert!(next.is_none());
 
-        let next = published.next_event_after(TimeStamp::new(35.0))
-            .expect("Failed to get next event");
+        let next = published.next_event_after(TimeStamp::new(35.0));
         assert!(next.is_none());
 
         // Test: Find first event when timestamp is before all events
-        let next = published.next_event_after(TimeStamp::new(5.0))
-            .expect("Failed to get next event");
+        let next = published.next_event_after(TimeStamp::new(5.0));
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(10.0));
     }
@@ -745,18 +848,18 @@ mod tests {
         // Test TimeStamp::ZERO constant
         assert_eq!(TimeStamp::ZERO.as_secs(), TimeStamp::ZERO.0);
 
-        // Test Arena::from_u8() for u8 conversion with proper error handling
-        let idx = Arena::from_u8(3).expect("Arena 3 should be valid");
+        // Test ArenaId::from_u8() for u8 conversion with proper error handling
+        let idx = ArenaId::from_u8(3).expect("Arena 3 should be valid");
         assert_eq!(idx.as_u8(), 3);
         assert_eq!(idx.to_string(), "Mountain (3)");
 
         // Test error case - arena out of bounds
-        let invalid = Arena::from_u8(10);
+        let invalid = ArenaId::from_u8(10);
         assert!(invalid.is_err());
 
-        // Test clamped constructor for startup cases
-        let clamped = Arena::from_u8_clamped(15);
-        assert_eq!(clamped.as_u8(), 8); // Should clamp to max valid arena (Gala)
+        // Test safe constructor for internal use
+        let safe = ArenaId::from_index_safe(15);
+        assert_eq!(safe.as_u8(), 8); // Should clamp to max valid arena (Gala)
 
         // Test Arena::new() with ArenaName enum
         let arena = Arena::new(ArenaName::Bastion);
@@ -786,19 +889,20 @@ With the timeline foundation in place, we can now:
 
 ## Key Takeaways
 
-1. **Type-Safe Newtypes**: TimeStamp, Arena, GridPos provide compile-time safety
-2. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
-3. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
-4. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), Arena::new(ArenaName) and Arena::from_u8() as primary
-   API
-5. **Binary Search**: Efficient O(log n) operations on sorted timelines
-6. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
-7. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
-8. **Consolidated Timeline API**: next_event_after/prev_event_before provide unified temporal queries with consistent
+1. **Type Domain Separation**: ArenaId (value type) for data passing, Arena (component) for entity attachment
+2. **Type-Safe Newtypes**: TimeStamp, ArenaId, GridPos provide compile-time safety
+3. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
+4. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
+5. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), ArenaId::new(ArenaName) for value types, Arena::new(ArenaName) for components
+6. **Binary Search**: Efficient O(log n) operations on sorted timelines
+7. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
+8. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
+9. **Consolidated Timeline API**: next_event_after/prev_event_before provide unified temporal queries with consistent
    binary_search_by approach
-9. **Virtual Time for Pause Safety**: Time<Virtual> prevents time jumps when pausing/unpausing
-10. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust
+10. **Virtual Time for Pause Safety**: Time<Virtual> prevents time jumps when pausing/unpausing
+11. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust
     error handling
+12. **🆕 Compile-Time Safe Arena Creation**: Use `from_index_safe()` for all arena creation - no runtime validation needed
 
 ## Production Notes
 
@@ -817,8 +921,9 @@ With the timeline foundation in place, we can now:
 
 ### Why These Patterns Matter:
 
+- **Type Domain Separation**: Absolute rule - every type belongs to EXACTLY one domain. Components attach to entities, Values pass data. This prevents mixing contexts and makes code intent clear.
 - **Newtypes**: Catch unit errors at compile time (can't mix TimeStamp with f32)
-- **Explicit Constructors**: TimeStamp::new() makes the common case obvious and discoverable
+- **Explicit Constructors**: TimeStamp::new(), ArenaId::new() makes the common case obvious and discoverable
 - **Intent Recording**: Deterministic replay regardless of physics/interpolation
 - **Arc<[T]>**: Share timeline across systems without cloning the data
 - **Binary Search**: Fast lookups for playback position queries
@@ -828,6 +933,7 @@ With the timeline foundation in place, we can now:
   methods for event type filtering instead of specialized methods
 - **🆕 Bevy 0.16 Error-Safe Patterns**: Query methods now return Results - use
   `let Ok(...) = query.single() else { return; }` for graceful early returns
+- **🆕 Compile-Time Safe Arena Creation**: `from_index_safe()` eliminates runtime validation for all arena creation by clamping to valid ranges. This follows Rule #1 (Type Domain Separation) and Rule #30 (Build for Now).
 
 ### Zero-Copy Principle Applied:
 

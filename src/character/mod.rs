@@ -1,5 +1,5 @@
 use crate::arena::{
-    Arena, ArenaName, CharacterMoved, CurrentArena, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
+    Arena, ArenaId, ArenaName, CharacterMoved, CurrentArena, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
     TILE_SIZE,
 };
 use crate::materials::Materials;
@@ -134,15 +134,16 @@ pub fn move_active_character(
         // Moving left out of bounds
         if col > 0 {
             // Can move to arena on the left
-            let from_arena = current_arena.name();
+            let from_arena = current_arena.id();
             let new_arena_index = current_arena_index - 1;
-            let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+            let new_arena_name = ArenaName::from_index_safe(new_arena_index);
+            let new_arena_id = ArenaId::new(new_arena_name);
 
             // Teleport character to right side of new arena
             character_transform.translation.x = max_x;
 
             // Update CurrentArena after character movement
-            current_arena.0 = new_arena_name;
+            current_arena.0 = new_arena_id;
 
             // Reparent character to new arena
             if let Some((new_arena_entity, _)) = arena_q
@@ -158,7 +159,7 @@ pub fn move_active_character(
             character_moved_event.write(CharacterMoved {
                 character_entity,
                 from_arena,
-                to_arena: new_arena_name,
+                to_arena: new_arena_id,
             });
         } else {
             println!("Cannot move left - at battleground boundary");
@@ -168,15 +169,16 @@ pub fn move_active_character(
         // Moving right out of bounds
         if col < 2 {
             // Can move to arena on the right
-            let from_arena = current_arena.name();
+            let from_arena = current_arena.id();
             let new_arena_index = current_arena_index + 1;
-            let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+            let new_arena_name = ArenaName::from_index_safe(new_arena_index);
+            let new_arena_id = ArenaId::new(new_arena_name);
 
             // Teleport character to left side of new arena
             character_transform.translation.x = min_x;
 
             // Update CurrentArena after character movement
-            current_arena.0 = new_arena_name;
+            current_arena.0 = new_arena_id;
 
             // Reparent character to new arena
             if let Some((new_arena_entity, _)) = arena_q
@@ -192,7 +194,7 @@ pub fn move_active_character(
             character_moved_event.write(CharacterMoved {
                 character_entity,
                 from_arena,
-                to_arena: new_arena_name,
+                to_arena: new_arena_id,
             });
         } else {
             println!("Cannot move right - at battleground boundary");
@@ -202,15 +204,16 @@ pub fn move_active_character(
         // Moving down out of bounds
         if row < 2 {
             // Can move to arena below
-            let from_arena = current_arena.name();
+            let from_arena = current_arena.id();
             let new_arena_index = current_arena_index + 3;
-            let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+            let new_arena_name = ArenaName::from_index_safe(new_arena_index);
+            let new_arena_id = ArenaId::new(new_arena_name);
 
             // Teleport character to top side of new arena
             character_transform.translation.y = max_y;
 
             // Update CurrentArena after character movement
-            current_arena.0 = new_arena_name;
+            current_arena.0 = new_arena_id;
 
             // Reparent character to new arena
             if let Some((new_arena_entity, _)) = arena_q
@@ -226,7 +229,7 @@ pub fn move_active_character(
             character_moved_event.write(CharacterMoved {
                 character_entity,
                 from_arena,
-                to_arena: new_arena_name,
+                to_arena: new_arena_id,
             });
         } else {
             println!("Cannot move down - at battleground boundary");
@@ -236,15 +239,16 @@ pub fn move_active_character(
         // Moving up out of bounds
         if row > 0 {
             // Can move to arena above
-            let from_arena = current_arena.name();
+            let from_arena = current_arena.id();
             let new_arena_index = current_arena_index - 3;
-            let new_arena_name = ArenaName::from_u8_clamped(new_arena_index);
+            let new_arena_name = ArenaName::from_index_safe(new_arena_index);
+            let new_arena_id = ArenaId::new(new_arena_name);
 
             // Teleport character to bottom side of new arena
             character_transform.translation.y = min_y;
 
             // Update CurrentArena after character movement
-            current_arena.0 = new_arena_name;
+            current_arena.0 = new_arena_id;
 
             // Reparent character to new arena
             if let Some((new_arena_entity, _)) = arena_q
@@ -260,7 +264,7 @@ pub fn move_active_character(
             character_moved_event.write(CharacterMoved {
                 character_entity,
                 from_arena,
-                to_arena: new_arena_name,
+                to_arena: new_arena_id,
             });
         } else {
             println!("Cannot move up - at battleground boundary");

@@ -387,8 +387,8 @@ pub fn adjust_ghost_update_frequency(
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
-            // Use explicit Arena::new() constructor for comparison
-            let Some(current_idx) = Arena::new(current_arena.0) else {
+            // Use explicit Arena::from_u8() constructor for comparison
+            let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
                 continue;
             };
             
@@ -431,7 +431,7 @@ pub fn frequency_limited_ghost_update(
     let current_time = time.elapsed().as_secs_f32();
 
     // Process current arena ghosts first (high priority)
-    let Some(current_idx) = Arena::new(current_arena.0) else {
+    let Ok(current_idx) = Arena::from_u8(current_arena.0) else {
         return;
     };
     let current_ghosts = registry.get_arena_ghosts(current_idx);

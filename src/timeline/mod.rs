@@ -7,6 +7,7 @@ use bevy::log::trace;
 use bevy::math::IVec2;
 use bevy::prelude::*;
 use bevy::time::{Time, Timer, TimerMode, Virtual};
+use std::cmp::Ordering::Equal;
 use std::convert::identity;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 use std::sync::Arc;
@@ -15,11 +16,11 @@ use std::time::Duration;
 /// Error types for timeline operations
 #[derive(Debug, thiserror::Error)]
 pub enum TimelineError {
-    #[error("Invalid timestamp: {timestamp}s (must be between 0.0 and 120.0)")]
-    InvalidTimestamp { timestamp: f32 },
+    #[error("Invalid timestamp: {timestamp} (must be between 0.0 and 120.0)")]
+    InvalidTimestamp { timestamp: TimeStamp },
 
-    #[error("Timeline position corrupted: {position}s")]
-    CorruptedPosition { position: f32 },
+    #[error("Timeline position corrupted: {position}")]
+    CorruptedPosition { position: TimeStamp },
 
     #[error("Timeline is empty")]
     EmptyTimeline,
@@ -27,8 +28,6 @@ pub enum TimelineError {
     #[error("Event comparison failed - invalid timestamp")]
     InvalidComparison,
 
-    #[error("Arena index {index} is out of bounds (must be 0-8)")]
-    InvalidArenaIndex { index: u8 },
 
     #[error("Grid position out of bounds: ({x}, {y})")]
     InvalidGridPosition { x: i32, y: i32 },
@@ -171,7 +170,7 @@ impl DraftTimeline {
 
         match self
             .events
-            .binary_search_by(|e| comparison(e).unwrap_or(std::cmp::Ordering::Equal))
+            .binary_search_by(|e| comparison(e).unwrap_or(Equal))
         {
             Ok(pos) | Err(pos) => {
                 self.events.insert(pos, event);
@@ -214,11 +213,11 @@ impl PublishTimeline {
 
         let start_idx = self
             .events
-            .binary_search_by(|e| safe_compare(e, start).unwrap_or(std::cmp::Ordering::Equal))
+            .binary_search_by(|e| safe_compare(e, start).unwrap_or(Equal))
             .unwrap_or_else(identity);
         let end_idx = self
             .events
-            .binary_search_by(|e| safe_compare(e, end).unwrap_or(std::cmp::Ordering::Equal))
+            .binary_search_by(|e| safe_compare(e, end).unwrap_or(Equal))
             .unwrap_or_else(identity);
 
         Ok(self.events[start_idx..end_idx].iter())
@@ -236,7 +235,7 @@ impl PublishTimeline {
 
         match self
             .events
-            .binary_search_by(|e| safe_compare(e).unwrap_or(std::cmp::Ordering::Equal))
+            .binary_search_by(|e| safe_compare(e).unwrap_or(Equal))
         {
             Ok(idx) => Ok(self.events.get(idx + 1)), // Found exact match, return next
             Err(idx) => Ok(self.events.get(idx)), // Found insertion point, return event at that position
@@ -260,7 +259,7 @@ impl PublishTimeline {
 
         match self
             .events
-            .binary_search_by(|e| safe_compare(e).unwrap_or(std::cmp::Ordering::Equal))
+            .binary_search_by(|e| safe_compare(e).unwrap_or(Equal))
         {
             Ok(idx) => Ok(self.events.get(idx)), // Found an exact match, return it
             Err(idx) => Ok(idx.checked_sub(1).and_then(|i| self.events.get(i))), // Return previous element
