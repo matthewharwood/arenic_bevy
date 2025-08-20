@@ -1,7 +1,7 @@
 // Recording module - implements unified event architecture
 // Based on Tutorial 02: Recording State Machine (unified orchestrator pattern)
 
-use crate::arena::{Arena, ArenaEntities, ArenaId, CurrentArena};
+use crate::arena::{Arena, ArenaEntities, CurrentArena};
 use crate::character::Character;
 use crate::selectors::Active;
 use crate::timeline::TimelineClock;
@@ -23,6 +23,7 @@ pub enum RecordingRequest {
     Stop { reason: StopReason },
     Commit, // Uses state.recording_entity and CurrentArena resource
     Clear,  // Uses state.recording_entity
+    ShowDialog { character: Entity },
 }
 
 // === STATE RESOURCE - Single source of truth ===
@@ -56,7 +57,7 @@ pub enum RecordingMode {
     /// Actively recording character actions
     Recording,
     /// Dialog shown, all timelines paused
-    DialogPaused,
+    DialogPaused { character: Entity },
 }
 
 impl Display for RecordingMode {
@@ -65,7 +66,7 @@ impl Display for RecordingMode {
             Self::Idle => write!(f, "Idle"),
             Self::Countdown => write!(f, "Countdown"),
             Self::Recording => write!(f, "Recording"),
-            Self::DialogPaused => write!(f, "DialogPaused"),
+            Self::DialogPaused { .. } => write!(f, "DialogPaused"),
         }
     }
 }
@@ -95,13 +96,6 @@ const KEY_ARENA_PREV: KeyCode = KeyCode::BracketLeft;
 const KEY_ARENA_NEXT: KeyCode = KeyCode::BracketRight;
 const KEY_CHARACTER_SWITCH: KeyCode = KeyCode::Tab;
 
-/// Event to show retry dialog for ghost recording attempt
-#[derive(Event)]
-pub struct ShowRetryDialog {
-    pub character: Entity,
-    pub arena: ArenaId,
-}
-
 /// Detect when player presses R to start/stop recording
 /// Triggers RecordingUpdate event (like arena navigation triggers CameraUpdate)
 pub fn detect_recording_input(
@@ -109,8 +103,6 @@ pub fn detect_recording_input(
     mut recording_state: ResMut<RecordingState>,
     active_character: Option<Single<(Entity, Option<&Ghost>), (With<Character>, With<Active>)>>,
     mut recording_update_events: EventWriter<RecordingUpdate>,
-    mut retry_dialog_events: EventWriter<ShowRetryDialog>,
-    current_arena: Res<CurrentArena>,
 ) {
     if !keyboard.just_pressed(KEY_RECORD) {
         return;
@@ -125,10 +117,10 @@ pub fn detect_recording_input(
 
             if ghost_marker.is_some() {
                 // Ghost selected - show retry dialog
-                retry_dialog_events.write(ShowRetryDialog {
+                recording_state.pending_request = Some(RecordingRequest::ShowDialog {
                     character: character_entity,
-                    arena: current_arena.id(),
                 });
+                recording_update_events.write(RecordingUpdate);
                 info!(
                     "Cannot record a ghost - showing retry dialog for character {:?}",
                     character_entity
@@ -331,6 +323,19 @@ pub fn recording_update(
                     warn!("Cannot clear recording - no recording entity in state");
                 }
             }
+
+            RecordingRequest::ShowDialog { character } => {
+                // Handle show dialog request - transition to DialogPaused state
+                match recording_state.mode {
+                    RecordingMode::Idle => {
+                        recording_state.mode = RecordingMode::DialogPaused { character };
+                        info!("Showing dialog for ghost character {:?}", character);
+                    }
+                    _ => {
+                        warn!("Cannot show dialog from state: {:?}", recording_state.mode);
+                    }
+                }
+            }
         }
     }
 
@@ -361,7 +366,6 @@ impl Plugin for RecordingPlugin {
             .init_resource::<RecordingState>()
             // Unified event architecture
             .add_event::<RecordingUpdate>() // Root orchestration event
-            .add_event::<ShowRetryDialog>() // UI events
             // Systems with explicit ordering
             .add_systems(
                 Update,
@@ -387,7 +391,13 @@ mod tests {
         assert_eq!(RecordingMode::Idle.to_string(), "Idle");
         assert_eq!(RecordingMode::Countdown.to_string(), "Countdown");
         assert_eq!(RecordingMode::Recording.to_string(), "Recording");
-        assert_eq!(RecordingMode::DialogPaused.to_string(), "DialogPaused");
+        assert_eq!(
+            RecordingMode::DialogPaused {
+                character: Entity::PLACEHOLDER
+            }
+            .to_string(),
+            "DialogPaused"
+        );
     }
 
     #[test]
@@ -475,12 +485,69 @@ mod tests {
             },
             RecordingRequest::Commit,
             RecordingRequest::Clear,
+            RecordingRequest::ShowDialog {
+                character: Entity::PLACEHOLDER,
+            },
         ];
 
         // Test that Debug is implemented
         for request in &requests {
             let debug_str = format!("{:?}", request);
             assert!(!debug_str.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_show_dialog_state_transition() {
+        use crate::arena::{ArenaEntities, ArenaId, ArenaName, CurrentArena};
+        use bevy::app::App;
+        use bevy::prelude::*;
+
+        // Create test app with unified architecture
+        let mut app = App::new();
+        app.add_plugins(bevy::time::TimePlugin);
+        app.init_resource::<RecordingState>();
+        app.add_event::<RecordingUpdate>();
+        app.add_systems(Update, recording_update);
+
+        // Add required resources for recording_update system
+        let arena_entities = ArenaEntities::new([
+            (ArenaName::Labyrinth, Entity::PLACEHOLDER),
+            (ArenaName::GuildHouse, Entity::PLACEHOLDER),
+            (ArenaName::Sanctum, Entity::PLACEHOLDER),
+            (ArenaName::Mountain, Entity::PLACEHOLDER),
+            (ArenaName::Bastion, Entity::PLACEHOLDER),
+            (ArenaName::Pawnshop, Entity::PLACEHOLDER),
+            (ArenaName::Crucible, Entity::PLACEHOLDER),
+            (ArenaName::Casino, Entity::PLACEHOLDER),
+            (ArenaName::Gala, Entity::PLACEHOLDER),
+        ]);
+        app.insert_resource(arena_entities);
+        app.insert_resource(CurrentArena(ArenaId::new(ArenaName::GuildHouse)));
+
+        let test_character = Entity::from_raw(42);
+
+        // Simulate a show dialog request
+        {
+            let mut state = app.world_mut().resource_mut::<RecordingState>();
+            state.pending_request = Some(RecordingRequest::ShowDialog {
+                character: test_character,
+            });
+        }
+
+        // Trigger recording update
+        app.world_mut().send_event(RecordingUpdate);
+
+        // Process the update
+        app.update();
+
+        // Verify state changed to DialogPaused with correct character
+        let state = app.world().resource::<RecordingState>();
+        match state.mode {
+            RecordingMode::DialogPaused { character } => {
+                assert_eq!(character, test_character);
+            }
+            _ => panic!("Expected DialogPaused state, got: {:?}", state.mode),
         }
     }
 }
