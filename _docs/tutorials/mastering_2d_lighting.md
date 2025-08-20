@@ -1039,15 +1039,13 @@ Instead of distance-based culling, we now have binary state-based arena lighting
 /// Overview mode (scale 3.0): Distribute resources across all 9 arenas
 pub fn manage_binary_arena_lighting(
     mut arena_lighting: Query<(&mut ArenaLighting, &ArenaIndex)>,
-    current_arena: Query<&CurrentArena>,
+    current_arena: Res<CurrentArena>,
     lighting_manager: Res<LightingManager>,
     mut lights: Query<&mut PointLight>,
 ) {
     // Determine current state
     let is_overview_mode = (lighting_manager.camera_zoom_scale - 3.0).abs() < 0.1;
-    let focused_arena_index = current_arena.get_single()
-        .map(|arena| arena.0)
-        .unwrap_or(0);
+    let focused_arena_index = current_arena.0;
 
     for (mut lighting, arena_index) in arena_lighting.iter_mut() {
         let is_focused_arena = arena_index.0 == focused_arena_index;
@@ -1277,7 +1275,7 @@ This system synchronizes the lighting manager with the existing camera zoom syst
 pub fn sync_lighting_with_camera(
     camera_query: Query<&Projection, (With<Camera>, Changed<Projection>)>,
     mut lighting_manager: ResMut<LightingManager>,
-    current_arena: Query<&CurrentArena, Changed<CurrentArena>>,
+    current_arena: Res<CurrentArena>,
 ) {
     // Track camera zoom changes
     for projection in camera_query.iter() {
@@ -1287,8 +1285,8 @@ pub fn sync_lighting_with_camera(
     }
     
     // Track arena focus changes
-    if let Ok(arena) = current_arena.get_single() {
-        lighting_manager.focused_arena = Some(ArenaIndex(arena.0));
+    if current_arena.is_changed() {
+        lighting_manager.focused_arena = Some(ArenaIndex(current_arena.0));
     }
 }
 ```

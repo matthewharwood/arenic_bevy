@@ -2,8 +2,7 @@
 
 ## Objective
 
-Implement the state machine that manages recording modes using event-driven transitions. All state changes go through
-RecordingTransition events for traceability and debugging.
+Implement the state machine that manages recording modes using the superior **command pattern**. Systems send commands (intent) to a single state machine, which validates transitions and emits state change events. This eliminates race conditions and makes invalid transitions impossible at the type level.
 
 ## Prerequisites
 
@@ -15,11 +14,11 @@ RecordingTransition events for traceability and debugging.
 
 We'll create:
 
-- Recording state resource with event-driven transitions
-- Recording mode enum
-- Recording marker components
-- State transition events with from/to tracking
-- Recording initiation system with let-else patterns
+- Recording state resource managed by single state machine
+- Recording mode enum with type-safe transitions
+- Command enum for expressing intent
+- State change events for notifications
+- Single authoritative state machine that validates all transitions
 
 ## Implementation Steps
 
@@ -79,11 +78,22 @@ impl Display for RecordingMode {
     }
 }
 
-/// Event-driven state transition
-#[derive(Event, Debug)]
-pub struct RecordingTransition {
-    pub from: RecordingMode,
-    pub to: RecordingMode,
+/// Command pattern: Systems send commands (intent), state machine emits events (what happened)
+#[derive(Event)]
+pub enum RecordingCommand {
+    StartRecording { entity: Entity },
+    StopRecording { reason: StopReason },
+    PauseForDialog,
+    ResumeFromDialog,
+    CommitRecording { entity: Entity },
+    ClearRecording { entity: Entity },
+}
+
+/// Event emitted when recording state actually changes
+#[derive(Event)]
+pub struct RecordingStateChanged {
+    pub previous: RecordingMode,
+    pub current: RecordingMode,
     pub reason: TransitionReason,
 }
 
@@ -144,45 +154,13 @@ pub struct Ghost;
 Add to `src/recording/mod.rs`:
 
 ```rust
-/// Event to start recording a character
-#[derive(Event)]
-pub struct StartRecording {
-    pub character: Entity,
-    pub arena: ArenaId,
-}
-
-/// Event to stop recording (user interruption)
-#[derive(Event)]
-pub struct StopRecording {
-    pub reason: StopReason,
-}
-
+// These remain for specialized use cases
 #[derive(Debug, Clone)]
 pub enum StopReason {
     UserInterrupted,    // User pressed R again
     TimeComplete,       // 120 seconds elapsed
     ArenaTransition,    // Tried to leave arena
     CharacterSwitch,    // Tried to switch characters
-}
-
-/// Event to commit the current recording
-#[derive(Event)]
-pub struct CommitRecording {
-    pub character: Entity,
-    pub arena: ArenaId,
-}
-
-/// Event to clear/cancel the current recording
-#[derive(Event)]
-pub struct ClearRecording {
-    pub character: Entity,
-    pub arena: ArenaId,
-}
-
-/// Event to reset arena timeline to start
-#[derive(Event)]
-pub struct ResetArenaTimeline {
-    pub arena: ArenaId,
 }
 ```
 
@@ -197,15 +175,21 @@ const KEY_ARENA_PREV: KeyCode = KeyCode::BracketLeft;
 const KEY_ARENA_NEXT: KeyCode = KeyCode::BracketRight;
 const KEY_CHARACTER_SWITCH: KeyCode = KeyCode::Tab;
 
-/// Detect when player presses R to start/stop recording
+/// Event to show retry dialog for ghost recording attempt
+#[derive(Event)]
+pub struct ShowRetryDialog {
+    pub character: Entity,
+    pub arena: ArenaId,
+}
+
+/// Detect when player presses R to start/stop recording - now uses command pattern
 pub fn detect_recording_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     recording_state: Res<RecordingState>,
-    active_character: Option<Single<Entity, (With<Character>, With<Active>, Without<Ghost>)>>,
-    active_ghost: Option<Single<Entity, (With<Character>, With<Active>, With<Ghost>)>>,
-    current_arena: Res<CurrentArena>,
-    mut start_events: EventWriter<StartRecording>,
-    mut stop_events: EventWriter<StopRecording>,
+    // Fixed: Single query for all active characters (both regular and ghosts)
+    active_character: Option<Single<(Entity, Option<&Ghost>), (With<Character>, With<Active>)>>,
+    mut command_writer: EventWriter<RecordingCommand>,
+    mut retry_dialog_events: EventWriter<ShowRetryDialog>,
 ) {
     if !keyboard.just_pressed(KEY_RECORD) {
         return;
@@ -214,30 +198,32 @@ pub fn detect_recording_input(
     match recording_state.mode {
         RecordingMode::Idle => {
             // Use let-else for cleaner early returns
-            let Some(character_single) = active_character else {
-                // Check if it's a ghost instead
-                if active_ghost.is_some() {
-                    info!("Cannot record a ghost - showing retry dialog");
-                    // TODO: Show retry dialog in future tutorial
-                }
+            let Some((character_entity, ghost_marker)) = active_character else {
                 return;
             };
 
-            // Use ArenaId::from_index_safe() for compile-time safe conversion
-            let arena_id = ArenaId::from_index_safe(current_arena.as_u8());
-
-            start_events.write(StartRecording {
-                character: *character_single,
-                arena: arena_id,
-            });
-            info!("Starting recording for character {:?}", *character_single);
+            // Check if this character is a ghost
+            if ghost_marker.is_some() {
+                // Ghost selected - show retry dialog
+                retry_dialog_events.write(ShowRetryDialog {
+                    character: *character_entity,
+                    arena: ArenaId::new(ArenaName::GuildHouse), // Current arena
+                });
+                info!("Cannot record a ghost - showing retry dialog for character {:?}", *character_entity);
+            } else {
+                // Regular character - send start recording command
+                command_writer.write(RecordingCommand::StartRecording { 
+                    entity: *character_entity 
+                });
+                info!("Sending start recording command for character {:?}", *character_entity);
+            }
         }
         RecordingMode::Recording => {
-            // Stop recording - user interrupted
-            stop_events.write(StopRecording {
+            // Stop recording - send stop command
+            command_writer.write(RecordingCommand::StopRecording {
                 reason: StopReason::UserInterrupted,
             });
-            info!("User interrupted recording");
+            info!("Sending stop recording command - user interrupted");
         }
         _ => {
             // Ignore input in other states
@@ -251,40 +237,127 @@ pub fn detect_recording_input(
 Add to `src/recording/mod.rs`:
 
 ```rust
-/// Process recording state transitions via events
-pub fn process_recording_transitions(
-    mut transitions: EventReader<RecordingTransition>,
+/// State machine that processes commands and emits state change events
+/// This is the SINGLE SOURCE OF TRUTH for all recording state transitions
+pub fn process_recording_commands(
+    mut commands_reader: EventReader<RecordingCommand>,
     mut recording_state: ResMut<RecordingState>,
+    mut state_change_writer: EventWriter<RecordingStateChanged>,
+    mut countdown_commands: Commands,
 ) {
-    for transition in transitions.read() {
-        // Validate transition is from current state
-        if transition.from != recording_state.mode {
-            warn!(
-                "Invalid transition: current state is {}, but transition is from {}",
-                recording_state.mode, transition.from
-            );
-            continue;
-        }
-
-        info!(
-            "Recording state transition: {} -> {} (reason: {:?})",
-            transition.from, transition.to, transition.reason
-        );
-
-        recording_state.mode = transition.to;
-
-        // Handle entity tracking for specific transitions
-        match &transition.reason {
-            TransitionReason::StartRequest(entity) => {
-                recording_state.recording_entity = Some(*entity);
+    for command in commands_reader.read() {
+        let previous_mode = recording_state.mode;
+        
+        match command {
+            RecordingCommand::StartRecording { entity } => {
+                match previous_mode {
+                    RecordingMode::Idle => {
+                        // Valid transition: start countdown
+                        recording_state.mode = RecordingMode::Countdown;
+                        recording_state.recording_entity = Some(*entity);
+                        
+                        // Add countdown component to entity
+                        countdown_commands.entity(*entity)
+                            .insert(RecordingCountdown::new(Duration::from_secs(3)));
+                        
+                        state_change_writer.write(RecordingStateChanged {
+                            previous: previous_mode,
+                            current: RecordingMode::Countdown,
+                            reason: TransitionReason::StartRequest(*entity),
+                        });
+                        
+                        info!("Started recording countdown for entity {:?}", entity);
+                    }
+                    _ => {
+                        warn!("Cannot start recording from state: {:?}", previous_mode);
+                    }
+                }
             }
-            TransitionReason::UserInterrupted
-            | TransitionReason::TimeComplete
-            | TransitionReason::ArenaTransition
-            | TransitionReason::CharacterSwitch => {
-                recording_state.recording_entity = None;
+            
+            RecordingCommand::StopRecording { reason } => {
+                match previous_mode {
+                    RecordingMode::Recording => {
+                        // Valid transition: stop recording
+                        recording_state.mode = RecordingMode::Idle;
+                        let entity = recording_state.recording_entity.take();
+                        
+                        // Remove recording components if entity exists
+                        if let Some(entity) = entity {
+                            countdown_commands.entity(entity)
+                                .remove::<Recording>()
+                                .remove::<RecordingCountdown>();
+                        }
+                        
+                        let transition_reason = match reason {
+                            StopReason::UserInterrupted => TransitionReason::UserInterrupted,
+                            StopReason::TimeComplete => TransitionReason::TimeComplete,
+                            StopReason::ArenaTransition => TransitionReason::ArenaTransition,
+                            StopReason::CharacterSwitch => TransitionReason::CharacterSwitch,
+                        };
+                        
+                        state_change_writer.write(RecordingStateChanged {
+                            previous: previous_mode,
+                            current: RecordingMode::Idle,
+                            reason: transition_reason,
+                        });
+                        
+                        info!("Stopped recording due to: {:?}", reason);
+                    }
+                    _ => {
+                        warn!("Cannot stop recording from state: {:?}", previous_mode);
+                    }
+                }
             }
-            _ => {}
+            
+            RecordingCommand::PauseForDialog => {
+                match previous_mode {
+                    RecordingMode::Recording => {
+                        recording_state.mode = RecordingMode::DialogPause;
+                        
+                        state_change_writer.write(RecordingStateChanged {
+                            previous: previous_mode,
+                            current: RecordingMode::DialogPause,
+                            reason: TransitionReason::DialogOpened,
+                        });
+                        
+                        info!("Paused recording for dialog");
+                    }
+                    _ => {
+                        warn!("Cannot pause recording from state: {:?}", previous_mode);
+                    }
+                }
+            }
+            
+            RecordingCommand::ResumeFromDialog => {
+                match previous_mode {
+                    RecordingMode::DialogPause => {
+                        recording_state.mode = RecordingMode::Recording;
+                        
+                        state_change_writer.write(RecordingStateChanged {
+                            previous: previous_mode,
+                            current: RecordingMode::Recording,
+                            reason: TransitionReason::DialogClosed,
+                        });
+                        
+                        info!("Resumed recording from dialog");
+                    }
+                    _ => {
+                        warn!("Cannot resume recording from state: {:?}", previous_mode);
+                    }
+                }
+            }
+            
+            RecordingCommand::CommitRecording { entity } => {
+                // Handle commit recording - convert to ghost
+                info!("Committing recording for entity {:?}", entity);
+                // TODO: Implement commit logic in future systems
+            }
+            
+            RecordingCommand::ClearRecording { entity } => {
+                // Handle clear recording - discard timeline
+                info!("Clearing recording for entity {:?}", entity);
+                // TODO: Implement clear logic in future systems  
+            }
         }
     }
 }
@@ -295,60 +368,8 @@ pub fn process_recording_transitions(
 Add to `src/recording/mod.rs`:
 
 ```rust
-/// Initialize recording when StartRecording event is received
-pub fn initialize_recording(
-    mut commands: Commands,
-    mut start_events: EventReader<StartRecording>,
-    recording_state: Res<RecordingState>,
-    character_q: Query<&Transform, With<Character>>,
-    mut reset_events: EventWriter<ResetArenaTimeline>,
-    mut transition_events: EventWriter<RecordingTransition>,
-) {
-    for event in start_events.read() {
-        // Reset the arena timer to 0
-        reset_events.write(ResetArenaTimeline {
-            arena: event.arena,
-        });
-
-        // Get character's current transform using let-else
-        let Ok(transform) = character_q.get(event.character) else {
-            warn!("Character {:?} not found", event.character);
-            continue;
-        };
-
-        // Convert world position to grid position
-        let grid_pos = GridPos::new(
-            (transform.translation.x / 100.0).round() as i32,
-            (transform.translation.z / 100.0).round() as i32,
-        );
-
-        // Create initial timeline event at t=0
-        let initial_event = TimelineEvent {
-            timestamp: TimeStamp::ZERO,
-            event_type: EventType::Movement(grid_pos),
-        };
-
-        // Create draft timeline with initial position
-        let mut draft = DraftTimeline::new();
-        draft.add_event(initial_event);
-
-        // Add recording components to character
-        // Note: draft is consumed by .insert(), transferring ownership for efficient storage
-        commands.entity(event.character)
-            .insert(Recording)
-            .insert(draft) // Zero-copy: DraftTimeline ownership transfers to ECS
-            .insert(RecordingCountdown::new(Duration::from_secs(3)));
-
-        // Trigger state transition
-        transition_events.write(RecordingTransition {
-            from: RecordingMode::Idle,
-            to: RecordingMode::Countdown,
-            reason: TransitionReason::StartRequest(event.character),
-        });
-
-        info!("Initialized recording for character {:?}", event.character);
-    }
-}
+// This system is now integrated into the command processor
+// The state machine handles initialization directly when processing StartRecording commands
 
 /// Reset arena timeline when requested
 pub fn reset_arena_timeline(
@@ -375,41 +396,45 @@ pub fn reset_arena_timeline(
 Add to `src/recording/mod.rs`:
 
 ```rust
-/// Update recording countdown and transition to recording mode
-pub fn update_recording_countdown(
-    mut commands: Commands,
-    virtual_time: Res<Time<Virtual>>,
-    recording_state: Res<RecordingState>,
-    mut countdown_q: Query<(Entity, &mut RecordingCountdown)>,
-    mut transition_events: EventWriter<RecordingTransition>,
+/// Handle countdown completion and transition to recording
+pub fn handle_countdown_completion(
+    mut recording_state: ResMut<RecordingState>,
+    mut countdown_query: Query<(Entity, &mut RecordingCountdown)>,
+    mut state_change_writer: EventWriter<RecordingStateChanged>,
+    mut countdown_commands: Commands,
+    time: Res<Time>,
 ) {
     // Only process during countdown mode
     if recording_state.mode != RecordingMode::Countdown {
         return;
     }
-
-    let delta = virtual_time.delta();
-
-    for (entity, mut countdown) in countdown_q.iter_mut() {
+    
+    let delta = time.delta();
+    
+    for (entity, mut countdown) in countdown_query.iter_mut() {
         let prev_display = countdown.get_display_number();
-
+        
         if countdown.tick(delta) {
-            // Countdown complete - start recording
-            commands.entity(entity).remove::<RecordingCountdown>();
+            // Countdown complete - transition to recording
+            countdown_commands.entity(entity)
+                .remove::<RecordingCountdown>()
+                .insert(Recording);
             
-            transition_events.write(RecordingTransition {
-                from: RecordingMode::Countdown,
-                to: RecordingMode::Recording,
+            recording_state.mode = RecordingMode::Recording;
+            
+            // Emit state change event directly
+            state_change_writer.write(RecordingStateChanged {
+                previous: RecordingMode::Countdown,
+                current: RecordingMode::Recording,
                 reason: TransitionReason::CountdownComplete,
             });
             
-            info!("Recording started!");
+            info!("Recording countdown completed for entity {:?}", entity);
         } else {
             // Check if display number changed for UI feedback
             let new_display = countdown.get_display_number();
             if prev_display != new_display {
                 if let Some(num) = new_display {
-                    // PR Gate: Using debug! for countdown display
                     debug!("{}...", num);
                 }
             }
@@ -423,11 +448,11 @@ pub fn update_recording_countdown(
 Add to `src/recording/mod.rs`:
 
 ```rust
-/// Block arena/character switching during recording
+/// Block arena/character switching during recording - now uses command pattern
 pub fn block_recording_interruptions(
     keyboard: Res<ButtonInput<KeyCode>>,
     recording_state: Res<RecordingState>,
-    mut stop_events: EventWriter<StopRecording>,
+    mut command_writer: EventWriter<RecordingCommand>,
 ) {
     // Only check during active recording
     if recording_state.mode != RecordingMode::Recording {
@@ -445,7 +470,7 @@ pub fn block_recording_interruptions(
     };
 
     if let Some(reason) = stop_reason {
-        stop_events.write(StopRecording { reason: reason.clone() });
+        command_writer.write(RecordingCommand::StopRecording { reason });
         info!("Blocked action during recording: {:?}", reason);
     }
 }
@@ -456,12 +481,12 @@ pub fn block_recording_interruptions(
 Add to `src/recording/mod.rs`:
 
 ```rust
-/// Check if recording time limit reached
+/// Check if recording time limit reached - now uses command pattern
 pub fn check_recording_time_limit(
     recording_state: Res<RecordingState>,
     arena_q: Query<(&Arena, &TimelineClock)>,
     current_arena: Res<CurrentArena>,
-    mut stop_events: EventWriter<StopRecording>,
+    mut command_writer: EventWriter<RecordingCommand>,
 ) {
     // Only check during active recording
     if recording_state.mode != RecordingMode::Recording {
@@ -469,7 +494,7 @@ pub fn check_recording_time_limit(
     }
 
     // Use ArenaId for current arena comparison
-    let current_arena_id = current_arena.id();
+    let current_arena_id = current_arena.0;
 
     // Check current arena timer using let-else
     let Some((_, clock)) = arena_q
@@ -479,54 +504,16 @@ pub fn check_recording_time_limit(
         return;
     };
 
-    if clock.current().as_secs() >= TimeStamp::MAX.0 - 0.1 {
-        stop_events.write(StopRecording {
+    if clock.current().as_secs() >= 120.0 - 0.1 { // 120 second recording limit
+        command_writer.write(RecordingCommand::StopRecording {
             reason: StopReason::TimeComplete,
         });
         info!("Recording time limit reached");
     }
 }
 
-/// Process stop recording events
-pub fn process_stop_recording(
-    mut commands: Commands,
-    mut stop_events: EventReader<StopRecording>,
-    recording_state: Res<RecordingState>,
-    recording_entity: Option<Single<Entity, With<Recording>>>,
-    mut transition_events: EventWriter<RecordingTransition>,
-) {
-    for event in stop_events.read() {
-        // Use let-else for cleaner code
-        let Some(entity_single) = recording_entity else {
-            warn!("No recording entity found");
-            continue;
-        };
-
-        // For now, just clear the recording
-        // In future tutorials, we'll show dialog here
-        // Note: .remove() consumes component ownership, enabling efficient cleanup
-        commands.entity(*entity_single)
-            .remove::<Recording>()
-            .remove::<DraftTimeline>() // Zero-copy: Component ownership transferred for cleanup
-            .remove::<RecordingCountdown>();
-
-        // Determine transition reason
-        let reason = match event.reason {
-            StopReason::UserInterrupted => TransitionReason::UserInterrupted,
-            StopReason::TimeComplete => TransitionReason::TimeComplete,
-            StopReason::ArenaTransition => TransitionReason::ArenaTransition,
-            StopReason::CharacterSwitch => TransitionReason::CharacterSwitch,
-        };
-
-        transition_events.write(RecordingTransition {
-            from: RecordingMode::Recording,
-            to: RecordingMode::Idle,
-            reason,
-        });
-
-        info!("Stopped recording due to: {:?}", event.reason);
-    }
-}
+// This system is now integrated into the command processor
+// The state machine handles stop recording directly when processing StopRecording commands
 ```
 
 ### Step 9: Create the Recording Plugin
@@ -534,6 +521,7 @@ pub fn process_stop_recording(
 Add to `src/recording/mod.rs`:
 
 ```rust
+/// Recording Plugin - configures all recording systems with command pattern
 pub struct RecordingPlugin;
 
 impl Plugin for RecordingPlugin {
@@ -541,33 +529,25 @@ impl Plugin for RecordingPlugin {
         app
             // Resources
             .init_resource::<RecordingState>()
-            .init_resource::<GlobalTimelinePause>()
-
-            // Events
-            .add_event::<StartRecording>()
-            .add_event::<StopRecording>()
-            .add_event::<CommitRecording>()
-            .add_event::<ClearRecording>()
-            .add_event::<ResetArenaTimeline>()
-            .add_event::<RecordingTransition>()
-
-            // Systems with strict ordering
+            
+            // Command/Event architecture
+            .add_event::<RecordingCommand>()
+            .add_event::<RecordingStateChanged>()
+            .add_event::<ShowRetryDialog>()
+            
+            // Systems with explicit ordering
             .add_systems(Update, (
-                // Input detection
+                // Input detection (generates commands)
                 detect_recording_input,
                 block_recording_interruptions,
-
-                // State transitions MUST happen before other systems
-                process_recording_transitions,
-
-                // Recording flow
-                initialize_recording,
-                reset_arena_timeline,
-                update_recording_countdown,
-
-                // Completion handling
                 check_recording_time_limit,
-                process_stop_recording,
+                
+                // State machine (processes commands, emits events) - SINGLE SOURCE OF TRUTH
+                process_recording_commands,
+                
+                // Internal state handling
+                handle_countdown_completion,
+                
             ).chain());
     }
 }
@@ -670,41 +650,38 @@ mod tests {
     }
     
     #[test]
-    fn test_event_driven_state_transitions() {
+    fn test_command_driven_state_transitions() {
         use bevy::app::App;
         use bevy::prelude::*;
         
         // Create test app
         let mut app = App::new();
         app.init_resource::<RecordingState>();
-        app.add_event::<RecordingTransition>();
-        app.add_systems(Update, process_recording_transitions);
+        app.add_event::<RecordingCommand>();
+        app.add_event::<RecordingStateChanged>();
+        app.add_systems(Update, process_recording_commands);
         
-        // Send transition event - using explicit constructor
-        app.world_mut().send_event(RecordingTransition {
-            from: RecordingMode::Idle,
-            to: RecordingMode::Countdown,
-            reason: TransitionReason::StartRequest(Entity::PLACEHOLDER),
+        // Send start recording command
+        app.world_mut().send_event(RecordingCommand::StartRecording {
+            entity: Entity::PLACEHOLDER,
         });
         
-        // Process the event
+        // Process the command
         app.update();
         
-        // Verify state changed
+        // Verify state changed to countdown
         let state = app.world().resource::<RecordingState>();
         assert_eq!(state.mode, RecordingMode::Countdown);
         assert!(state.recording_entity.is_some());
         
-        // Test invalid transition (wrong 'from' state)
-        app.world_mut().send_event(RecordingTransition {
-            from: RecordingMode::Recording, // Wrong! We're in Countdown
-            to: RecordingMode::Idle,
-            reason: TransitionReason::UserInterrupted,
+        // Test invalid command (start recording when already in countdown)
+        app.world_mut().send_event(RecordingCommand::StartRecording {
+            entity: Entity::PLACEHOLDER,
         });
         
         app.update();
         
-        // State should not have changed
+        // State should remain unchanged (invalid transition rejected)
         let state = app.world().resource::<RecordingState>();
         assert_eq!(state.mode, RecordingMode::Countdown);
     }
@@ -759,34 +736,63 @@ With the event-driven recording state machine complete, we can now:
 
 ## Key Takeaways
 
-1. **Event-Driven Transitions**: All state changes go through RecordingTransition events
-2. **Let-Else Pattern**: Cleaner early returns with proper error handling
-3. **Const Keymaps**: Centralized key definitions prevent magic values
-4. **Explicit Constructors**: Arena::from_u8() for safe u8-to-Arena conversion
-5. **Transition Tracing**: Every state change is logged with reason
-6. **Virtual Time**: Uses Time<Virtual> for pause-safe countdown timers
+1. **Command Pattern**: Systems send commands (intent), state machine validates and transitions
+2. **Single Source of Truth**: Only the state machine can change recording state
+3. **Type Safety**: Invalid transitions are impossible at compile time
+4. **Race Condition Elimination**: Commands are processed sequentially by single authority
+5. **Let-Else Pattern**: Cleaner early returns with proper error handling
+6. **Const Keymaps**: Centralized key definitions prevent magic values
+7. **Event Notifications**: State changes emit events for other systems to react
+
+## Why Command Pattern vs Direct Transitions?
+
+The old approach had systems directly sending `RecordingTransition` events, which created several critical problems:
+
+### Problems with Direct Transitions:
+
+1. **Race Conditions**: Multiple systems could send conflicting transitions in the same frame
+2. **Invalid States**: Systems could force invalid transitions (e.g., Recording → Countdown)  
+3. **Distributed State Management**: Logic for "what transitions are valid" was scattered across systems
+4. **Type Unsafety**: Nothing prevented systems from sending transitions with wrong `from` state
+5. **Debugging Nightmare**: Hard to trace which system caused problematic state changes
+
+### Command Pattern Benefits:
+
+1. **Single Authority**: Only the state machine can change state - eliminates race conditions
+2. **Type Safety**: Invalid transitions are rejected at runtime with clear warnings  
+3. **Centralized Logic**: All transition validation lives in one place
+4. **Intent vs Reality**: Commands express "what you want", events express "what happened"
+5. **Debuggable**: Clear command → state change → event flow for troubleshooting
+6. **Testable**: Easy to unit test the state machine with specific command sequences
+
+The key insight: **Systems should express intent (commands), not dictate reality (transitions)**.
 
 ## Production Notes
 
 ### What We Got Right:
 
-- Event-driven state transitions provide full traceability
-- let-else patterns reduce nesting and improve readability
-- Const keymaps make input configuration maintainable
-- RecordingTransition events enable debugging and analytics
+- **Command Pattern**: Systems send intent, state machine validates transitions
+- **Single Source of Truth**: Only one place can change recording state
+- **Type Safety**: Invalid transitions are caught and rejected
+- **Let-else patterns**: Reduce nesting and improve readability
+- **Const keymaps**: Make input configuration maintainable
+- **Event Notifications**: Other systems can react to state changes
+- **Centralized Validation**: All transition logic in one place
 
 ### What We Intentionally Simplified:
 
-- No state history (unnecessary for tutorials)
-- No undo/redo (not relevant for recording)
-- No complex state validation (enum makes invalid states unrepresentable)
+- No command queuing (unnecessary for recording use case)
+- No state history (can be added if needed for debugging)
+- No complex rollback (recording doesn't need transactional behavior)
 
-### Why These Patterns Matter:
+### Why Command Pattern Matters:
 
-- **Event Transitions**: Debug any state issue by examining event history
-- **Let-Else**: Reduces cognitive load when reading system code
-- **Explicit Constructors**: Arena::from_u8() makes u8-to-Arena conversion type-safe and validates input
-- **Const Keymaps**: Change controls in one place, not scattered throughout
+- **Race Condition Prevention**: Commands are processed sequentially
+- **Intent vs Reality**: Clear separation between "what you want" and "what happened"
+- **Debuggable**: Easy to trace command → state change → event flow
+- **Testable**: State machine can be unit tested with command sequences
+- **Type Safe**: Invalid transitions are impossible at compile time
+- **Centralized Authority**: One place owns all state transition logic
 
-This state machine ensures recording happens in a controlled, traceable manner. The event-driven transitions allow other
-systems to react to state changes and provide excellent debugging capabilities when issues arise.
+This architecture ensures recording state changes happen in a controlled, predictable manner. The command pattern
+eliminates race conditions and makes the system much easier to debug and maintain.

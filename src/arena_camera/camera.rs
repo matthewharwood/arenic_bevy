@@ -16,8 +16,8 @@ pub fn position_camera_for_arena(transform: &mut Transform, arena_index: u8, zoo
 }
 
 /// Setup camera to center on a specific arena
-pub fn setup_camera(mut commands: Commands, current_arena: Single<&CurrentArena>) {
-    let arena = current_arena.into_inner();
+pub fn setup_camera(mut commands: Commands, current_arena: Res<CurrentArena>) {
+    let arena = &*current_arena;
     let mut transform = Transform::default();
     position_camera_for_arena(&mut transform, arena.as_u8(), ZOOM.0);
 
@@ -40,13 +40,13 @@ pub fn setup_camera(mut commands: Commands, current_arena: Single<&CurrentArena>
 pub fn toggle_camera_zoom(
     mut commands: Commands,
     keycode: Res<ButtonInput<KeyCode>>,
-    current_arena_q: Single<&CurrentArena>,
+    current_arena: Res<CurrentArena>,
     camera_query: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera>>,
     mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::KeyP) {
         let (camera_entity, mut camera_transform, zoom_out) = camera_query.into_inner();
-        let current_arena = current_arena_q.into_inner();
+        let current_arena = &*current_arena;
 
         if zoom_out.is_some() {
             // Camera is zoomed out, zoom back in to current arena
@@ -79,7 +79,7 @@ pub fn calculate_camera_position(arena_index: u8) -> (f32, f32) {
 /// Draw a black border around the current arena when zoomed out
 pub fn draw_arena_border(
     mut gizmos: Gizmos,
-    current_arena: Single<&CurrentArena>,
+    current_arena: Res<CurrentArena>,
     camera: Query<&ZoomOut, With<Camera3d>>,
 ) {
     // Only draw if camera is zoomed out - following Rule #22: Error-Safe ECS First
@@ -87,7 +87,7 @@ pub fn draw_arena_border(
         return;
     };
 
-    let arena = current_arena.into_inner();
+    let arena = &*current_arena;
 
     // Use the same calculation as position_camera_for_arena to get the exact center
     let (x, y) = (8.125, 3.5); // Base position (center of a single arena)

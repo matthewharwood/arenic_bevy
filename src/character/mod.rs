@@ -8,7 +8,7 @@ use bevy::input::ButtonInput;
 use bevy::math::Vec3;
 use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::{
-    ChildOf, Children, Commands, Component, Entity, EventWriter, KeyCode, Query, Res, Single,
+    ChildOf, Children, Commands, Component, Entity, EventWriter, KeyCode, Query, Res, ResMut, Single,
     Transform, With,
 };
 
@@ -22,7 +22,7 @@ pub struct Boss;
 pub fn toggle_active_character(
     mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    current_arena_q: Single<&CurrentArena>,
+    current_arena: Res<CurrentArena>,
     arena_q: Query<(Entity, &Arena, &Children), With<Arena>>,
     characters_q: Query<(Entity, Option<&Active>), With<Character>>,
     mats: Res<Materials>,
@@ -31,7 +31,7 @@ pub fn toggle_active_character(
         return;
     }
 
-    let current_arena = current_arena_q.into_inner();
+    let current_arena = &*current_arena;
     let current_arena_name = current_arena.name();
 
     for (arena_entity, arena, children) in arena_q.iter() {
@@ -86,7 +86,7 @@ pub fn toggle_active_character(
 pub fn move_active_character(
     mut commands: Commands,
     keycode: Res<ButtonInput<KeyCode>>,
-    current_arena_q: Single<&mut CurrentArena>,
+    mut current_arena: ResMut<CurrentArena>,
     active_character_q: Single<(Entity, &mut Transform), (With<Character>, With<Active>)>,
     arena_q: Query<(Entity, &Arena), With<Arena>>,
     mut character_moved_event: EventWriter<CharacterMoved>,
@@ -107,8 +107,6 @@ pub fn move_active_character(
     if movement == Vec3::ZERO {
         return;
     }
-
-    let mut current_arena = current_arena_q.into_inner();
     let (character_entity, mut character_transform) = active_character_q.into_inner();
 
     // Calculate new position

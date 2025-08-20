@@ -414,12 +414,10 @@ pub fn control_virtual_time_pause(
 /// System to display current clock values (for debugging)
 pub fn debug_timeline_clocks(
     arena_q: Query<(&Arena, &TimelineClock)>,
-    current_arena_q: Query<&CurrentArena>,
+    current_arena: Res<CurrentArena>,
 ) {
     // Get the current arena entity
-    let Ok(current_arena) = current_arena_q.single() else {
-        return;
-    };
+    let current_arena = &*current_arena;
 
     // Use let-else for early return pattern - more idiomatic Rust
     let Some((arena, clock)) = arena_q

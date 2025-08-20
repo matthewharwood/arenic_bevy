@@ -422,33 +422,41 @@ Add to `src/playback/mod.rs`:
 
 ```rust
 use crate::selectors::Active;
+use crate::character::Character;
 
-/// Block input attempts on ghost characters
-pub fn block_ghost_input(
+/// Block movement and ability input on ghost characters (but allow TAB switching and R for retry dialog)
+pub fn block_ghost_movement_input(
     keyboard: Res<ButtonInput<KeyCode>>,
-    // Use Option<Single> for the active ghost check
-    active_ghost: Option<Single<Entity, (With<Ghost>, With<Active>)>>,
+    active_character: Option<Single<(Entity, Option<&Ghost>), (With<Character>, With<Active>)>>,
 ) {
-    // Check if active character is a ghost
-    if active_ghost.is_none() {
+    let Some((entity, ghost_marker)) = active_character else {
+        return;
+    };
+
+    // Only block input if this is a ghost
+    if ghost_marker.is_none() {
         return;
     }
 
-    // Check for any movement or ability input
-    let input_attempted =
+    // Check for movement or ability input (but NOT R key or TAB - those are handled by other systems)
+    let movement_input_attempted =
         keyboard.just_pressed(KeyCode::KeyW) ||
             keyboard.just_pressed(KeyCode::KeyA) ||
             keyboard.just_pressed(KeyCode::KeyS) ||
-            keyboard.just_pressed(KeyCode::KeyD) ||
+            keyboard.just_pressed(KeyCode::KeyD);
+            
+    let ability_input_attempted = 
             keyboard.just_pressed(KeyCode::Digit1) ||
             keyboard.just_pressed(KeyCode::Digit2) ||
             keyboard.just_pressed(KeyCode::Digit3) ||
-            keyboard.just_pressed(KeyCode::Digit4) ||
-            keyboard.just_pressed(KeyCode::KeyR);
+            keyboard.just_pressed(KeyCode::Digit4);
 
-    if input_attempted {
-        warn!("Cannot control ghost character - use R to retry recording");
-        // TODO: Show retry dialog in Tutorial 05
+    if movement_input_attempted {
+        info!("Cannot move ghost character {:?} - movement blocked", entity);
+    }
+    
+    if ability_input_attempted {
+        info!("Cannot use abilities on ghost character {:?} - ability input blocked", entity);
     }
 }
 ```
@@ -489,7 +497,7 @@ impl Plugin for PlaybackPlugin {
             ).chain())  // Alternative: use .after() for specific dependencies
 
             // Systems - Input blocking
-            .add_systems(Update, block_ghost_input.in_set(PlaybackSet::Input))
+            .add_systems(Update, block_ghost_movement_input.in_set(PlaybackSet::Input))
 
             // Systems - Commit/Clear
             .add_systems(Update, (

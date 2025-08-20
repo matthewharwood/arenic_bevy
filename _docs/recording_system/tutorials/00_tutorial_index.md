@@ -21,7 +21,7 @@ After Jon's production-focused review, these patterns have been refined:
 - **Type-Safe Newtypes**: `TimeStamp`, `Arena`, `GridPos` with From/Display traits
 - **Arc<[T]> for Published Data**: Immutable timelines with zero-cost cloning
 - **Intent Recording Only**: Record WASD keys, never Transform changes
-- **Event-Driven Transitions**: `RecordingTransition`, `DialogTransition` for traceability
+- **Command Pattern**: `RecordingCommand` with state machine validation for safety
 - **SystemSets with .chain()**: Deterministic ordering with both patterns shown
 - **Zero-Alloc Helpers**: `events_in_range()`, `slice()`, binary search throughout
 - **Const Keymaps**: `const KEY_ABILITIES: [(KeyCode, AbilityType); 4]`
@@ -67,8 +67,8 @@ Build the core data structures and recording mechanism.
 
 #### [Tutorial 02: Recording State Machine](02_recording_state.md)
 - **Time**: 30 minutes
-- **Focus**: Event-driven state management
-- **Key Components**: RecordingState, RecordingTransition events, GlobalTimelinePause
+- **Focus**: Command pattern state management
+- **Key Components**: RecordingState, RecordingCommand/RecordingStateChanged events, command pattern
 - **Key Patterns**: Event boundaries, let-else returns, transition testing
 - **Outcome**: Traceable state transitions with full event history
 

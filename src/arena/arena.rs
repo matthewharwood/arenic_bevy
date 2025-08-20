@@ -166,7 +166,7 @@ impl Display for Arena {
 #[derive(Component, Debug)]
 pub struct ArenaTile;
 
-#[derive(Component, Debug, Clone)]
+#[derive(Resource, Debug, Clone)]
 pub struct CurrentArena(pub ArenaId);
 
 impl CurrentArena {
@@ -209,11 +209,10 @@ impl CurrentArena {
 
 pub fn decrement_current_arena(
     keycode: Res<ButtonInput<KeyCode>>,
-    current_arena_q: Single<&mut CurrentArena>,
+    mut current_arena: ResMut<CurrentArena>,
     mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::BracketLeft) {
-        let mut current_arena = current_arena_q.into_inner();
         current_arena.0 = CurrentArena::decrement(current_arena.0);
 
         // Send event
@@ -223,11 +222,10 @@ pub fn decrement_current_arena(
 
 pub fn increment_current_arena(
     keycode: Res<ButtonInput<KeyCode>>,
-    current_arena_q: Single<&mut CurrentArena>,
+    mut current_arena: ResMut<CurrentArena>,
     mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::BracketRight) {
-        let mut current_arena = current_arena_q.into_inner();
         current_arena.0 = CurrentArena::increment(current_arena.0);
 
         // Send event
@@ -238,7 +236,7 @@ pub fn increment_current_arena(
 pub fn handle_character_moved(
     mut commands: Commands,
     mut character_moved_events: EventReader<CharacterMoved>,
-    current_arena_q: Single<&CurrentArena>,
+    current_arena: Res<CurrentArena>,
     camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
     arena_q: Query<(Entity, &Arena), With<Arena>>,
 ) {
@@ -247,7 +245,7 @@ pub fn handle_character_moved(
         return;
     }
 
-    let current_arena = current_arena_q.into_inner();
+    let current_arena = &*current_arena;
     let (camera_entity, mut camera_transform, zoom) = camera.into_inner();
 
     // Handle character movement between arenas
@@ -283,7 +281,7 @@ pub fn handle_character_moved(
 pub fn arena_update(
     mut commands: Commands,
     mut arena_refresh_events: EventReader<CameraUpdate>,
-    current_arena_q: Single<&CurrentArena>,
+    current_arena: Res<CurrentArena>,
     camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
     arena_q: Query<(Entity, &Arena, &Children, Option<&LastActiveHero>), With<Arena>>,
     characters_q: Query<(Entity, Option<&Active>), With<Character>>,
@@ -294,7 +292,7 @@ pub fn arena_update(
         return;
     }
     arena_refresh_events.clear();
-    let current_arena = current_arena_q.into_inner();
+    let current_arena = &*current_arena;
     let (camera_entity, mut camera_transform, zoom) = camera.into_inner();
     if zoom.is_some() {
         for (entity, active) in characters_q.iter() {

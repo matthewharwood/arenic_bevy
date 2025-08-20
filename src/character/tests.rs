@@ -85,8 +85,8 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
             ))
             .id();
 
-        // Spawn the current arena tracker entity
-        world.spawn(CurrentArena(ArenaId::new(ArenaName::GuildHouse)));
+        // Insert the current arena as a resource
+        world.insert_resource(CurrentArena(ArenaId::new(ArenaName::GuildHouse)));
 
         println!(
             "Test setup: Character {:?} spawned in GuildHouse with Active marker",
@@ -102,12 +102,12 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
     let _initial_check = app
         .world_mut()
         .run_system_once(
-            |current_arena_q: Single<&CurrentArena>,
+            |current_arena: Res<CurrentArena>,
              character_q: Query<
                 (Entity, &Transform, Option<&Active>, Option<&ChildOf>),
                 With<Character>,
             >| {
-                let current_arena = current_arena_q.into_inner();
+                let current_arena = &*current_arena;
                 assert_eq!(current_arena.name(), ArenaName::GuildHouse);
 
                 // Find the character
@@ -149,14 +149,14 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
     app.world_mut()
         .run_system_once(
             |mut commands: Commands,
-             current_arena_q: Single<&mut CurrentArena>,
+             mut current_arena: ResMut<CurrentArena>,
              active_character_q: Single<
                 (Entity, &mut Transform),
                 (With<Character>, With<Active>),
             >,
              arena_q: Query<(Entity, &Arena), With<Arena>>,
              mut character_moved_event: EventWriter<CharacterMoved>| {
-                let mut current_arena = current_arena_q.into_inner();
+                // current_arena is already mutable via ResMut
                 let (character_entity, mut character_transform) = active_character_q.into_inner();
 
                 // Simulate the boundary check logic from move_active_character
@@ -208,14 +208,14 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
 
     // CRITICAL TEST: Verify the character still has the Active marker after arena transition
     let final_verification = app.world_mut().run_system_once(
-        |current_arena_q: Single<&CurrentArena>,
+        |current_arena: Res<CurrentArena>,
          character_q: Query<
             (Entity, &Transform, Option<&Active>, Option<&ChildOf>),
             With<Character>,
         >,
          arena_q: Query<(Entity, &Arena), With<Arena>>|
          -> Result<(), String> {
-            let current_arena = current_arena_q.into_inner();
+            let current_arena = &*current_arena;
 
             // Verify we're now in Labyrinth
             if current_arena.name() != ArenaName::Labyrinth {

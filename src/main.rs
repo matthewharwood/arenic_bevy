@@ -29,6 +29,7 @@ use crate::character::{Boss, Character, move_active_character, toggle_active_cha
 use crate::class_type::ClassType;
 use crate::lights::spawn_lights;
 use crate::materials::Materials;
+use crate::recording::RecordingPlugin;
 use crate::selectors::Active;
 
 use crate::timeline::{TimelineClock, TimelinePlugin};
@@ -82,6 +83,11 @@ fn main() {
                 handle_character_moved,
                 move_active_character,
                 draw_arena_border,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
                 auto_shot_ability,
                 move_projectiles,
                 holy_nova_ability,
@@ -89,6 +95,7 @@ fn main() {
             ),
         )
         .add_plugins(TimelinePlugin)
+        .add_plugins(RecordingPlugin)
         .run();
 }
 
@@ -103,6 +110,7 @@ fn setup_scene(
 ) {
     commands.insert_resource(Materials::new(&mut materials));
     commands.insert_resource(Audio::new(&asset_server));
+    commands.insert_resource(CurrentArena(ArenaId::new(ArenaName::GuildHouse))); // Arena index 1
     let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
     commands.spawn(Debug);
 
@@ -111,7 +119,6 @@ fn setup_scene(
             BattleGround,
             Transform::default(),
             InheritedVisibility::default(),
-            CurrentArena(ArenaId::new(ArenaName::GuildHouse)), // Arena index 1
         ))
         .with_children(|battleground| {
             for arena_index in 0..TOTAL_ARENAS {
@@ -159,10 +166,10 @@ fn spawn_starting_hero(
     mut commands: Commands,
     mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
-    current_arena: Single<&CurrentArena>,
+    current_arena: Res<CurrentArena>,
     arena_query: Query<(Entity, &Arena)>,
 ) {
-    let current_arena_name = current_arena.into_inner().name();
+    let current_arena_name = current_arena.name();
     for (arena_entity, arena) in arena_query.iter() {
         if arena.name() == current_arena_name {
             let sphere_radius = 0.125;
