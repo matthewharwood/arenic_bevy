@@ -37,17 +37,26 @@ use crate::recording::{RecordingState, RecordingMode, RecordingCountdown};
 use crate::timeline::{Arena, TimelineClock};
 use crate::arena::CurrentArena;
 
-/// RULE 5 COMPLIANCE: Visual UI markers for entity categorization
+// === CHANGE DETECTION - RULE 8 COMPLIANCE ===
+// Visual systems should only update when state actually changes,
+// not every frame. This provides massive performance improvements.
+
+/// RULE 5 & 17 COMPLIANCE: Visual UI markers for entity categorization
 /// Component for recording indicator UI
 #[derive(Component)]
-pub struct RecordingIndicatorUI;
+pub struct RecordingIndicatorUIComponent;
 
 /// Component for timeline progress bar
 #[derive(Component)]
-pub struct TimelineProgressBar;
+pub struct TimelineProgressBarComponent;
 
 /// Component for countdown display
 #[derive(Component)]
+pub struct CountdownDisplayComponent;
+
+/// RULE 17 COMPLIANCE: Recording state text component
+#[derive(Component)]
+pub struct RecordingStateTextComponent;
 pub struct CountdownDisplay;
 
 /// RULE 5 COMPLIANCE: Additional visual markers for effect systems

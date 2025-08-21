@@ -88,6 +88,39 @@ cargo run  # Uses optimized dev profile
 RUST_LOG=debug cargo run
 ```
 
+### Build Commands
+
+#### Using Make (Recommended)
+```bash
+# Build and prepare web version
+make web
+
+# Serve the web version locally
+make serve
+
+# Run native version
+make run
+
+# Clean all build artifacts
+make clean
+```
+
+#### Manual Web Build
+```bash
+# Install required tools (one-time setup)
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli
+
+# Build for web
+cargo build --release --target wasm32-unknown-unknown
+wasm-bindgen --out-dir web --target web target/wasm32-unknown-unknown/release/arenic_bevy.wasm
+cp -r assets web/
+
+# Serve locally
+python3 -m http.server 8000 --directory web
+# Open http://localhost:8000
+```
+
 ## How to Play
 
 ### Core Controls

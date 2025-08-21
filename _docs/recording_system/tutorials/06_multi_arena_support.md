@@ -50,6 +50,129 @@ use bevy::prelude::*;
 use bevy::time::Virtual;
 use bevy::utils::HashMap;  // Use Bevy's HashMap for better performance
 
+// === FINITE SETS AS ENUMS - RULE 21 COMPLIANCE ===
+
+/// RULE 21 COMPLIANCE: Update frequency levels as enum instead of magic numbers
+#[derive(Debug, Clone, Copy, PartialEq, Component)]
+pub enum UpdateFrequencyLevel {
+    Full,       // 60 FPS - current arena
+    High,       // 30 FPS - adjacent arenas  
+    Medium,     // 15 FPS - diagonal arenas
+    Low,        // 10 FPS - distant arenas
+    Minimal,    // 5 FPS - very distant arenas
+}
+
+impl UpdateFrequencyLevel {
+    /// Get the actual frequency value
+    /// RULE 21 COMPLIANCE: Enum drives the values, not magic constants
+    #[must_use]
+    pub const fn as_hertz(self) -> f32 {
+        match self {
+            Self::Full => 60.0,
+            Self::High => 30.0,
+            Self::Medium => 15.0,
+            Self::Low => 10.0,
+            Self::Minimal => 5.0,
+        }
+    }
+
+    /// Calculate frequency level based on arena distance
+    #[must_use]
+    pub const fn from_distance(distance: ArenaDistance) -> Self {
+        match distance {
+            ArenaDistance::Same => Self::Full,
+            ArenaDistance::Adjacent => Self::High,
+            ArenaDistance::Diagonal => Self::Medium,
+            ArenaDistance::Far => Self::Low,
+            ArenaDistance::VeryFar => Self::Minimal,
+        }
+    }
+}
+
+/// RULE 21 COMPLIANCE: Arena distance as enum instead of raw numbers
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArenaDistance {
+    Same,       // Distance 0
+    Adjacent,   // Distance 1
+    Diagonal,   // Distance 2
+    Far,        // Distance 3
+    VeryFar,    // Distance 4+
+}
+
+impl ArenaDistance {
+    /// Calculate distance between two arenas
+    /// RULE 21 COMPLIANCE: Returns enum instead of raw number
+    #[must_use]
+    pub fn between(from: ArenaName, to: ArenaName) -> Self {
+        if from == to {
+            return Self::Same;
+        }
+
+        let from_idx = from.as_index();
+        let to_idx = to.as_index();
+        
+        // 3x3 grid layout calculation
+        let from_row = from_idx / 3;
+        let from_col = from_idx % 3;
+        let to_row = to_idx / 3;
+        let to_col = to_idx % 3;
+        
+        let row_diff = (from_row as i32 - to_row as i32).abs() as usize;
+        let col_diff = (from_col as i32 - to_col as i32).abs() as usize;
+        let manhattan_distance = row_diff + col_diff;
+        
+        match manhattan_distance {
+            1 => Self::Adjacent,
+            2 => Self::Diagonal,
+            3 => Self::Far,
+            _ => Self::VeryFar,
+        }
+    }
+}
+
+/// RULE 21 COMPLIANCE: LOD levels as enum instead of magic values
+#[derive(Debug, Clone, Copy, PartialEq, Component)]
+pub enum LevelOfDetail {
+    Full,        // Current arena - full quality
+    Reduced,     // Adjacent arenas - reduced quality
+    Minimal,     // Distant arenas - minimal quality
+    Hidden,      // Very distant - completely hidden
+}
+
+impl LevelOfDetail {
+    /// Get LOD level based on arena distance
+    #[must_use]
+    pub const fn from_distance(distance: ArenaDistance) -> Self {
+        match distance {
+            ArenaDistance::Same => Self::Full,
+            ArenaDistance::Adjacent => Self::Reduced,
+            ArenaDistance::Diagonal => Self::Minimal,
+            ArenaDistance::Far => Self::Hidden,
+            ArenaDistance::VeryFar => Self::Hidden,
+        }
+    }
+
+    /// Check if entity should be visible
+    #[must_use]
+    pub const fn is_visible(self) -> bool {
+        match self {
+            Self::Full | Self::Reduced | Self::Minimal => true,
+            Self::Hidden => false,
+        }
+    }
+
+    /// Get mesh quality multiplier
+    #[must_use]
+    pub const fn mesh_quality_multiplier(self) -> f32 {
+        match self {
+            Self::Full => 1.0,      // Full quality
+            Self::Reduced => 0.5,   // Half quality
+            Self::Minimal => 0.25,  // Quarter quality  
+            Self::Hidden => 0.0,    // No rendering
+        }
+    }
+}
+
 // RULE 3 COMPLIANCE: Events for multi-arena communication
 /// Event when arena performance changes significantly
 #[derive(Event)]

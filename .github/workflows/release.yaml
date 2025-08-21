@@ -1,0 +1,569 @@
+# ============================================================================
+# Arenic Automated Deployment to itch.io
+# ============================================================================
+# This workflow automatically builds and deploys Arenic to itch.io when you
+# create a new release on GitHub. It handles all 9 arenas, character assets,
+# audio files, and the record/replay system across multiple platforms.
+
+name: Deploy Arenic to itch.io
+
+# ============================================================================
+# WORKFLOW TRIGGERS
+# ============================================================================
+# This workflow runs when you create a new release on GitHub
+# To trigger: Go to Releases → Create new release → Publish release
+on:
+  release:
+    types: [created]
+  # Also allow manual triggering for testing
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag to deploy (e.g., v1.0.0)'
+        required: true
+        type: string
+
+# ============================================================================
+# ENVIRONMENT VARIABLES
+# ============================================================================
+# These variables are used throughout the workflow
+env:
+  # The name of your Bevy game binary
+  CARGO_BINARY_NAME: arenic_bevy
+  
+  # Your itch.io project identifier (username/game)
+  ITCH_PROJECT: ${{ secrets.ITCH_USERNAME }}/arenic
+  
+  # Version tag for this release
+  VERSION: ${{ github.event.release.tag_name || github.event.inputs.tag_name }}
+
+# ============================================================================
+# BUILD JOBS
+# ============================================================================
+jobs:
+  # --------------------------------------------------------------------------
+  # Job 1: Build for Windows
+  # --------------------------------------------------------------------------
+  build-windows:
+    name: Build Windows Version
+    runs-on: windows-latest
+    
+    steps:
+      # Step 1: Download the source code
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          lfs: true  # Important: Fetch Git LFS files for any large assets
+      
+      # Step 2: Setup Rust toolchain
+      - name: Setup Rust for Windows
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      
+      # Step 3: Cache Rust dependencies for faster builds
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "arenic-windows"
+          cache-on-failure: true
+      
+      # Step 4: Build the game in release mode
+      - name: Build Arenic for Windows
+        run: |
+          cargo build --release --target x86_64-pc-windows-msvc
+        env:
+          CARGO_INCREMENTAL: 0  # Disable incremental compilation for CI
+      
+      # Step 5: Create distribution package
+      - name: Package Windows Build
+        shell: pwsh
+        run: |
+          # Create distribution directory
+          New-Item -ItemType Directory -Force -Path "dist/windows"
+          
+          # Copy the executable
+          Copy-Item "target/x86_64-pc-windows-msvc/release/$env:CARGO_BINARY_NAME.exe" `
+                    "dist/windows/Arenic.exe"
+          
+          # Copy all game assets (sprites, audio, fonts)
+          Copy-Item -Recurse "assets" "dist/windows/assets"
+          
+          # Create a README for players
+          @"
+          Arenic - Tactical Strategy Game
+          ================================
+          
+          How to Play:
+          1. Run Arenic.exe to start the game
+          2. Use WASD to move characters
+          3. Press R to start recording
+          4. Press Tab to switch between characters
+          
+          System Requirements:
+          - Windows 10 or later
+          - 4GB RAM minimum
+          - DirectX 11 compatible graphics
+          
+          Enjoy commanding your heroes across 9 unique arenas!
+          "@ | Out-File -FilePath "dist/windows/README.txt" -Encoding UTF8
+      
+      # Step 6: Upload as artifact for deployment job
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/windows/
+          retention-days: 1
+
+  # --------------------------------------------------------------------------
+  # Job 2: Build for Linux
+  # --------------------------------------------------------------------------
+  build-linux:
+    name: Build Linux Version
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+      
+      # Install Linux-specific dependencies for Bevy
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev \
+            libudev-dev \
+            libwayland-dev \
+            libxkbcommon-dev \
+            libx11-dev \
+            libxi-dev \
+            libxcursor-dev \
+            libxrandr-dev \
+            mesa-vulkan-drivers
+      
+      - name: Setup Rust for Linux
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+      
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "arenic-linux"
+          cache-on-failure: true
+      
+      - name: Build Arenic for Linux
+        run: |
+          cargo build --release --target x86_64-unknown-linux-gnu
+        env:
+          CARGO_INCREMENTAL: 0
+      
+      - name: Package Linux Build
+        run: |
+          # Create distribution directory
+          mkdir -p dist/linux
+          
+          # Copy executable and make it executable
+          cp target/x86_64-unknown-linux-gnu/release/$CARGO_BINARY_NAME dist/linux/arenic
+          chmod +x dist/linux/arenic
+          
+          # Copy assets
+          cp -r assets dist/linux/
+          
+          # Create launch script
+          cat > dist/linux/run_arenic.sh << 'EOF'
+          #!/bin/bash
+          # Arenic Launch Script
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          cd "$SCRIPT_DIR"
+          ./arenic "$@"
+          EOF
+          chmod +x dist/linux/run_arenic.sh
+          
+          # Create README
+          cat > dist/linux/README.txt << 'EOF'
+          Arenic - Tactical Strategy Game
+          ================================
+          
+          How to Run:
+          1. Open a terminal in this directory
+          2. Run: ./run_arenic.sh
+          Or directly: ./arenic
+          
+          If you get permission errors:
+          chmod +x arenic run_arenic.sh
+          
+          System Requirements:
+          - Linux kernel 3.10+
+          - 4GB RAM minimum
+          - OpenGL 3.3 or Vulkan support
+          
+          Controls:
+          - WASD: Move characters
+          - R: Start recording
+          - Tab: Switch characters
+          - 1-4: Use abilities
+          
+          EOF
+      
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: dist/linux/
+          retention-days: 1
+
+  # --------------------------------------------------------------------------
+  # Job 3: Build for macOS
+  # --------------------------------------------------------------------------
+  build-macos:
+    name: Build macOS Version
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+      
+      - name: Setup Rust for macOS
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin, aarch64-apple-darwin
+      
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "arenic-macos"
+          cache-on-failure: true
+      
+      # Build for both Intel and Apple Silicon Macs
+      - name: Build Arenic for macOS (Intel)
+        run: |
+          cargo build --release --target x86_64-apple-darwin
+        env:
+          CARGO_INCREMENTAL: 0
+      
+      - name: Build Arenic for macOS (Apple Silicon)
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+        env:
+          CARGO_INCREMENTAL: 0
+      
+      - name: Create Universal Binary and App Bundle
+        run: |
+          # Create distribution directory
+          mkdir -p dist/macos
+          
+          # Create universal binary
+          lipo -create \
+            target/x86_64-apple-darwin/release/$CARGO_BINARY_NAME \
+            target/aarch64-apple-darwin/release/$CARGO_BINARY_NAME \
+            -output dist/macos/arenic
+          
+          chmod +x dist/macos/arenic
+          
+          # Create basic app bundle structure
+          mkdir -p "dist/macos/Arenic.app/Contents/MacOS"
+          mkdir -p "dist/macos/Arenic.app/Contents/Resources"
+          
+          # Move binary into app bundle
+          mv dist/macos/arenic "dist/macos/Arenic.app/Contents/MacOS/"
+          
+          # Copy assets into app bundle
+          cp -r assets "dist/macos/Arenic.app/Contents/Resources/"
+          
+          # Create Info.plist
+          cat > "dist/macos/Arenic.app/Contents/Info.plist" << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" 
+                    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>Arenic</string>
+              <key>CFBundleDisplayName</key>
+              <string>Arenic</string>
+              <key>CFBundleIdentifier</key>
+              <string>io.itch.arenic</string>
+              <key>CFBundleVersion</key>
+              <string>1.0.0</string>
+              <key>CFBundleExecutable</key>
+              <string>arenic</string>
+              <key>CFBundleIconFile</key>
+              <string>Icon</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>LSMinimumSystemVersion</key>
+              <string>10.13</string>
+          </dict>
+          </plist>
+          EOF
+          
+          # Create README
+          cat > "dist/macos/README.txt" << 'EOF'
+          Arenic - Tactical Strategy Game
+          ================================
+          
+          How to Run:
+          1. Double-click Arenic.app to start
+          
+          If macOS blocks the app:
+          1. Open System Preferences → Security & Privacy
+          2. Click "Open Anyway" for Arenic
+          Or right-click the app and select "Open"
+          
+          System Requirements:
+          - macOS 10.13 High Sierra or later
+          - 4GB RAM minimum
+          - Metal support recommended
+          
+          This is a universal binary that runs natively on both
+          Intel and Apple Silicon Macs.
+          
+          EOF
+      
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: dist/macos/
+          retention-days: 1
+
+  # --------------------------------------------------------------------------
+  # Job 4: Build for Web (WebAssembly)
+  # --------------------------------------------------------------------------
+  build-web:
+    name: Build Web Version
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+      
+      - name: Setup Rust for WASM
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      
+      - name: Install wasm-bindgen-cli
+        run: |
+          cargo install wasm-bindgen-cli --version 0.2.99
+      
+      - name: Install wasm-opt for optimization
+        run: |
+          npm install -g wasm-opt
+      
+      - name: Cache Rust Dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "arenic-wasm"
+          cache-on-failure: true
+      
+      - name: Build Arenic for Web
+        run: |
+          cargo build --release --target wasm32-unknown-unknown
+        env:
+          CARGO_INCREMENTAL: 0
+      
+      - name: Prepare Web Distribution
+        run: |
+          # Create distribution directory
+          mkdir -p dist/web
+          
+          # Process WASM with wasm-bindgen
+          wasm-bindgen \
+            --out-dir dist/web \
+            --out-name arenic \
+            --target web \
+            --no-typescript \
+            target/wasm32-unknown-unknown/release/${CARGO_BINARY_NAME}.wasm
+          
+          # Optimize WASM file size
+          wasm-opt -Oz \
+            dist/web/arenic_bg.wasm \
+            -o dist/web/arenic_bg.wasm
+          
+          # Copy assets
+          cp -r assets dist/web/
+          
+          # Create index.html
+          cat > dist/web/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Arenic - Tactical Strategy Game</title>
+              <style>
+                  body {
+                      margin: 0;
+                      padding: 0;
+                      background: #1a1a1a;
+                      display: flex;
+                      justify-content: center;
+                      align-items: center;
+                      min-height: 100vh;
+                      font-family: Arial, sans-serif;
+                  }
+                  #game-container {
+                      width: 100%;
+                      max-width: 1200px;
+                      text-align: center;
+                  }
+                  canvas {
+                      border: 2px solid #333;
+                      max-width: 100%;
+                      height: auto;
+                  }
+                  #loading {
+                      color: white;
+                      font-size: 24px;
+                      margin: 20px;
+                  }
+                  #controls {
+                      color: #aaa;
+                      margin-top: 20px;
+                      padding: 20px;
+                      background: #222;
+                      border-radius: 8px;
+                  }
+                  .error {
+                      color: #ff6b6b;
+                      padding: 20px;
+                      background: #2a1515;
+                      border-radius: 8px;
+                      margin: 20px;
+                  }
+              </style>
+          </head>
+          <body>
+              <div id="game-container">
+                  <div id="loading">Loading Arenic...</div>
+                  <canvas id="bevy-canvas"></canvas>
+                  <div id="controls" style="display: none;">
+                      <h3>Controls</h3>
+                      <p>WASD - Move | R - Record | Tab - Switch Character | 1-4 - Abilities</p>
+                      <p>9 Arenas | 8 Character Classes | Record & Replay System</p>
+                  </div>
+              </div>
+              
+              <script type="module">
+                  import init from './arenic.js';
+                  
+                  async function run() {
+                      const loadingEl = document.getElementById('loading');
+                      const controlsEl = document.getElementById('controls');
+                      
+                      try {
+                          loadingEl.textContent = 'Initializing WebAssembly...';
+                          await init();
+                          
+                          loadingEl.style.display = 'none';
+                          controlsEl.style.display = 'block';
+                      } catch (error) {
+                          console.error('Failed to initialize:', error);
+                          loadingEl.className = 'error';
+                          loadingEl.innerHTML = `
+                              <h3>Failed to Load Game</h3>
+                              <p>${error.message}</p>
+                              <p>Try refreshing the page or using a different browser.</p>
+                          `;
+                      }
+                  }
+                  
+                  run();
+              </script>
+          </body>
+          </html>
+          EOF
+      
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: dist/web/
+          retention-days: 1
+
+  # --------------------------------------------------------------------------
+  # Job 5: Deploy all builds to itch.io
+  # --------------------------------------------------------------------------
+  deploy-to-itch:
+    name: Deploy to itch.io
+    needs: [build-windows, build-linux, build-macos, build-web]
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Download all build artifacts
+      - name: Download Windows Build
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: builds/windows
+      
+      - name: Download Linux Build
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-build
+          path: builds/linux
+      
+      - name: Download macOS Build
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-build
+          path: builds/macos
+      
+      - name: Download Web Build
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: builds/web
+      
+      # Install Butler (itch.io's upload tool)
+      - name: Install Butler
+        run: |
+          # Download butler
+          curl -L -o butler.zip https://broth.itch.ovh/butler/linux-amd64/LATEST/archive/default
+          unzip butler.zip
+          chmod +x butler
+          ./butler -V
+      
+      # Upload each platform to itch.io
+      - name: Upload Windows Build to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          ./butler push builds/windows $ITCH_PROJECT:windows --userversion $VERSION
+      
+      - name: Upload Linux Build to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          ./butler push builds/linux $ITCH_PROJECT:linux --userversion $VERSION
+      
+      - name: Upload macOS Build to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          ./butler push builds/macos $ITCH_PROJECT:mac --userversion $VERSION
+      
+      - name: Upload Web Build to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          ./butler push builds/web $ITCH_PROJECT:html5 --userversion $VERSION
+      
+      # Update itch.io status
+      - name: Update itch.io Game Status
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+        run: |
+          echo "All platforms deployed successfully!"
+          echo "Version: $VERSION"
+          echo "Project: $ITCH_PROJECT"
+          ./butler status $ITCH_PROJECT

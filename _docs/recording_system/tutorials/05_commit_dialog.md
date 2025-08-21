@@ -36,13 +36,13 @@ use crate::arena::{ArenaName, CurrentArena};
 use crate::character::Character;
 use crate::selectors::Active;
 
-/// Resource for active dialog state
+/// RULE 17 COMPLIANCE: Resource for global dialog state
 #[derive(Resource)]
-pub struct DialogState {
-    pub active_dialog: Option<DialogType>,
+pub struct DialogStateResource {
+    pub active_dialog: Option<DialogTypeData>,
 }
 
-impl Default for DialogState {
+impl Default for DialogStateResource {
     fn default() -> Self {
         Self {
             active_dialog: None,
@@ -50,18 +50,18 @@ impl Default for DialogState {
     }
 }
 
-/// Types of confirmation dialogs
+/// RULE 17 COMPLIANCE: Dialog type data for events and parameters
 #[derive(Debug, Clone, PartialEq)]
-pub enum DialogType {
+pub enum DialogTypeData {
     /// Mid-recording interruption
-    MidRecording { reason: StopReason },
+    MidRecording { reason: StopReasonData },
     /// Recording completed (TimeStamp::MAX seconds)
     EndRecording,
     /// Retry existing ghost
     RetryGhost,
     /// User pressed R on ghost with existing recording
     GhostReplay { 
-        arena: ArenaName,
+        arena: ArenaNameData,
         has_recording: bool 
     },
     /// Character switch confirmation during recording
@@ -70,9 +70,9 @@ pub enum DialogType {
 // APPROVED: Enum with data is cleaner than separate dialog structs
 // REJECTED: "Use trait objects for dialogs" - Unnecessary indirection
 
-/// Dialog choice options
+/// RULE 17 COMPLIANCE: Dialog choice data for events and parameters
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DialogChoice {
+pub enum DialogChoiceData {
     Commit,
     Clear,
     Cancel,
@@ -83,21 +83,21 @@ pub enum DialogChoice {
     ContinueRecording,    // For character switch dialog - cancel switch and continue recording
 }
 
-/// RULE 5 COMPLIANCE: Dialog UI markers for entity categorization
+/// RULE 5 & 17 COMPLIANCE: Dialog UI markers for entity categorization
 /// Component for dialog UI root entity
 #[derive(Component)]
-pub struct DialogUI;
+pub struct DialogUIComponent;
 
 /// Component for dialog buttons (contains data, not pure marker)
 #[derive(Component)]
-pub struct DialogButton {
-    pub choice: DialogChoice,
+pub struct DialogButtonComponent {
+    pub choice: DialogChoiceData,
 }
 
-/// RULE 5 COMPLIANCE: Pure marker for dialog background overlay
+/// RULE 5 & 17 COMPLIANCE: Pure marker for dialog background overlay
 /// Unit struct without data - perfect for filtering UI elements
 #[derive(Component)]
-pub struct DialogOverlay;
+pub struct DialogOverlayComponent;
 
 /// RULE 5 COMPLIANCE: Additional dialog markers for UI system filtering
 #[derive(Component)]

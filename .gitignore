@@ -9,6 +9,11 @@ _docs/.obsidian/**/*
 
 # Bevy Specific
 /crates/*/assets/
+/web/assets/
+/web/arenic_bevy.d.ts
+/web/arenic_bevy.js
+/web/arenic_bevy_bg.wasm
+/web/arenic_bevy_bg.wasm.d.ts
 
 # macOS
 .DS_Store

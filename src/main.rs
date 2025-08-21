@@ -37,6 +37,10 @@ use crate::timeline::{TimelineClock, TimelinePlugin};
 use bevy::prelude::*;
 use bevy::window::WindowResolution;
 
+// Fix for web audio and asset loading
+#[cfg(target_arch = "wasm32")]
+use bevy::asset::{AssetMetaCheck, AssetPlugin};
+
 const GAME_NAME: &str = "Arenic";
 
 // Game state enum for managing different game phases
@@ -47,15 +51,34 @@ enum GameState {
 }
 
 fn main() {
-    App::new()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
+    // Configure plugins differently for web vs native
+    #[cfg(target_arch = "wasm32")]
+    let default_plugins = DefaultPlugins
+        .set(WindowPlugin {
             primary_window: Some(Window {
                 title: GAME_NAME.to_string(),
                 resolution: WindowResolution::new(1280.0, 720.0),
                 ..default()
             }),
             ..default()
-        }))
+        })
+        .set(AssetPlugin {
+            meta_check: AssetMetaCheck::Never,
+            ..default()
+        });
+    
+    #[cfg(not(target_arch = "wasm32"))]
+    let default_plugins = DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(Window {
+            title: GAME_NAME.to_string(),
+            resolution: WindowResolution::new(1280.0, 720.0),
+            ..default()
+        }),
+        ..default()
+    });
+    
+    App::new()
+        .add_plugins(default_plugins)
         // Initialize game state
         .init_state::<GameState>()
         // Register custom events

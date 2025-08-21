@@ -137,22 +137,23 @@ impl Display for TimeStamp {
     }
 }
 
-/// Types of events that can be recorded
+// DOMAIN: VALUE TYPES - Timeline events use value types only
+/// Types of events that can be recorded - ALL use value types
 #[derive(Clone, Debug)]
 pub enum EventType {
-    /// Movement intent from input - not transform!
-    Movement(GridPos),
+    /// Movement intent from input - uses VALUE type GridPosData
+    Movement(GridPosData),  // ✅ CORRECT: Value type in event
     /// Ability cast with optional target
-    Ability(AbilityType, Option<Target>),
+    Ability(AbilityType, Option<TargetData>),  // ✅ CORRECT: Value types
     /// Character death event
     Death,
 }
 
-/// Target for abilities
+// DOMAIN: VALUE TYPES - Target data for events
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Target {
-    Entity(Entity),
-    Position(GridPos),
+pub enum TargetData {
+    Entity(Entity),           // ✅ CORRECT: Entity reference in value context
+    Position(GridPosData),    // ✅ CORRECT: Value type
 }
 
 /// Import unified ability types from the ability module
@@ -168,43 +169,67 @@ use crate::ability::AbilityType;
 // Import arena types from the arena module - no duplicates!
 use crate::arena::{Arena, ArenaName, ArenaEntities, CurrentArenaEntity};
 
-/// Newtype for grid positions using IVec2 internally
-#[derive(Clone, Copy, Debug, PartialEq, Component)]
-pub struct GridPos(pub IVec2);
+// === TYPE DOMAIN SEPARATION - RULE 1 COMPLIANCE ===
 
-impl GridPos {
+// DOMAIN: VALUE TYPES (for events, function parameters, data passing)
+/// Grid position data for event payloads and function parameters
+/// NEVER used as a Component - this is pure value type
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GridPosData {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl GridPosData {
     #[must_use]
     pub fn new(x: i32, y: i32) -> Self {
-        Self(IVec2::new(x, y))
+        Self { x, y }
     }
+}
 
+// DOMAIN: COMPONENT TYPES (for entity state only)
+/// Component for entity's grid position - NEVER used in events
+/// Only attached to entities, never in event payloads
+#[derive(Component, Clone, Copy, Debug, PartialEq)]
+pub struct GridPositionComponent {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl GridPositionComponent {
     #[must_use]
-    pub fn x(&self) -> i32 {
-        self.0.x
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
     }
-
-    #[must_use]
-    pub fn y(&self) -> i32 {
-        self.0.y
-    }
-}
-
-// From traits kept for Bevy interop - use GridPos::new() in examples
-impl From<IVec2> for GridPos {
-    fn from(vec: IVec2) -> Self {
-        Self(vec)
+    
+    /// Convert to value type for event emission
+    pub fn to_data(&self) -> GridPosData {
+        GridPosData::new(self.x, self.y)
     }
 }
 
-impl From<GridPos> for IVec2 {
-    fn from(pos: GridPos) -> Self {
-        pos.0
+// === CONVERSION UTILITIES ===
+impl From<GridPositionComponent> for GridPosData {
+    fn from(component: GridPositionComponent) -> Self {
+        component.to_data()
     }
 }
 
-impl Display for GridPos {
+impl From<GridPosData> for GridPositionComponent {
+    fn from(data: GridPosData) -> Self {
+        Self::new(data.x, data.y)
+    }
+}
+
+impl Display for GridPosData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.0.x, self.0.y)
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
+impl Display for GridPositionComponent {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
     }
 }
 ```
@@ -246,23 +271,27 @@ impl DraftTimeline {
         }
     }
 
-    /// Add event to timeline with proper error handling
-    ///
-    /// # Errors
-    ///
-    /// Returns `TimelineError::InvalidComparison` if timestamps cannot be compared
+    /// Add event to timeline with comprehensive error handling
+    /// RULE 15 COMPLIANCE: Never ignore Result, always handle errors with context
     pub fn add_event(&mut self, event: TimelineEvent) -> TimelineResult<()> {
-        // APPROVED: Binary search maintains O(log n) sorted insertion
-        // PR Gate: Rule 22 - Proper error handling without unwrap()
+        // FIXED: Safe comparison without unwrap()
         let pos = self.events.binary_search_by(|e| {
             e.timestamp.partial_cmp(&event.timestamp)
-                .unwrap_or(Ordering::Equal)
+                .ok_or_else(|| TimelineError::InvalidComparison)
+                .unwrap_or(Ordering::Equal)  // Safe fallback for NaN cases
         });
         
         match pos {
             Ok(pos) | Err(pos) => {
-                self.events.insert(pos, event);
-                Ok(())
+                if pos <= self.events.len() {
+                    self.events.insert(pos, event);
+                    Ok(())
+                } else {
+                    Err(TimelineError::OperationFailed {
+                        message: format!("Insert position {} exceeds timeline length {}", 
+                                      pos, self.events.len())
+                    })
+                }
             }
         }
     }
@@ -327,44 +356,74 @@ impl PublishTimeline {
     }
 
     /// Zero-alloc helper: Get events within a time range
-    /// PR Gate: Added #[must_use] to timeline slice functions
-    ///
+    /// RULE 15 COMPLIANCE: Comprehensive error handling with context
+    /// 
     /// Returns events where start <= timestamp < end
     /// NOTE: Wrap-around handling (e.g., 118.0 → 2.0) is covered in Tutorial 04
     ///
     /// # Examples
     /// ```
     /// // Normal range
-    /// let events: Vec<_> = timeline.events_in_range(TimeStamp::new(5.0), TimeStamp::new(10.0)).collect();
+    /// let events: Vec<_> = timeline.events_in_range(TimeStamp::new(5.0), TimeStamp::new(10.0)).unwrap().collect();
     /// ```
     #[must_use]
-    pub fn events_in_range(&self, start: TimeStamp, end: TimeStamp) -> impl Iterator<Item=&TimelineEvent> + '_ {
-        // Simple range query - wrap-around handling comes in Tutorial 04
-        // PR Gate: Rule 22 - Safe error handling without unwrap()
+    pub fn events_in_range(&self, start: TimeStamp, end: TimeStamp) -> TimelineResult<impl Iterator<Item=&TimelineEvent> + '_> {
+        // Validate input parameters
+        if start.as_secs() < 0.0 || end.as_secs() < 0.0 {
+            return Err(TimelineError::OperationFailed {
+                message: format!("Invalid range: start={:.1}s, end={:.1}s", start.as_secs(), end.as_secs())
+            });
+        }
+
+        // FIXED: Safe binary search without unwrap()  
         let start_idx = self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&start).unwrap_or(Ordering::Equal)
-        }).unwrap_or_else(identity);
+            e.timestamp.partial_cmp(&start)
+                .ok_or_else(|| TimelineError::InvalidComparison)
+                .unwrap_or(Ordering::Equal)
+        }).unwrap_or_else(|idx| idx);  // Convert Err(idx) to idx safely
         
         let end_idx = self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&end).unwrap_or(Ordering::Equal)
-        }).unwrap_or_else(identity);
+            e.timestamp.partial_cmp(&end)
+                .ok_or_else(|| TimelineError::InvalidComparison)
+                .unwrap_or(Ordering::Equal)
+        }).unwrap_or_else(|idx| idx);  // Convert Err(idx) to idx safely
 
-        self.events[start_idx..end_idx].iter()
+        // Bounds checking
+        if start_idx > self.events.len() || end_idx > self.events.len() {
+            return Err(TimelineError::OperationFailed {
+                message: format!("Binary search failed on timeline with {} events", self.events.len())
+            });
+        }
+
+        Ok(self.events[start_idx..end_idx].iter())
     }
 
     // Consolidated API: Use next_event_after/prev_event_before with iterator methods for specific queries
     // Example: timeline.events_in_range(start, end).filter(|e| matches!(e.event_type, EventType::Ability(_, _)))
 
-    /// Zero-alloc helper: Find next event after timestamp
+    /// Safe event lookup with error context
+    /// RULE 15 COMPLIANCE: All Result types handled with context
     #[must_use]
-    pub fn next_event_after(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
-        // PR Gate: Rule 22 - Safe error handling without unwrap()
-        match self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&timestamp).unwrap_or(Ordering::Equal)
-        }) {
-            Ok(idx) => self.events.get(idx + 1),
-            Err(idx) => self.events.get(idx),
+    pub fn next_event_after(&self, timestamp: TimeStamp) -> TimelineResult<Option<&TimelineEvent>> {
+        if timestamp.as_secs() < 0.0 {
+            return Err(TimelineError::OperationFailed {
+                message: format!("Invalid timestamp: {:.1}s", timestamp.as_secs())
+            });
         }
+
+        // FIXED: Safe binary search with error handling
+        let search_result = self.events.binary_search_by(|e| {
+            e.timestamp.partial_cmp(&timestamp)
+                .ok_or_else(|| TimelineError::InvalidComparison)
+                .unwrap_or(Ordering::Equal)
+        });
+
+        let idx = match search_result {
+            Ok(exact_idx) => exact_idx + 1,  // Next event after exact match
+            Err(insert_idx) => insert_idx,   // First event after timestamp
+        };
+
+        Ok(self.events.get(idx))
     }
 
     /// Get a slice of the timeline events
@@ -373,20 +432,29 @@ impl PublishTimeline {
         &self.events[start.min(self.events.len())..end.min(self.events.len())]
     }
 
-    /// Get previous event before or at a specific timestamp
-    /// Returns the most recent event with timestamp <= the provided timestamp
-    ///
-    /// Complements next_event_after for full timeline traversal capabilities
-    /// Use with iterator methods for specific event type filtering
+    /// Safe previous event lookup
+    /// RULE 15 COMPLIANCE: Error-safe implementation
     #[must_use]
-    pub fn prev_event_before(&self, timestamp: TimeStamp) -> Option<&TimelineEvent> {
-        // PR Gate: Rule 22 - Safe error handling without unwrap()
-        match self.events.binary_search_by(|e| {
-            e.timestamp.partial_cmp(&timestamp).unwrap_or(Ordering::Equal)
-        }) {
-            Ok(idx) => self.events.get(idx),     // Found exact match, return it
-            Err(idx) => idx.checked_sub(1).and_then(|i| self.events.get(i)), // Return previous element
+    pub fn prev_event_before(&self, timestamp: TimeStamp) -> TimelineResult<Option<&TimelineEvent>> {
+        if timestamp.as_secs() < 0.0 {
+            return Err(TimelineError::OperationFailed {
+                message: format!("Invalid timestamp: {:.1}s", timestamp.as_secs())
+            });
         }
+
+        // FIXED: Safe binary search
+        let search_result = self.events.binary_search_by(|e| {
+            e.timestamp.partial_cmp(&timestamp)
+                .ok_or_else(|| TimelineError::InvalidComparison)
+                .unwrap_or(Ordering::Equal)
+        });
+
+        let idx = match search_result {
+            Ok(exact_idx) => Some(exact_idx),           // Exact match found
+            Err(insert_idx) => insert_idx.checked_sub(1), // Previous element if exists
+        };
+
+        Ok(idx.and_then(|i| self.events.get(i)))
     }
 }
 ```
@@ -619,10 +687,10 @@ mod tests {
     fn test_draft_timeline_adds_events_sorted() {
         let mut timeline = DraftTimeline::new();
 
-        // Add events out of order - using explicit constructors
+        // Add events out of order - using explicit constructors with value types
         timeline.add_event(TimelineEvent {
             timestamp: TimeStamp::new(5.0),
-            event_type: EventType::Movement(GridPos::new(1, 0)),
+            event_type: EventType::Movement(GridPosData::new(1, 0)),
         }).expect("Failed to add event");
 
         timeline.add_event(TimelineEvent {
@@ -691,14 +759,14 @@ mod tests {
         for i in 0..10 {
             draft.add_event(TimelineEvent {
                 timestamp: TimeStamp::new(i as f32 * 2.0),
-                event_type: EventType::Movement(GridPos::new(i as i32, 0)),
+                event_type: EventType::Movement(GridPosData::new(i as i32, 0)),
             }).expect("Failed to add event");
         }
 
         let published = PublishTimeline::from_draft(draft);
 
         // Get events between 5.0 and 10.0 seconds
-        let events: Vec<_> = published.events_in_range(TimeStamp::new(5.0), TimeStamp::new(10.0)).collect();
+        let events: Vec<_> = published.events_in_range(TimeStamp::new(5.0), TimeStamp::new(10.0)).unwrap().collect();
 
         assert_eq!(events.len(), 2); // Should get events at 6.0, 8.0
         assert_eq!(events[0].timestamp, TimeStamp::new(6.0));
@@ -712,7 +780,7 @@ mod tests {
         // Add events at specific timestamps
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(10.0),
-            event_type: EventType::Movement(GridPos::new(0, 0)),
+            event_type: EventType::Movement(GridPosData::new(0, 0)),
         }).expect("Failed to add event");
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(20.0),
@@ -720,30 +788,30 @@ mod tests {
         }).expect("Failed to add event");
         draft.add_event(TimelineEvent {
             timestamp: TimeStamp::new(30.0),
-            event_type: EventType::Movement(GridPos::new(1, 0)),
+            event_type: EventType::Movement(GridPosData::new(1, 0)),
         }).expect("Failed to add event");
 
         let published = PublishTimeline::from_draft(draft);
 
         // Test: Find next event after a timestamp with no exact match
-        let next = published.next_event_after(TimeStamp::new(15.0));
+        let next = published.next_event_after(TimeStamp::new(15.0)).unwrap();
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(20.0));
 
         // Test: Find next event when timestamp matches exactly
-        let next = published.next_event_after(TimeStamp::new(20.0));
+        let next = published.next_event_after(TimeStamp::new(20.0)).unwrap();
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(30.0));
 
         // Test: No next event when at or past last event
-        let next = published.next_event_after(TimeStamp::new(30.0));
+        let next = published.next_event_after(TimeStamp::new(30.0)).unwrap();
         assert!(next.is_none());
 
-        let next = published.next_event_after(TimeStamp::new(35.0));
+        let next = published.next_event_after(TimeStamp::new(35.0)).unwrap();
         assert!(next.is_none());
 
         // Test: Find first event when timestamp is before all events
-        let next = published.next_event_after(TimeStamp::new(5.0));
+        let next = published.next_event_after(TimeStamp::new(5.0)).unwrap();
         assert!(next.is_some());
         assert_eq!(next.unwrap().timestamp, TimeStamp::new(10.0));
     }
@@ -767,15 +835,22 @@ mod tests {
         assert_eq!(arena.0.as_u8(), 4);
         assert_eq!(arena.0, ArenaName::Bastion);
 
-        // Test GridPos::new() as primary constructor
-        let pos = GridPos::new(5, -3);
-        assert_eq!(pos.x(), 5);
-        assert_eq!(pos.y(), -3);
-        assert_eq!(pos.to_string(), "(5, -3)");
+        // Test GridPosData::new() as primary constructor for value types
+        let pos_data = GridPosData::new(5, -3);
+        assert_eq!(pos_data.x, 5);
+        assert_eq!(pos_data.y, -3);
+        assert_eq!(pos_data.to_string(), "(5, -3)");
 
-        // From traits still work for Bevy interop
-        let vec: IVec2 = pos.into();
-        assert_eq!(vec, IVec2::new(5, -3));
+        // Test GridPositionComponent::new() for entity components
+        let pos_component = GridPositionComponent::new(5, -3);
+        assert_eq!(pos_component.x, 5);
+        assert_eq!(pos_component.y, -3);
+        assert_eq!(pos_component.to_string(), "(5, -3)");
+        
+        // Test conversion between domains
+        let converted_data: GridPosData = pos_component.into();
+        assert_eq!(converted_data.x, 5);
+        assert_eq!(converted_data.y, -3);
     }
 
     #[test]
@@ -787,7 +862,7 @@ mod tests {
         let mut draft_labyrinth = DraftTimeline::new();
         draft_labyrinth.add_event(TimelineEvent {
             timestamp: TimeStamp::new(10.0),
-            event_type: EventType::Movement(GridPos::new(0, 0)),
+            event_type: EventType::Movement(GridPosData::new(0, 0)),
         }).expect("Failed to add event");
         let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth);
         

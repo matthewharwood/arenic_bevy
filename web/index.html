@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>Arenic - Tactical Strategy Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #loading {
+            position: absolute;
+            color: white;
+            font-size: 24px;
+            z-index: 10;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        .error {
+            color: #ff6b6b;
+            padding: 20px;
+            background: #2a1515;
+            border-radius: 8px;
+            margin: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<div id="loading">Loading Arenic...</div>
+
+<script type="module">
+    import init from './arenic_bevy.js';
+
+    // Audio context fix for browsers that block autoplay
+    let audioContext = null;
+    const resumeAudio = () => {
+        if (audioContext && audioContext.state === 'suspended') {
+            audioContext.resume();
+        }
+        // Try to find any audio contexts created by the game
+        if (window.AudioContext || window.webkitAudioContext) {
+            const contexts = [];
+            const origAudioContext = window.AudioContext || window.webkitAudioContext;
+            window.AudioContext = window.webkitAudioContext = function(...args) {
+                const ctx = new origAudioContext(...args);
+                contexts.push(ctx);
+                return ctx;
+            };
+            // Resume all contexts on user interaction
+            ['click', 'touchstart', 'keydown'].forEach(event => {
+                document.addEventListener(event, () => {
+                    contexts.forEach(ctx => {
+                        if (ctx.state === 'suspended') ctx.resume();
+                    });
+                }, { once: true });
+            });
+        }
+    };
+
+    async function run() {
+        const loadingEl = document.getElementById('loading');
+
+        try {
+            console.log('Initializing Arenic...');
+            await init();
+            
+            // Set up audio resume on user interaction
+            resumeAudio();
+            
+            // Update loading message
+            loadingEl.innerHTML = 'Click anywhere to start playing!';
+            
+            // Hide loading message after first interaction
+            ['click', 'touchstart', 'keydown'].forEach(event => {
+                document.addEventListener(event, () => {
+                    loadingEl.style.display = 'none';
+                }, { once: true });
+            });
+
+        } catch (error) {
+            console.error('Failed to initialize:', error);
+            loadingEl.className = 'error';
+            loadingEl.innerHTML = `
+                    <h3>Failed to Load Game</h3>
+                    <p>${error.message}</p>
+                    <p>Try refreshing the page or check the console for details.</p>
+                `;
+        }
+    }
+
+    run();
+</script>
+</body>
+</html>

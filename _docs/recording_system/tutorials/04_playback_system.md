@@ -38,8 +38,10 @@ use crate::selectors::Active;
 
 /// RULE 1 & 5 COMPLIANCE: Replaying is a marker component for per-entity playback state
 /// RULE 5: Unit struct without data - enables filtering: Query<Entity, (With<Ghost>, With<Replaying>)>
+/// RULE 7 COMPLIANCE: Required components ensure proper dependencies
 /// Each ghost entity controls its own replay status, not global
 #[derive(Component)]
+#[require(Ghost, TimelinePosition, TriggeredAbilities)]
 pub struct Replaying;
 
 /// RULE 5 COMPLIANCE: Additional playback markers for fine-grained control
@@ -74,23 +76,50 @@ impl TriggeredAbilities {
     }
 }
 
+/// RULE 7 COMPLIANCE: Ghost automatically includes essential components
+/// Transform: Ghosts need position/rotation for playback
+/// Visibility: Ghosts need visibility control for LOD
+/// Name: For debugging and entity identification
+#[derive(Component)]
+#[require(Transform, Visibility, Name)]
+pub struct Ghost {
+    pub spawned_at: f32,  // Timestamp when ghost was created
+}
+
+impl Default for Ghost {
+    fn default() -> Self {
+        Self {
+            spawned_at: 0.0,
+        }
+    }
+}
+
 /// Reference to the original character for visual copying
 #[derive(Component)]
 pub struct GhostSource(pub Entity);
 
-/// RULE 1 COMPLIANCE: GhostArena is a Component storing per-entity arena data
+/// RULE 1 & 7 COMPLIANCE: GhostArena is a Component storing per-entity arena data
 /// Each ghost tracks its own arena for independent clocks, not global lookup
+/// Required Parent ensures proper arena hierarchy
 #[derive(Component)]
+#[require(Parent)]
 pub struct GhostArena(pub ArenaName);
 
-/// RULE 4 COMPLIANCE: Visual properties for ghosts with asset handles
+/// RULE 5 COMPLIANCE: Typed ghost material component
 #[derive(Component)]
+pub struct GhostMaterial(pub Handle<StandardMaterial>);
+
+/// RULE 5 COMPLIANCE: Typed ghost mesh component  
+#[derive(Component)]
+pub struct GhostMesh(pub Handle<Mesh>);
+
+/// RULE 4 & 7 COMPLIANCE: Visual properties with required components
+/// Automatically includes rendering components and typed asset handles
+#[derive(Component)]
+#[require(Mesh3d, MeshMaterial3d<StandardMaterial>, GhostMaterial)]
 pub struct GhostVisuals {
     pub transparency: f32,
     pub tint: Srgba,  // Use specific color space type
-    // Store handles for efficient asset sharing
-    pub material: Option<Handle<StandardMaterial>>,
-    pub mesh: Option<Handle<Mesh>>,
 }
 
 impl Default for GhostVisuals {
@@ -98,8 +127,6 @@ impl Default for GhostVisuals {
         Self {
             transparency: 0.5,
             tint: Srgba::srgb(0.5, 0.5, 1.0), // Blue tint
-            material: None,  // Will be set by asset system
-            mesh: None,      // Will be set by asset system
         }
     }
 }
