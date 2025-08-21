@@ -33,19 +33,19 @@ use bevy::prelude::*;
 use bevy::color::palettes::css::WHITE;
 use crate::recording::{StopReason, RecordingRequest, RecordingState, RecordingUpdate};
 use crate::arena::{ArenaId, CurrentArena};
+use crate::character::Character;
+use crate::selectors::Active;
 
 /// Resource for active dialog state
 #[derive(Resource)]
 pub struct DialogState {
     pub active_dialog: Option<DialogType>,
-    pub recording_entity: Option<Entity>,
 }
 
 impl Default for DialogState {
     fn default() -> Self {
         Self {
             active_dialog: None,
-            recording_entity: None,
         }
     }
 }
@@ -58,10 +58,9 @@ pub enum DialogType {
     /// Recording completed (TimeStamp::MAX seconds)
     EndRecording,
     /// Retry existing ghost
-    RetryGhost { ghost_entity: Entity },
+    RetryGhost,
     /// User pressed R on ghost with existing recording
     GhostReplay { 
-        ghost_entity: Entity, 
         arena: ArenaId,
         has_recording: bool 
     },
@@ -104,14 +103,12 @@ Add to `src/dialog/mod.rs`:
 #[derive(Event)]
 pub struct ShowDialog {
     pub dialog_type: DialogType,
-    pub recording_entity: Option<Entity>,
 }
 
 /// Event when user makes a dialog choice
 #[derive(Event)]
 pub struct DialogChoiceEvent {
     pub choice: DialogChoice,
-    pub recording_entity: Option<Entity>,
 }
 
 /// Event to close current dialog
@@ -177,7 +174,6 @@ pub fn spawn_dialog_ui(
         // Send transition event - consume dialog_type to avoid unnecessary cloning
         let old_dialog = dialog_state.active_dialog.take(); // Zero-copy: take() transfers ownership
         dialog_state.active_dialog = Some(event.dialog_type.clone()); // TODO: Could consume if event is consumed
-        dialog_state.recording_entity = event.recording_entity;
 
         transition_events.write(DialogTransition {
             from: old_dialog,
@@ -386,7 +382,6 @@ pub fn handle_dialog_buttons(
             // Send choice event
             choice_events.write(DialogChoiceEvent {
                 choice: button.choice,
-                recording_entity: dialog_state.recording_entity,
             });
 
             // Close dialog
@@ -429,7 +424,6 @@ pub fn handle_dialog_keyboard(
     if let Some(choice) = choice {
         choice_events.write(DialogChoiceEvent {
             choice,
-            recording_entity: dialog_state.recording_entity,
         });
         close_events.write(CloseDialog);
     }
@@ -456,11 +450,13 @@ pub fn process_dialog_choices(
     mut ghost_q: Query<&mut TimelinePosition, With<Ghost>>,
     dialog_state: Res<DialogState>,
     current_arena: Res<CurrentArena>,
+    // Query for the single Active Character when needed
+    active_character_q: Query<Entity, (With<Character>, With<Active>)>,
 ) {
     for event in choice_events.read() {
         match event.choice {
             DialogChoice::Commit => {
-                if event.recording_entity.is_some() {
+                if active_character_q.single().is_ok() {
                     recording_state.pending_request = Some(RecordingRequest::Commit);
                     recording_update_events.write(RecordingUpdate);
                     recording_state.mode = RecordingMode::Idle;
@@ -469,7 +465,7 @@ pub fn process_dialog_choices(
                 }
             }
             DialogChoice::Clear => {
-                if event.recording_entity.is_some() {
+                if active_character_q.single().is_ok() {
                     recording_state.pending_request = Some(RecordingRequest::Clear);
                     recording_update_events.write(RecordingUpdate);
                     recording_state.mode = RecordingMode::Idle;
@@ -486,34 +482,32 @@ pub fn process_dialog_choices(
                 info!("Cancelled dialog");
             }
             DialogChoice::Retry => {
-                if let Some(entity) = event.recording_entity {
-                    recording_state.pending_request = Some(RecordingRequest::Start {
-                        entity,
-                    });
+                if active_character_q.single().is_ok() {
+                    recording_state.pending_request = Some(RecordingRequest::Start);
                     recording_update_events.write(RecordingUpdate);
                     info!("Retrying recording");
                 }
             }
             DialogChoice::KeepExisting => {
-                // Reset ghost timeline position and enable replay
-                if let Some(DialogType::GhostReplay { ghost_entity, .. }) = &dialog_state.active_dialog {
+                // Reset active character timeline position and enable replay
+                if let Ok(entity) = active_character_q.single() {
                     // Add Replaying component to actually start playback
-                    commands.entity(*ghost_entity).insert(Replaying);
+                    commands.entity(entity).insert(Replaying);
                     
-                    if let Ok(mut position) = ghost_q.get_mut(*ghost_entity) {
+                    if let Ok(mut position) = ghost_q.get_mut(entity) {
                         position.0 = TimeStamp::ZERO;
-                        info!("Ghost {:?} starting replay of existing recording", ghost_entity);
+                        info!("Active character {:?} starting replay of existing recording", entity);
                     }
                 }
                 resume_events.write(ResumeAllTimelines);
             }
             DialogChoice::DraftNew => {
-                // Convert ghost back to character for new recording
-                if let Some(DialogType::GhostReplay { ghost_entity, .. }) = &dialog_state.active_dialog {
-                    commands.entity(*ghost_entity)
+                // Convert active ghost back to character for new recording
+                if let Ok(entity) = active_character_q.single() {
+                    commands.entity(entity)
                         .remove::<Ghost>()
                         .remove::<Replaying>();
-                    info!("Ghost {:?} converted to character for new recording", ghost_entity);
+                    info!("Active ghost {:?} converted to character for new recording", entity);
                 }
                 resume_events.write(ResumeAllTimelines);
             }
@@ -542,7 +536,6 @@ pub fn close_dialog_ui(
 
         // Clear dialog state using ownership transfer for efficient cleanup
         dialog_state.active_dialog = None; // Previous value is consumed and dropped
-        dialog_state.recording_entity = None;
 
         // PR Gate: Resume happens in process_dialog_choices, not here
         info!("Dialog UI closed");
@@ -595,12 +588,12 @@ use crate::dialog::{ShowDialog, DialogType};
 pub fn process_stop_recording(
     mut stop_events: EventReader<StopRecording>,
     mut recording_state: ResMut<RecordingState>,
-    // Use Option<Single> for the recording entity
-    recording_entity: Option<Single<Entity, With<Recording>>>,
+    // Query for the Active Character with Recording component
+    active_recording_character: Option<Single<Entity, (With<Character>, With<Active>, With<Recording>)>>,
     mut dialog_events: EventWriter<ShowDialog>,
 ) {
     for event in stop_events.read() {
-        if let Some(entity_single) = recording_entity {
+        if active_recording_character.is_some() {
             // Show appropriate dialog based on reason
             let dialog_type = match event.reason {
                 StopReason::TimeComplete => DialogType::EndRecording,
@@ -609,7 +602,6 @@ pub fn process_stop_recording(
 
             dialog_events.write(ShowDialog {
                 dialog_type,
-                recording_entity: Some(*entity_single),
             });
 
             // Set state to paused
@@ -716,7 +708,6 @@ mod tests {
     fn test_dialog_state_default() {
         let state = DialogState::default();
         assert!(state.active_dialog.is_none());
-        assert!(state.recording_entity.is_none());
     }
 
     #[test]

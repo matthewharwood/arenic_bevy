@@ -467,11 +467,9 @@ pub fn handle_ghost_replay_input(
     // Show dialog for ghost replay choice
     dialog_events.write(ShowDialog {
         dialog_type: DialogType::GhostReplay {
-            ghost_entity: entity,
             arena: current_arena.id(),
             has_recording,
         },
-        recording_entity: None,
     });
 }
 ```

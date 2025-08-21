@@ -872,7 +872,7 @@ let Ok((arena, clock)) = arena_q.get(current_arena_entity) else {
 
 **The Solution:** 
 - `CharacterTimelines` component stores `HashMap<ArenaId, PublishTimeline>` per character
-- `RecordingRequest::Commit` event uses state.recording_entity and CurrentArena resource
+- `RecordingRequest::Commit` event queries Active Character and CurrentArena resource
 - Each character can store up to 9 separate timelines (one per arena)
 - O(1) lookup by arena using HashMap for efficient retrieval
 
@@ -958,12 +958,12 @@ pub enum RecordingRequest {
     Clear,   // Uses active character with Recording component
 }
 
-// STATE RESOURCE - SIMPLIFIED: No recording_entity storage needed!
+// STATE RESOURCE - SIMPLIFIED: No entity storage needed!
 #[derive(Resource)]
 pub struct RecordingState {
     pub mode: RecordingMode,
     pub countdown_remaining: Option<Duration>,
-    // No recording_entity - can always query for (Active, Recording)
+    // No entity storage - can always query for (Active, Recording)
 }
 
 // ORCHESTRATOR - SIMPLIFIED: No entity storage, just query for active character

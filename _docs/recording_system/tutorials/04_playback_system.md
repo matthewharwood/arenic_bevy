@@ -34,6 +34,7 @@ use crate::arena::{Arena, ArenaId, ArenaEntities};
 use crate::ability::AbilityType;
 use crate::recording::Ghost;
 use crate::character::Character;
+use crate::selectors::Active;
 
 /// Marker for entities actively replaying a timeline
 #[derive(Component)]
@@ -96,7 +97,6 @@ Add to `src/playback/mod.rs`:
 /// Event for showing replay dialog when user presses R on ghost
 #[derive(Event)]
 pub struct ShowGhostReplayDialog {
-    pub ghost_entity: Entity,
     pub arena: ArenaId,
     pub has_previous_recording: bool,
 }
@@ -106,22 +106,28 @@ pub fn handle_ghost_replay_choice(
     mut commands: Commands,
     mut replay_events: EventReader<GhostReplayChoice>,
     mut ghost_q: Query<&mut TimelinePosition, With<Ghost>>,
+    // Query for the single Active Character when needed
+    active_character_q: Query<Entity, (With<Character>, With<Active>)>,
 ) {
     for event in replay_events.read() {
         match event.choice {
             ReplayChoice::DraftNew => {
-                // Convert ghost back to normal character for new recording
-                commands.entity(event.ghost_entity)
-                    .remove::<Ghost>()
-                    .remove::<Replaying>();
-                info!("Ghost {:?} converted to character for new recording", event.ghost_entity);
+                // Convert active ghost back to normal character for new recording
+                if let Ok(entity) = active_character_q.single() {
+                    commands.entity(entity)
+                        .remove::<Ghost>()
+                        .remove::<Replaying>();
+                    info!("Active ghost {:?} converted to character for new recording", entity);
+                }
             }
             ReplayChoice::KeepExisting => {
                 // Reset position to replay from the beginning
-                if let Ok(mut position) = ghost_q.get_mut(event.ghost_entity) {
-                    position.0 = TimeStamp::ZERO;
+                if let Ok(entity) = active_character_q.single() {
+                    if let Ok(mut position) = ghost_q.get_mut(entity) {
+                        position.0 = TimeStamp::ZERO;
+                    }
+                    info!("Active ghost {:?} will replay existing recording", entity);
                 }
-                info!("Ghost {:?} will replay existing recording", event.ghost_entity);
             }
             ReplayChoice::Cancel => {
                 // Continue normal playback - no action needed
@@ -133,7 +139,6 @@ pub fn handle_ghost_replay_choice(
 
 #[derive(Event)]
 pub struct GhostReplayChoice {
-    pub ghost_entity: Entity,
     pub choice: ReplayChoice,
 }
 
@@ -621,13 +626,13 @@ Update `src/recording/mod.rs` to add test commands:
 /// Debug command to force commit current recording
 pub fn debug_force_commit(
     keyboard: Res<ButtonInput<KeyCode>>,
-    // Use Option<Single> for the single recording entity
-    recording_entity: Option<Single<Entity, With<Recording>>>,
+    // Query for the Active Character with Recording component
+    active_recording_character: Option<Single<Entity, (With<Character>, With<Active>, With<Recording>)>>,
     current_arena: Res<CurrentArena>,
     mut recording_state: ResMut<RecordingState>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyF) {
-        if recording_entity.is_some() {
+        if active_recording_character.is_some() {
             recording_state.pending_request = Some(RecordingRequest::Commit);
             info!("Force committed recording");
         }

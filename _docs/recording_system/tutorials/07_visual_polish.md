@@ -243,7 +243,6 @@ impl TrailMaterialCache {
 /// Component for trail segment entities
 #[derive(Component)]
 pub struct TrailSegment {
-    pub ghost_entity: Entity,
     pub age: f32,
 }
 
