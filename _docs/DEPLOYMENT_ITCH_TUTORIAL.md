@@ -1,6 +1,7 @@
 # Complete Beginner's Guide to Deploying Arenic to itch.io with GitHub Actions
 
 ## Table of Contents
+
 1. [Introduction: What We're Building](#introduction-what-were-building)
 2. [Prerequisites and Setup](#prerequisites-and-setup)
 3. [Part 1: Understanding itch.io](#part-1-understanding-itchio)
@@ -16,16 +17,19 @@
 
 ## Introduction: What We're Building
 
-Welcome to your complete guide for deploying Arenic, your innovative 3D tactical strategy game, to itch.io using GitHub Actions! 
+Welcome to your complete guide for deploying Arenic, your innovative 3D tactical strategy game, to itch.io using GitHub
+Actions!
 
 **What You'll Learn:**
+
 - How to automatically build Arenic for multiple platforms (Windows, macOS, Linux, and Web)
 - How to upload your game to itch.io automatically when you create a new release
 - How to manage your game's assets (audio files, sprites, fonts) properly during deployment
 - How to handle Arenic's unique features (9 arenas, record/replay system, 8 character classes)
 
 **Why This Matters:**
-Instead of manually building your game for each platform and uploading it to itch.io every time you want to release an update, you'll set up an automated system that does everything with a single click.
+Instead of manually building your game for each platform and uploading it to itch.io every time you want to release an
+update, you'll set up an automated system that does everything with a single click.
 
 ---
 
@@ -51,7 +55,9 @@ Instead of manually building your game for each platform and uploading it to itc
 
 ### What is itch.io?
 
-itch.io is an indie game marketplace that allows developers to upload and distribute their games. It's particularly popular for indie developers because:
+itch.io is an indie game marketplace that allows developers to upload and distribute their games. It's particularly
+popular for indie developers because:
+
 - It has flexible revenue sharing (you choose what percentage itch.io takes)
 - It supports multiple platforms
 - It has a built-in community and discovery system
@@ -62,29 +68,33 @@ itch.io is an indie game marketplace that allows developers to upload and distri
 1. **Log into itch.io** and go to your dashboard
 2. **Create a new project** by clicking "Create new project"
 3. **Configure your game:**
-   - **Title:** Arenic
-   - **Project URL:** Choose something like `arenic` (this becomes `yourusername.itch.io/arenic`)
-   - **Classification:** Game
-   - **Kind of project:** Downloadable
-   - **Pricing:** Choose your model (free, paid, or pay-what-you-want)
-   - **Uploads:** Leave empty for now (GitHub Actions will handle this)
+    - **Title:** Arenic
+    - **Project URL:** Choose something like `arenic` (this becomes `yourusername.itch.io/arenic`)
+    - **Classification:** Game
+    - **Kind of project:** Downloadable
+    - **Pricing:** Choose your model (free, paid, or pay-what-you-want)
+    - **Uploads:** Leave empty for now (GitHub Actions will handle this)
 
 4. **Important Settings for Arenic:**
-   - **Platform support:** Check Windows, macOS, Linux, and "HTML5 playable in browser"
-   - **Description:** Add your game description mentioning the 9 arenas, 8 character classes, and unique record/replay system
-   - **Genre:** Strategy/Tactical
-   - **Tags:** Add relevant tags like "strategy", "tactical", "multiplayer-recording", "bevy"
+    - **Platform support:** Check Windows, macOS, Linux, and "HTML5 playable in browser"
+    - **Description:** Add your game description mentioning the 9 arenas, 8 character classes, and unique record/replay
+      system
+    - **Genre:** Strategy/Tactical
+    - **Tags:** Add relevant tags like "strategy", "tactical", "multiplayer-recording", "bevy"
 
 ### Understanding Butler (itch.io's Upload Tool)
 
-**Butler** is itch.io's command-line tool that our GitHub Action will use to upload your game. Think of it as a smart uploader that:
+**Butler** is itch.io's command-line tool that our GitHub Action will use to upload your game. Think of it as a smart
+uploader that:
+
 - Only uploads changed files (saves bandwidth)
 - Manages different versions of your game
 - Handles multiple platforms through "channels"
 
 **Channels** are like folders for different versions:
+
 - `windows` - Windows builds
-- `linux` - Linux builds  
+- `linux` - Linux builds
 - `mac` - macOS builds
 - `html5` - Web builds
 
@@ -94,20 +104,25 @@ itch.io is an indie game marketplace that allows developers to upload and distri
 
 ### What are GitHub Actions?
 
-GitHub Actions is a continuous integration and continuous delivery (CI/CD) platform that allows you to automate your build, test, and deployment pipeline. Think of it as a robot that:
+GitHub Actions is a continuous integration and continuous delivery (CI/CD) platform that allows you to automate your
+build, test, and deployment pipeline. Think of it as a robot that:
+
 - Watches your repository for changes
 - Runs commands you specify when certain events happen
 - Can build and deploy your software automatically
 
 ### Key Concepts for Beginners
 
-**Workflow:** A configurable automated process that runs one or more jobs. For Arenic, our workflow will build the game and upload it to itch.io.
+**Workflow:** A configurable automated process that runs one or more jobs. For Arenic, our workflow will build the game
+and upload it to itch.io.
 
-**Job:** A set of steps that execute on the same runner (virtual machine). We'll have different jobs for building different platforms.
+**Job:** A set of steps that execute on the same runner (virtual machine). We'll have different jobs for building
+different platforms.
 
 **Step:** An individual task that can run commands or actions. Like "Build the game" or "Upload to itch.io".
 
-**Runner:** A virtual machine that GitHub provides to run your workflows. Think of it as a temporary computer in the cloud.
+**Runner:** A virtual machine that GitHub provides to run your workflows. Think of it as a temporary computer in the
+cloud.
 
 **Trigger/Event:** What causes the workflow to run. For us, this will be creating a new release.
 
@@ -115,18 +130,19 @@ GitHub Actions is a continuous integration and continuous delivery (CI/CD) platf
 
 ### How Workflows are Structured
 
-Workflows are written in YAML format and stored in `.github/workflows/` directory. YAML uses indentation to show structure (like Python).
+Workflows are written in YAML format and stored in `.github/workflows/` directory. YAML uses indentation to show
+structure (like Python).
 
 ```yaml
 name: Workflow Name          # What appears in GitHub UI
-on:                          # When to run this workflow
-  release:                   # Run on release events
-    types: [created]         # Specifically when a release is created
-    
-jobs:                        # List of jobs to run
-  build:                     # Job name
+on: # When to run this workflow
+  release: # Run on release events
+    types: [ created ]         # Specifically when a release is created
+
+jobs: # List of jobs to run
+  build: # Job name
     runs-on: ubuntu-latest   # What type of computer to use
-    steps:                   # List of steps in this job
+    steps: # List of steps in this job
       - name: First Step     # Human-readable step name
         run: echo "Hello"    # Command to run
 ```
@@ -135,7 +151,8 @@ jobs:                        # List of jobs to run
 
 ## Part 3: The Complete Release Workflow
 
-Now let's create the complete workflow file for Arenic. This file tells GitHub Actions exactly how to build and deploy your game.
+Now let's create the complete workflow file for Arenic. This file tells GitHub Actions exactly how to build and deploy
+your game.
 
 ### Creating the Workflow File
 
@@ -160,7 +177,7 @@ name: Deploy Arenic to itch.io
 # To trigger: Go to Releases → Create new release → Publish release
 on:
   release:
-    types: [created]
+    types: [ created ]
   # Also allow manual triggering for testing
   workflow_dispatch:
     inputs:
@@ -176,10 +193,10 @@ on:
 env:
   # The name of your Bevy game binary
   CARGO_BINARY_NAME: arenic_bevy
-  
+
   # Your itch.io project identifier (username/game)
   ITCH_PROJECT: ${{ secrets.ITCH_USERNAME }}/arenic
-  
+
   # Version tag for this release
   VERSION: ${{ github.event.release.tag_name || github.event.inputs.tag_name }}
 
@@ -193,20 +210,20 @@ jobs:
   build-windows:
     name: Build Windows Version
     runs-on: windows-latest
-    
+
     steps:
       # Step 1: Download the source code
       - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
           lfs: true  # Important: Fetch Git LFS files for any large assets
-      
+
       # Step 2: Setup Rust toolchain
       - name: Setup Rust for Windows
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
-      
+
       # Step 3: Cache Rust dependencies for faster builds
       - name: Cache Rust Dependencies
         uses: actions/cache@v3
@@ -220,47 +237,47 @@ jobs:
           key: windows-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             windows-cargo-
-      
+
       # Step 4: Build the game in release mode
       - name: Build Arenic for Windows
         run: |
           cargo build --release --target x86_64-pc-windows-msvc
         env:
           CARGO_INCREMENTAL: 0  # Disable incremental compilation for CI
-      
+
       # Step 5: Create distribution package
       - name: Package Windows Build
         shell: pwsh
         run: |
           # Create distribution directory
           New-Item -ItemType Directory -Force -Path "dist/windows"
-          
+
           # Copy the executable
           Copy-Item "target/x86_64-pc-windows-msvc/release/$env:CARGO_BINARY_NAME.exe" `
                     "dist/windows/Arenic.exe"
-          
+
           # Copy all game assets (sprites, audio, fonts)
           Copy-Item -Recurse "assets" "dist/windows/assets"
-          
+
           # Create a README for players
           @"
           Arenic - Tactical Strategy Game
           ================================
-          
+
           How to Play:
           1. Run Arenic.exe to start the game
           2. Use WASD to move characters
           3. Press R to start recording
           4. Press Tab to switch between characters
-          
+
           System Requirements:
           - Windows 10 or later
           - 4GB RAM minimum
           - DirectX 11 compatible graphics
-          
+
           Enjoy commanding your heroes across 9 unique arenas!
           "@ | Out-File -FilePath "dist/windows/README.txt" -Encoding UTF8
-      
+
       # Step 6: Upload as artifact for deployment job
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v3
@@ -275,13 +292,13 @@ jobs:
   build-linux:
     name: Build Linux Version
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
           lfs: true
-      
+
       # Install Linux-specific dependencies for Bevy
       - name: Install Linux Dependencies
         run: |
@@ -296,12 +313,12 @@ jobs:
             libxcursor-dev \
             libxrandr-dev \
             mesa-vulkan-drivers
-      
+
       - name: Setup Rust for Linux
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-gnu
-      
+
       - name: Cache Rust Dependencies
         uses: actions/cache@v3
         with:
@@ -314,25 +331,25 @@ jobs:
           key: linux-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             linux-cargo-
-      
+
       - name: Build Arenic for Linux
         run: |
           cargo build --release --target x86_64-unknown-linux-gnu
         env:
           CARGO_INCREMENTAL: 0
-      
+
       - name: Package Linux Build
         run: |
           # Create distribution directory
           mkdir -p dist/linux
-          
+
           # Copy executable and make it executable
           cp target/x86_64-unknown-linux-gnu/release/$CARGO_BINARY_NAME dist/linux/arenic
           chmod +x dist/linux/arenic
-          
+
           # Copy assets
           cp -r assets dist/linux/
-          
+
           # Create launch script
           cat > dist/linux/run_arenic.sh << 'EOF'
           #!/bin/bash
@@ -342,33 +359,33 @@ jobs:
           ./arenic "$@"
           EOF
           chmod +x dist/linux/run_arenic.sh
-          
+
           # Create README
           cat > dist/linux/README.txt << 'EOF'
           Arenic - Tactical Strategy Game
           ================================
-          
+
           How to Run:
           1. Open a terminal in this directory
           2. Run: ./run_arenic.sh
           Or directly: ./arenic
-          
+
           If you get permission errors:
           chmod +x arenic run_arenic.sh
-          
+
           System Requirements:
           - Linux kernel 3.10+
           - 4GB RAM minimum
           - OpenGL 3.3 or Vulkan support
-          
+
           Controls:
           - WASD: Move characters
           - R: Start recording
           - Tab: Switch characters
           - 1-4: Use abilities
-          
+
           EOF
-      
+
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v3
         with:
@@ -382,18 +399,18 @@ jobs:
   build-macos:
     name: Build macOS Version
     runs-on: macos-latest
-    
+
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
           lfs: true
-      
+
       - name: Setup Rust for macOS
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-apple-darwin, aarch64-apple-darwin
-      
+
       - name: Cache Rust Dependencies
         uses: actions/cache@v3
         with:
@@ -406,43 +423,43 @@ jobs:
           key: macos-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             macos-cargo-
-      
+
       # Build for both Intel and Apple Silicon Macs
       - name: Build Arenic for macOS (Intel)
         run: |
           cargo build --release --target x86_64-apple-darwin
         env:
           CARGO_INCREMENTAL: 0
-      
+
       - name: Build Arenic for macOS (Apple Silicon)
         run: |
           cargo build --release --target aarch64-apple-darwin
         env:
           CARGO_INCREMENTAL: 0
-      
+
       - name: Create Universal Binary and App Bundle
         run: |
           # Create distribution directory
           mkdir -p dist/macos
-          
+
           # Create universal binary
           lipo -create \
             target/x86_64-apple-darwin/release/$CARGO_BINARY_NAME \
             target/aarch64-apple-darwin/release/$CARGO_BINARY_NAME \
             -output dist/macos/arenic
-          
+
           chmod +x dist/macos/arenic
-          
+
           # Create basic app bundle structure
           mkdir -p "dist/macos/Arenic.app/Contents/MacOS"
           mkdir -p "dist/macos/Arenic.app/Contents/Resources"
-          
+
           # Move binary into app bundle
           mv dist/macos/arenic "dist/macos/Arenic.app/Contents/MacOS/"
-          
+
           # Copy assets into app bundle
           cp -r assets "dist/macos/Arenic.app/Contents/Resources/"
-          
+
           # Create Info.plist
           cat > "dist/macos/Arenic.app/Contents/Info.plist" << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
@@ -469,30 +486,30 @@ jobs:
           </dict>
           </plist>
           EOF
-          
+
           # Create README
           cat > "dist/macos/README.txt" << 'EOF'
           Arenic - Tactical Strategy Game
           ================================
-          
+
           How to Run:
           1. Double-click Arenic.app to start
-          
+
           If macOS blocks the app:
           1. Open System Preferences → Security & Privacy
           2. Click "Open Anyway" for Arenic
           Or right-click the app and select "Open"
-          
+
           System Requirements:
           - macOS 10.13 High Sierra or later
           - 4GB RAM minimum
           - Metal support recommended
-          
+
           This is a universal binary that runs natively on both
           Intel and Apple Silicon Macs.
-          
+
           EOF
-      
+
       - name: Upload macOS Artifact
         uses: actions/upload-artifact@v3
         with:
@@ -506,26 +523,26 @@ jobs:
   build-web:
     name: Build Web Version
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
         with:
           lfs: true
-      
+
       - name: Setup Rust for WASM
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-      
+
       - name: Install wasm-bindgen-cli
         run: |
           cargo install wasm-bindgen-cli --version 0.2.99
-      
+
       - name: Install wasm-opt for optimization
         run: |
           npm install -g wasm-opt
-      
+
       - name: Cache Rust Dependencies
         uses: actions/cache@v3
         with:
@@ -538,18 +555,18 @@ jobs:
           key: wasm-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             wasm-cargo-
-      
+
       - name: Build Arenic for Web
         run: |
           cargo build --release --target wasm32-unknown-unknown
         env:
           CARGO_INCREMENTAL: 0
-      
+
       - name: Prepare Web Distribution
         run: |
           # Create distribution directory
           mkdir -p dist/web
-          
+
           # Process WASM with wasm-bindgen
           wasm-bindgen \
             --out-dir dist/web \
@@ -557,15 +574,15 @@ jobs:
             --target web \
             --no-typescript \
             target/wasm32-unknown-unknown/release/${CARGO_BINARY_NAME}.wasm
-          
+
           # Optimize WASM file size
           wasm-opt -Oz \
             dist/web/arenic_bg.wasm \
             -o dist/web/arenic_bg.wasm
-          
+
           # Copy assets
           cp -r assets dist/web/
-          
+
           # Create index.html
           cat > dist/web/index.html << 'EOF'
           <!DOCTYPE html>
@@ -626,18 +643,18 @@ jobs:
                       <p>9 Arenas | 8 Character Classes | Record & Replay System</p>
                   </div>
               </div>
-              
+
               <script type="module">
                   import init from './arenic.js';
-                  
+
                   async function run() {
                       const loadingEl = document.getElementById('loading');
                       const controlsEl = document.getElementById('controls');
-                      
+
                       try {
                           loadingEl.textContent = 'Initializing WebAssembly...';
                           await init();
-                          
+
                           loadingEl.style.display = 'none';
                           controlsEl.style.display = 'block';
                       } catch (error) {
@@ -650,13 +667,13 @@ jobs:
                           `;
                       }
                   }
-                  
+
                   run();
               </script>
           </body>
           </html>
           EOF
-      
+
       - name: Upload Web Artifact
         uses: actions/upload-artifact@v3
         with:
@@ -669,9 +686,9 @@ jobs:
   # --------------------------------------------------------------------------
   deploy-to-itch:
     name: Deploy to itch.io
-    needs: [build-windows, build-linux, build-macos, build-web]
+    needs: [ build-windows, build-linux, build-macos, build-web ]
     runs-on: ubuntu-latest
-    
+
     steps:
       # Download all build artifacts
       - name: Download Windows Build
@@ -679,25 +696,25 @@ jobs:
         with:
           name: windows-build
           path: builds/windows
-      
+
       - name: Download Linux Build
         uses: actions/download-artifact@v3
         with:
           name: linux-build
           path: builds/linux
-      
+
       - name: Download macOS Build
         uses: actions/download-artifact@v3
         with:
           name: macos-build
           path: builds/macos
-      
+
       - name: Download Web Build
         uses: actions/download-artifact@v3
         with:
           name: web-build
           path: builds/web
-      
+
       # Install Butler (itch.io's upload tool)
       - name: Install Butler
         run: |
@@ -706,32 +723,32 @@ jobs:
           unzip butler.zip
           chmod +x butler
           ./butler -V
-      
+
       # Upload each platform to itch.io
       - name: Upload Windows Build to itch.io
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           ./butler push builds/windows $ITCH_PROJECT:windows --userversion $VERSION
-      
+
       - name: Upload Linux Build to itch.io
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           ./butler push builds/linux $ITCH_PROJECT:linux --userversion $VERSION
-      
+
       - name: Upload macOS Build to itch.io
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           ./butler push builds/macos $ITCH_PROJECT:mac --userversion $VERSION
-      
+
       - name: Upload Web Build to itch.io
         env:
           BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
         run: |
           ./butler push builds/web $ITCH_PROJECT:html5 --userversion $VERSION
-      
+
       # Update itch.io status
       - name: Update itch.io Game Status
         env:
@@ -748,23 +765,31 @@ jobs:
 Let me explain what each part of this workflow does:
 
 #### Workflow Triggers (`on:`)
+
 ```yaml
 on:
   release:
-    types: [created]
+    types: [ created ]
 ```
-This means the workflow runs when you create a new release on GitHub. You can also trigger it manually with `workflow_dispatch`.
+
+This means the workflow runs when you create a new release on GitHub. You can also trigger it manually with
+`workflow_dispatch`.
 
 #### Environment Variables (`env:`)
+
 ```yaml
 env:
   CARGO_BINARY_NAME: arenic_bevy
   ITCH_PROJECT: ${{ secrets.ITCH_USERNAME }}/arenic
 ```
-These are variables used throughout the workflow. The `${{ secrets.ITCH_USERNAME }}` pulls from your repository secrets (we'll set this up).
+
+These are variables used throughout the workflow. The `${{ secrets.ITCH_USERNAME }}` pulls from your repository
+secrets (we'll set this up).
 
 #### Build Jobs
+
 Each platform has its own job that:
+
 1. **Checks out code** - Downloads your source code
 2. **Sets up Rust** - Installs the Rust compiler for that platform
 3. **Caches dependencies** - Saves downloaded crates for faster future builds
@@ -775,29 +800,35 @@ Each platform has its own job that:
 #### Platform-Specific Details
 
 **Windows:**
+
 - Uses `windows-latest` runner
 - Targets `x86_64-pc-windows-msvc`
 - Creates `.exe` file
 - Uses PowerShell for packaging
 
 **Linux:**
+
 - Installs system dependencies for graphics and audio
 - Creates executable script
 - Sets proper file permissions
 
 **macOS:**
+
 - Builds for both Intel and Apple Silicon
 - Creates universal binary with `lipo`
 - Makes app bundle structure
 
 **Web:**
+
 - Uses WebAssembly target
 - Processes with wasm-bindgen
 - Optimizes with wasm-opt
 - Creates HTML wrapper
 
 #### Deployment Job
+
 This job:
+
 1. Downloads all built artifacts
 2. Installs Butler (itch.io's tool)
 3. Uploads each platform to its channel
@@ -827,10 +858,12 @@ Secrets are sensitive information that shouldn't be in your code. For Arenic dep
 Add these two secrets:
 
 **Secret 1:**
+
 - Name: `BUTLER_API_KEY`
 - Value: (paste your Butler API key from itch.io)
 
 **Secret 2:**
+
 - Name: `ITCH_USERNAME`
 - Value: (your itch.io username)
 
@@ -854,6 +887,7 @@ Arenic has unique requirements with its 9 arenas and recording system. Here are 
 With 9 arenas × 40 potential characters = 360 entities plus recording data:
 
 **Add to Cargo.toml for release builds:**
+
 ```toml
 [profile.release]
 opt-level = "z"     # Optimize for size
@@ -865,15 +899,16 @@ strip = true        # Strip symbols for smaller binary
 #### Web-Specific Configuration
 
 Create `web/index.html` for better web experience:
+
 ```html
 <!-- Add this to customize the web build -->
 <script>
-  // Increase memory for web build (for 9 arenas)
-  const memory = new WebAssembly.Memory({
-    initial: 256,  // 256 * 64KB = 16MB initial
-    maximum: 4096, // 4096 * 64KB = 256MB maximum
-    shared: false
-  });
+    // Increase memory for web build (for 9 arenas)
+    const memory = new WebAssembly.Memory({
+        initial: 256,  // 256 * 64KB = 16MB initial
+        maximum: 4096, // 4096 * 64KB = 256MB maximum
+        shared: false
+    });
 </script>
 ```
 
@@ -882,16 +917,17 @@ Create `web/index.html` for better web experience:
 Your game has many audio files and sprites. Consider:
 
 1. **Audio Compression:**
-   - Convert MP3s to OGG for smaller size
-   - Use different quality for different platforms
+    - Convert MP3s to OGG for smaller size
+    - Use different quality for different platforms
 
 2. **Texture Atlasing:**
-   - Combine character sprites into atlases
-   - Reduce draw calls for better performance
+    - Combine character sprites into atlases
+    - Reduce draw calls for better performance
 
 #### Platform Feature Flags
 
 Add to `Cargo.toml`:
+
 ```toml
 [features]
 default = []
@@ -900,11 +936,12 @@ native = ["bevy/bevy_gilrs"]  # Gamepad support for native builds
 ```
 
 Update build commands in workflow:
+
 ```yaml
 # For web builds
 cargo build --release --target wasm32-unknown-unknown --features web
 
-# For native builds  
+  # For native builds  
 cargo build --release --features native
 ```
 
@@ -917,6 +954,7 @@ cargo build --release --features native
 #### Test the Workflow Locally
 
 Install `act` to test GitHub Actions locally:
+
 ```bash
 # macOS
 brew install act
@@ -926,6 +964,7 @@ curl https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
 ```
 
 Test your workflow:
+
 ```bash
 # Dry run
 act -n
@@ -939,18 +978,21 @@ act release
 Test each platform build locally:
 
 **Windows (on Windows):**
+
 ```bash
 cargo build --release --target x86_64-pc-windows-msvc
 ./target/x86_64-pc-windows-msvc/release/arenic_bevy.exe
 ```
 
 **Linux:**
+
 ```bash
 cargo build --release --target x86_64-unknown-linux-gnu
 ./target/x86_64-unknown-linux-gnu/release/arenic_bevy
 ```
 
 **Web:**
+
 ```bash
 cargo build --release --target wasm32-unknown-unknown
 wasm-bindgen --out-dir web --target web target/wasm32-unknown-unknown/release/arenic_bevy.wasm
@@ -961,6 +1003,7 @@ python3 -m http.server 8000 --directory web
 ### Creating Your First Release
 
 1. **Commit and push** your workflow file:
+
 ```bash
 git add .github/workflows/release.yaml
 git commit -m "Add automated deployment to itch.io"
@@ -968,18 +1011,18 @@ git push
 ```
 
 2. **Create a release on GitHub:**
-   - Go to your repository
-   - Click "Releases" (right side)
-   - Click "Create a new release"
-   - Choose a tag (e.g., `v0.1.0`)
-   - Add release title: "Arenic v0.1.0 - Initial Release"
-   - Add description of features
-   - Click "Publish release"
+    - Go to your repository
+    - Click "Releases" (right side)
+    - Click "Create a new release"
+    - Choose a tag (e.g., `v0.1.0`)
+    - Add release title: "Arenic v0.1.0 - Initial Release"
+    - Add description of features
+    - Click "Publish release"
 
 3. **Monitor the workflow:**
-   - Go to "Actions" tab
-   - Watch your workflow run
-   - Check for any errors
+    - Go to "Actions" tab
+    - Watch your workflow run
+    - Check for any errors
 
 ### Verifying on itch.io
 
@@ -989,16 +1032,16 @@ After successful deployment:
 2. **Click on Arenic**
 3. **Check "Upload new build"** section
 4. **Verify all platforms** are listed:
-   - Windows build
-   - Linux build
-   - macOS build
-   - HTML5 build
+    - Windows build
+    - Linux build
+    - macOS build
+    - HTML5 build
 
 5. **Test each platform:**
-   - Download and run each version
-   - Test the web version in browser
-   - Verify assets load correctly
-   - Check that all 9 arenas work
+    - Download and run each version
+    - Test the web version in browser
+    - Verify assets load correctly
+    - Check that all 9 arenas work
 
 ---
 
@@ -1007,48 +1050,62 @@ After successful deployment:
 ### Common Issues and Solutions
 
 #### Issue 1: "Butler API key is invalid"
+
 **Cause:** Incorrect or expired API key
-**Solution:** 
+**Solution:**
+
 - Regenerate key on itch.io
 - Update `BUTLER_API_KEY` secret on GitHub
 - Make sure there are no extra spaces
 
 #### Issue 2: "cargo: command not found"
+
 **Cause:** Rust not properly installed in workflow
 **Solution:**
+
 - Ensure `dtolnay/rust-toolchain@stable` action is present
 - Check that target is specified correctly
 
 #### Issue 3: "Assets not found" in game
+
 **Cause:** Assets not copied to distribution
 **Solution:**
+
 - Verify `cp -r assets dist/platform/` in workflow
 - Check that assets are committed to repository
 - Ensure Git LFS is used for large files
 
 #### Issue 4: Web build shows blank screen
+
 **Cause:** WASM not loading correctly
 **Solution:**
+
 - Check browser console for errors
 - Verify wasm-bindgen version matches
 - Ensure index.html has correct paths
 
 #### Issue 5: macOS says "app is damaged"
+
 **Cause:** App not signed (expected for indie games)
 **Solution:** Users need to:
+
 - Right-click app and select "Open"
 - Or go to Security settings and allow
 
 #### Issue 6: Large build artifacts
+
 **Cause:** Debug symbols or unoptimized builds
 **Solution:**
+
 - Add `strip = true` to Cargo.toml
 - Use `opt-level = "z"` for size optimization
 - Consider using UPX for further compression
 
 #### Issue 7: Workflow times out
+
 **Cause:** Build taking too long (>6 hours)
 **Solution:**
+
 - Use cargo caching
 - Consider splitting into multiple workflows
 - Optimize dependencies
@@ -1056,6 +1113,7 @@ After successful deployment:
 ### Debugging Workflow Failures
 
 #### Check Workflow Logs
+
 1. Go to Actions tab
 2. Click on failed workflow run
 3. Click on failed job
@@ -1065,21 +1123,25 @@ After successful deployment:
 #### Common Log Messages
 
 **"No such file or directory"**
+
 - File path is wrong
 - File wasn't created in previous step
 - Working directory is different than expected
 
 **"Permission denied"**
+
 - Need to use `chmod +x` for executables
 - GitHub token permissions issue
 
 **"Resource not accessible by integration"**
+
 - Secrets not properly configured
 - Workflow permissions need adjustment
 
 #### Enable Debug Logging
 
 Add to your repository secrets:
+
 - `ACTIONS_RUNNER_DEBUG`: `true`
 - `ACTIONS_STEP_DEBUG`: `true`
 
@@ -1092,13 +1154,17 @@ This provides verbose output for debugging.
 ### Version Management
 
 #### Semantic Versioning
+
 Use semantic versioning for releases:
+
 - `v1.0.0` - Major release (breaking changes)
 - `v1.1.0` - Minor release (new features)
 - `v1.1.1` - Patch release (bug fixes)
 
 #### Automatic Versioning
+
 Add to workflow to extract version from Cargo.toml:
+
 ```yaml
 - name: Get version from Cargo.toml
   id: get_version
@@ -1112,6 +1178,7 @@ Add to workflow to extract version from Cargo.toml:
 #### Caching Strategies
 
 **Advanced cargo caching:**
+
 ```yaml
 - uses: Swatinem/rust-cache@v2
   with:
@@ -1122,6 +1189,7 @@ Add to workflow to extract version from Cargo.toml:
 #### Parallel Builds
 
 Run platform builds in parallel with matrix strategy:
+
 ```yaml
 strategy:
   matrix:
@@ -1137,6 +1205,7 @@ strategy:
 #### Conditional Builds
 
 Only build what changed:
+
 ```yaml
 - name: Check for code changes
   uses: dorny/paths-filter@v2
@@ -1154,7 +1223,9 @@ Only build what changed:
 ### Security Best Practices
 
 #### Dependency Scanning
+
 Add security audit to workflow:
+
 ```yaml
 - name: Security audit
   run: |
@@ -1163,7 +1234,9 @@ Add security audit to workflow:
 ```
 
 #### License Compliance
+
 Check dependency licenses:
+
 ```yaml
 - name: License check
   run: |
@@ -1174,6 +1247,7 @@ Check dependency licenses:
 ### Release Notes Automation
 
 #### Generate Changelog
+
 ```yaml
 - name: Generate release notes
   run: |
@@ -1187,6 +1261,7 @@ Check dependency licenses:
 #### Deployment Notifications
 
 **Discord webhook:**
+
 ```yaml
 - name: Notify Discord
   env:
@@ -1198,6 +1273,7 @@ Check dependency licenses:
 ```
 
 **Email notification:**
+
 ```yaml
 - name: Send email
   uses: dawidd6/action-send-mail@v3
@@ -1214,6 +1290,7 @@ Check dependency licenses:
 ### Performance Monitoring
 
 Track build times and optimize:
+
 ```yaml
 - name: Build metrics
   run: |
@@ -1227,17 +1304,19 @@ Track build times and optimize:
 #### Channel Management
 
 Different channels for different versions:
+
 ```yaml
 # Beta channel
 ./butler push builds/windows $ITCH_PROJECT:windows-beta --userversion $VERSION-beta
 
-# Stable channel
+  # Stable channel
 ./butler push builds/windows $ITCH_PROJECT:windows --userversion $VERSION
 ```
 
 #### Patch Updates
 
 Use Butler's patching system:
+
 ```yaml
 # Generate patches between versions
 ./butler diff old-build new-build patch-output
@@ -1290,7 +1369,8 @@ butler status username/arenic
 - **Bevy Discord:** https://discord.gg/bevy (for Bevy-specific questions)
 - **GitHub Actions Community:** https://github.community/
 
-Remember: Deployment automation is an iterative process. Start simple, test thoroughly, and enhance gradually. Your pipeline will evolve with your game's needs.
+Remember: Deployment automation is an iterative process. Start simple, test thoroughly, and enhance gradually. Your
+pipeline will evolve with your game's needs.
 
 Good luck with Arenic's deployment! May your builds be swift and your uploads successful! 🎮🚀
 
@@ -1360,7 +1440,7 @@ fn main() {
             meta_check: AssetMetaCheck::Never,  // Critical for web builds!
             ..default()
         });
-    
+
     #[cfg(not(target_arch = "wasm32"))]
     let default_plugins = DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -1370,7 +1450,7 @@ fn main() {
         }),
         ..default()
     });
-    
+
     App::new()
         .add_plugins(default_plugins)
         // ... rest of your app
@@ -1401,17 +1481,20 @@ Create `web/index.html` for local testing (the workflow creates its own for depl
             font-family: Arial, sans-serif;
             overflow: hidden;
         }
+
         #loading {
             position: absolute;
             color: white;
             font-size: 24px;
             z-index: 10;
         }
+
         canvas {
             display: block;
             width: 100%;
             height: 100vh;
         }
+
         .error {
             color: #ff6b6b;
             padding: 20px;
@@ -1438,7 +1521,7 @@ Create `web/index.html` for local testing (the workflow creates its own for depl
         if (window.AudioContext || window.webkitAudioContext) {
             const contexts = [];
             const origAudioContext = window.AudioContext || window.webkitAudioContext;
-            window.AudioContext = window.webkitAudioContext = function(...args) {
+            window.AudioContext = window.webkitAudioContext = function (...args) {
                 const ctx = new origAudioContext(...args);
                 contexts.push(ctx);
                 return ctx;
@@ -1449,7 +1532,7 @@ Create `web/index.html` for local testing (the workflow creates its own for depl
                     contexts.forEach(ctx => {
                         if (ctx.state === 'suspended') ctx.resume();
                     });
-                }, { once: true });
+                }, {once: true});
             });
         }
     };
@@ -1460,18 +1543,18 @@ Create `web/index.html` for local testing (the workflow creates its own for depl
         try {
             console.log('Initializing...');
             await init();
-            
+
             // Set up audio resume on user interaction
             resumeAudio();
-            
+
             // Update loading message
             loadingEl.innerHTML = 'Click anywhere to start playing!';
-            
+
             // Hide loading message after first interaction
             ['click', 'touchstart', 'keydown'].forEach(event => {
                 document.addEventListener(event, () => {
                     loadingEl.style.display = 'none';
-                }, { once: true });
+                }, {once: true});
             });
 
         } catch (error) {
@@ -1550,6 +1633,7 @@ The `.meta` file 404 errors in console are normal and don't affect gameplay.
 ### Troubleshooting Web Audio Issues
 
 If audio doesn't work:
+
 1. Check browser console for errors
 2. Ensure you clicked/interacted with the page
 3. Try Firefox first (most lenient)
@@ -1559,6 +1643,7 @@ If audio doesn't work:
 ### What the GitHub Workflow Handles Automatically
 
 The deployment workflow takes care of:
+
 - Installing all WASM tools
 - Using `--out-name arenic` to rename output files
 - Creating optimized index.html
@@ -1566,4 +1651,24 @@ The deployment workflow takes care of:
 - Optimizing WASM size with wasm-opt
 - Setting up proper canvas IDs
 
-You don't need to modify the workflow for any of these web-specific fixes - they're all handled!
+### Deployment Workflow Steps
+
+Option 1: Create a GitHub Release (Recommended)
+
+1. Go to your repo's main page
+2. Click Releases (right sidebar)
+3. Click "Create a new release"
+4. Choose your tag from the dropdown
+5. Fill in release title and description
+6. Click "Publish release"
+7. This will automatically trigger the workflow
+
+Option 2: Manual Trigger
+
+Since the workflow has workflow_dispatch, you can run it manually:
+
+1. In the Actions tab
+2. Click on "Deploy Arenic to itch.io" in the left sidebar
+3. Click "Run workflow" button on the right
+4. Enter your tag name (e.g., v1.0.0)
+5. Click "Run workflow"
