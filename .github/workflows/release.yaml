@@ -353,7 +353,7 @@ jobs:
       
       - name: Install wasm-bindgen-cli
         run: |
-          cargo install wasm-bindgen-cli --version 0.2.99
+          cargo install wasm-bindgen-cli --version 0.2.100
       
       - name: Install wasm-opt for optimization
         run: |
