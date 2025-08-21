@@ -76,10 +76,15 @@ The recording system allows you to capture 2-minute sequences of character actio
 **Ending a Recording**
 - Recording automatically stops at the 2-minute mark
 - Press R again to manually interrupt recording early
-- A dialog appears with three options:
-  - **Commit**: Save as a permanent ghost that replays every cycle
-  - **Clear**: Discard the recording and return to normal play
-  - **Cancel/Retry**: Continue recording or start fresh
+- A confirmation dialog appears with options:
+  - **Continue**: Return to active recording (keep recording)
+  - **Cancel**: Stop recording and discard progress
+
+**Recording Interruptions**
+- **Arena Switching**: Using [ ] or P (zoom) keys immediately stops recording with no confirmation
+- **Character Switching**: Pressing Tab shows confirmation dialog first:
+  - **Switch Character**: Stop recording and switch to next character
+  - **Continue Recording**: Cancel switch and return to recording
 
 ### Ghost Playback System
 

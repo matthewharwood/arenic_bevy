@@ -269,11 +269,9 @@ pub fn playback_ghost_movement(
     current_arena: Res<CurrentArena>,
 ) {
     for (timelines, mut position, mut transform, ghost_arena, mut movement_state) in ghost_q.iter_mut() {
-        // O(1) lookup for ghost's arena entity using ArenaEntities
+        // Helper method eliminates repetitive lookup pattern
         // Each ghost uses its parent arena's clock, NOT CurrentArena
-        let ghost_arena_entity = arena_entities.get(ghost_arena.0.name());
-        
-        let Ok((_, clock)) = arena_q.get(ghost_arena_entity) else {
+        let Ok((_, clock)) = arena_q.get(ghost_arena.0.entity(&arena_entities)) else {
             continue;
         };
         
@@ -344,10 +342,8 @@ pub fn loop_ghost_timelines(
     arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
 ) {
     for (mut position, ghost_arena) in ghost_q.iter_mut() {
-        // O(1) lookup for ghost's arena entity using ArenaEntities
-        let ghost_arena_entity = arena_entities.get(ghost_arena.0.name());
-        
-        let Ok((_, clock)) = arena_q.get(ghost_arena_entity) else {
+        // Helper method eliminates repetitive lookup pattern
+        let Ok((_, clock)) = arena_q.get(ghost_arena.0.entity(&arena_entities)) else {
             continue;
         };
         

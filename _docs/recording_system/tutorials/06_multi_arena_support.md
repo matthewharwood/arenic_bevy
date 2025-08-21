@@ -140,10 +140,8 @@ pub fn playback_arena_ghosts(
     // Process current arena at full fidelity
     let current_arena_name = current_arena.name();
     
-    // O(1) lookup for current arena entity using ArenaEntities
-    let current_arena_entity = arena_entities.get(current_arena_name);
-    
-    if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
+    // Helper method eliminates repetitive lookup pattern
+    if let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) {
         let current_time = clock.current();
         let current_arena_ghosts = registry.get_arena_ghosts(current_arena_name);
 
@@ -165,10 +163,9 @@ pub fn playback_arena_ghosts(
     // Process other arenas at reduced fidelity using ArenaName iteration
     for arena_name in ArenaName::all() {
         if arena_name != current_arena_name {
-            // O(1) lookup for this arena entity
-            let arena_entity = arena_entities.get(arena_name);
-            
-            if let Ok((_, clock)) = arena_q.get(arena_entity) {
+            // Helper method eliminates repetitive lookup pattern
+            let arena_id = ArenaId::new(arena_name);
+            if let Ok((_, clock)) = arena_q.get(arena_id.entity(&arena_entities)) {
                 let current_time = clock.current();
     
                 // Update every 10th frame for distant arenas
@@ -821,8 +818,7 @@ With 9 arenas and multiple systems per frame, this scales poorly.
 
 ```rust
 // NEW WAY - O(1) lookup with ArenaEntities (FAST!)
-let current_arena_entity = arena_entities.get(current_arena_name);
-if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
+if let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) {
     // Process arena...
 }
 ```

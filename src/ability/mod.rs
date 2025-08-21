@@ -5,7 +5,7 @@ pub use auto_shot::*;
 use bevy::math::Vec3;
 use bevy::prelude::Component;
 pub use holy_nova::*;
-use std::fmt::{Display, Formatter, Result as FmtResult};
+// Note: Display imports removed with AbilityType
 
 /// Marker component for projectile entities
 #[derive(Component)]
@@ -35,8 +35,7 @@ pub struct StartRadius(pub f32);
 #[derive(Component)]
 pub struct EndRadius(pub f32);
 
-/// Unified ability type enum for recording and playback
-/// Replaces the duplicative AbilityId from timeline module
+/// Minimal ability type enum for timeline/testing compatibility
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AbilityType {
     AutoShot,
@@ -45,39 +44,4 @@ pub enum AbilityType {
     Heal,
 }
 
-impl AbilityType {
-    /// Get ability type from numeric ID for backwards compatibility
-    #[must_use]
-    pub fn from_id(id: u8) -> Option<Self> {
-        match id {
-            1 => Some(Self::AutoShot),
-            2 => Some(Self::HolyNova),
-            3 => Some(Self::PoisonShot),
-            4 => Some(Self::Heal),
-            _ => None,
-        }
-    }
-
-    /// Convert to numeric ID for storage/serialization
-    #[must_use]
-    pub fn to_id(self) -> u8 {
-        match self {
-            Self::AutoShot => 1,
-            Self::HolyNova => 2,
-            Self::PoisonShot => 3,
-            Self::Heal => 4,
-        }
-    }
-}
-
-impl Display for AbilityType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let name = match *self {
-            Self::AutoShot => "AutoShot",
-            Self::HolyNova => "HolyNova",
-            Self::PoisonShot => "PoisonShot",
-            Self::Heal => "Heal",
-        };
-        write!(f, "{}", name)
-    }
-}
+// Note: Display implementation removed with AbilityType

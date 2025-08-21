@@ -139,11 +139,17 @@ At the 2-minute mark:
 
 ### Blocked Actions
 
-While RecordingMode is active, these inputs trigger ConfirmationDialog instead of executing:
+While RecordingMode is active, these inputs are handled specially:
 
-- `[` or `]` (arena switching)
-- `TAB` (character switching)
+**Immediate Recording Stop (No Confirmation):**
+- `[` or `]` (arena switching) - Triggers CameraUpdate event, immediately stops recording
+- `P` (camera zoom) - Triggers CameraUpdate event, immediately stops recording
 - Attempting to move ActiveCharacter outside CurrentArena boundaries
+
+**Confirmation Dialog Required:**
+- `TAB` (character switching) - Shows confirmation dialog first:
+  - **Switch Character**: Stop recording and proceed with character switch
+  - **Continue Recording**: Cancel switch request and return to recording
 
 ### Arena Transition Handling
 

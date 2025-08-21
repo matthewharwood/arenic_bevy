@@ -98,11 +98,8 @@ pub fn capture_movement_intent(
         return;
     }
 
-    // O(1) lookup for current arena entity using ArenaEntities
-    let current_arena_entity = arena_entities.get(current_arena.name());
-    
-    // Direct query for the current arena - no iteration needed
-    let Ok((_, clock)) = arena_q.get(current_arena_entity) else {
+    // Helper method eliminates repetitive lookup pattern
+    let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
         return;
     };
 
@@ -178,11 +175,8 @@ pub fn optimize_movement_recording(
 
     let movement_dir = get_movement_direction(&keyboard);
 
-    // O(1) lookup for current arena entity using ArenaEntities
-    let current_arena_entity = arena_entities.get(current_arena.name());
-    
-    // Direct query for the current arena - no iteration needed
-    let Ok((_, clock)) = arena_q.get(current_arena_entity) else {
+    // Helper method eliminates repetitive lookup pattern
+    let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
         return;
     };
 
@@ -261,11 +255,8 @@ pub fn capture_ability_intent(
         return;
     };
 
-    // O(1) lookup for current arena entity using ArenaEntities
-    let current_arena_entity = arena_entities.get(current_arena.name());
-    
-    // Direct query for the current arena - no iteration needed
-    let Ok((_, clock)) = arena_q.get(current_arena_entity) else {
+    // Helper method eliminates repetitive lookup pattern
+    let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
         return;
     };
 

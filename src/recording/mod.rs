@@ -1,10 +1,10 @@
 // Recording module - implements unified event architecture
 // Based on Tutorial 02: Recording State Machine (unified orchestrator pattern)
 
-use crate::arena::{Arena, ArenaEntities, CurrentArena};
+use crate::arena::{Arena, ArenaEntities, CameraUpdate, CurrentArena};
 use crate::character::Character;
 use crate::selectors::Active;
-use crate::timeline::TimelineClock;
+use crate::timeline::{TimeStamp, TimelineClock};
 use bevy::prelude::*;
 use std::fmt::{self, Display, Formatter};
 use std::time::Duration;
@@ -22,9 +22,11 @@ pub struct RecordingUpdate;
 pub enum RecordingRequest {
     Start, // Query Active Character when processing
     Stop { reason: StopReason },
-    Commit,     // Query Active Character and CurrentArena resource
-    Clear,      // Query Active Character
-    ShowDialog, // Query Active Character when showing dialog
+    Commit,           // Query Active Character and CurrentArena resource (Tutorial 05)
+    Clear,            // Query Active Character (Tutorial 05)
+    ShowDialog,       // Query Active Character when showing dialog (ghost with recording in arena)
+    ShowCancelDialog, // Query Active Character when showing recording cancellation dialog
+    ShowSwitchDialog, // Query Active Character when confirming character switch during recording
 }
 
 // === STATE RESOURCE - Single source of truth ===
@@ -35,6 +37,11 @@ pub struct RecordingState {
     pub mode: RecordingMode,
     pub pending_request: Option<RecordingRequest>,
     pub countdown_remaining: Option<Duration>,
+}
+
+impl RecordingState {
+    /// Duration for countdown before recording starts
+    pub const COUNTDOWN_DURATION: Duration = Duration::from_secs(3);
 }
 
 impl Default for RecordingState {
@@ -118,7 +125,6 @@ pub fn detect_recording_input(
             if ghost_marker.is_some() {
                 // Ghost selected - show retry dialog
                 recording_state.pending_request = Some(RecordingRequest::ShowDialog);
-                recording_update_events.write(RecordingUpdate);
                 info!(
                     "Cannot record a ghost - showing retry dialog for active character {:?}",
                     character_entity
@@ -126,20 +132,18 @@ pub fn detect_recording_input(
             } else {
                 // Store request and trigger update
                 recording_state.pending_request = Some(RecordingRequest::Start);
-                recording_update_events.write(RecordingUpdate);
                 info!(
                     "Recording start requested for active character {:?}",
                     character_entity
                 );
             }
+            recording_update_events.write(RecordingUpdate);
         }
         RecordingMode::Recording => {
-            // Store stop request and trigger update
-            recording_state.pending_request = Some(RecordingRequest::Stop {
-                reason: StopReason::UserInterrupted,
-            });
+            // Show confirmation dialog instead of immediate stop
+            recording_state.pending_request = Some(RecordingRequest::ShowCancelDialog);
             recording_update_events.write(RecordingUpdate);
-            info!("Recording stop requested - user interrupted");
+            info!("Recording interruption requested - showing confirmation dialog");
         }
         _ => {
             // Ignore input in other states
@@ -147,10 +151,11 @@ pub fn detect_recording_input(
     }
 }
 
-/// Block arena/character switching during recording
-/// Triggers RecordingUpdate to stop recording if blocked actions attempted
+/// Block arena switching during recording via CameraUpdate events
+/// Triggers dialog for character switching confirmation
 pub fn block_recording_interruptions(
     keyboard: Res<ButtonInput<KeyCode>>,
+    mut camera_update_events: EventReader<CameraUpdate>,
     mut recording_state: ResMut<RecordingState>,
     mut recording_update_events: EventWriter<RecordingUpdate>,
 ) {
@@ -158,29 +163,18 @@ pub fn block_recording_interruptions(
     if recording_state.mode != RecordingMode::Recording {
         return;
     }
-
-    let stop_reason =
-        if keyboard.just_pressed(KEY_ARENA_PREV) || keyboard.just_pressed(KEY_ARENA_NEXT) {
-            Some(StopReason::ArenaTransition)
-        } else if keyboard.just_pressed(KEY_CHARACTER_SWITCH) {
-            Some(StopReason::CharacterSwitch)
-        } else {
-            None
-        };
-
-    if let Some(reason) = stop_reason {
-        recording_state.pending_request = Some(RecordingRequest::Stop { reason });
+    if camera_update_events.read().next().is_some() || keyboard.just_pressed(KEY_CHARACTER_SWITCH) {
+        recording_state.pending_request = Some(RecordingRequest::ShowSwitchDialog);
         recording_update_events.write(RecordingUpdate);
-        info!("Blocked action during recording: {:?}", reason);
     }
 }
 
-/// Check if recording time limit reached
+/// Check if the recording time limit reached
 /// Triggers RecordingUpdate to stop recording when time limit reached
 pub fn check_recording_time_limit(
-    arena_q: Query<(&Arena, &TimelineClock)>,
-    arena_entities: Res<ArenaEntities>,
+    arena_q: Query<&TimelineClock, With<Arena>>,
     current_arena: Res<CurrentArena>,
+    arena_entities: Res<ArenaEntities>,
     mut recording_state: ResMut<RecordingState>,
     mut recording_update_events: EventWriter<RecordingUpdate>,
 ) {
@@ -189,17 +183,14 @@ pub fn check_recording_time_limit(
         return;
     }
 
-    // O(1) lookup for current arena entity
-    let current_arena_entity = arena_entities.get(current_arena.name());
-    let Ok((_, clock)) = arena_q.get(current_arena_entity) else {
+    // Helper method eliminates repetitive lookup pattern
+    let Ok(clock) = arena_q.get(current_arena.entity(&arena_entities)) else {
         return;
     };
 
-    if clock.current().as_secs() >= 120.0 - 0.1 {
+    if clock.current().as_secs() > TimeStamp::MAX.0 {
         // 120 second recording limit
-        recording_state.pending_request = Some(RecordingRequest::Stop {
-            reason: StopReason::TimeComplete,
-        });
+        recording_state.pending_request = Some(RecordingRequest::ShowDialog);
         recording_update_events.write(RecordingUpdate);
         info!("Recording time limit reached");
     }
@@ -215,8 +206,7 @@ pub fn recording_update(
     mut commands: Commands,
     time: Res<Time>,
     // All the queries needed for recording coordination
-    _arena_q: Query<(&Arena, &TimelineClock)>,
-    _arena_entities: Res<ArenaEntities>,
+    // TODO: These will be used in future tutorials for timeline coordination
     current_arena: Res<CurrentArena>,
     // Query for the single Active Character when needed
     active_character_q: Query<
@@ -224,142 +214,189 @@ pub fn recording_update(
         (With<Character>, With<Active>),
     >,
 ) {
-    // Only run when RecordingUpdate event is triggered
-    if recording_update_events.is_empty() {
-        return;
-    }
-    recording_update_events.clear();
+    if let Some(_) = recording_update_events.read().next() {
+        let previous_mode = recording_state.mode;
 
-    let previous_mode = recording_state.mode;
+        // Handle countdown progression
+        if recording_state.mode == RecordingMode::Countdown {
+            if let Some(ref mut remaining) = recording_state.countdown_remaining {
+                *remaining = remaining.saturating_sub(time.delta());
 
-    // Handle countdown progression
-    if recording_state.mode == RecordingMode::Countdown {
-        if let Some(ref mut remaining) = recording_state.countdown_remaining {
-            *remaining = remaining.saturating_sub(time.delta());
+                if remaining.is_zero() {
+                    // Countdown complete - transition to recording
+                    recording_state.mode = RecordingMode::Recording;
+                    recording_state.countdown_remaining = None;
 
-            if remaining.is_zero() {
-                // Countdown complete - transition to recording
-                recording_state.mode = RecordingMode::Recording;
-                recording_state.countdown_remaining = None;
-
-                // Add Recording component to Active Character
-                if let Ok((entity, _, _)) = active_character_q.single() {
-                    commands.entity(entity).insert(Recording);
-                    info!("Recording started for active character {:?}", entity);
-                } else {
-                    warn!("No active character found to start recording");
-                    recording_state.mode = RecordingMode::Idle;
-                }
-            }
-        }
-    }
-
-    // Process pending requests
-    if let Some(request) = recording_state.pending_request.take() {
-        match request {
-            RecordingRequest::Start => {
-                match recording_state.mode {
-                    RecordingMode::Idle => {
-                        if active_character_q.single().is_ok() {
-                            // Valid transition: start countdown
-                            recording_state.mode = RecordingMode::Countdown;
-                            recording_state.countdown_remaining = Some(Duration::from_secs(3));
-                            info!("Started recording countdown for active character");
-                        } else {
-                            warn!("Cannot start recording - no active character found");
-                        }
-                    }
-                    _ => {
-                        warn!(
-                            "Cannot start recording from state: {:?}",
-                            recording_state.mode
-                        );
-                    }
-                }
-            }
-
-            RecordingRequest::Stop { reason } => {
-                match recording_state.mode {
-                    RecordingMode::Recording => {
-                        // Valid transition: stop recording
+                    // Add a Recording component to Active Character
+                    if let Ok((entity, _, _)) = active_character_q.single() {
+                        commands.entity(entity).insert(Recording);
+                        info!("Recording started for active character {:?}", entity);
+                    } else {
+                        warn!("No active character found to start recording");
                         recording_state.mode = RecordingMode::Idle;
-
-                        // Remove Recording component from Active Character
-                        if let Ok((entity, _, _)) = active_character_q.single() {
-                            commands.entity(entity).remove::<Recording>();
-                            info!(
-                                "Stopped recording for active character {:?} due to: {:?}",
-                                entity, reason
-                            );
-                        } else {
-                            warn!("No active character found to stop recording for");
-                        }
-                    }
-                    _ => {
-                        warn!(
-                            "Cannot stop recording from state: {:?}",
-                            recording_state.mode
-                        );
-                    }
-                }
-            }
-
-            RecordingRequest::Commit => {
-                // Handle commit recording - convert Active Character to ghost
-                if let Ok((entity, _, _)) = active_character_q.single() {
-                    commands.entity(entity).insert(Ghost).remove::<Recording>();
-                    info!(
-                        "Committed recording for active character {:?} in arena {:?}",
-                        entity,
-                        current_arena.id()
-                    );
-                } else {
-                    warn!("Cannot commit recording - no active character found");
-                }
-            }
-
-            RecordingRequest::Clear => {
-                // Handle clear recording - discard timeline for Active Character
-                if let Ok((entity, _, _)) = active_character_q.single() {
-                    commands.entity(entity).remove::<Recording>();
-                    recording_state.mode = RecordingMode::Idle;
-                    info!("Cleared recording for active character {:?}", entity);
-                } else {
-                    warn!("Cannot clear recording - no active character found");
-                }
-            }
-
-            RecordingRequest::ShowDialog => {
-                // Handle show dialog request - transition to DialogPaused state
-                match recording_state.mode {
-                    RecordingMode::Idle => {
-                        recording_state.mode = RecordingMode::DialogPaused;
-                        if let Ok((entity, _, _)) = active_character_q.single() {
-                            info!("Showing dialog for active ghost character {:?}", entity);
-                        } else {
-                            info!("Showing dialog for active character (none found)");
-                        }
-                    }
-                    _ => {
-                        warn!("Cannot show dialog from state: {:?}", recording_state.mode);
                     }
                 }
             }
         }
-    }
 
-    // Additional coordination logic can go here:
-    // - Dialog pause/resume handling
-    // - Timeline synchronization
-    // - Ghost spawning
-    // - Material updates
-    // - UI state updates
+        // Process pending requests
+        if let Some(request) = recording_state.pending_request.take() {
+            match request {
+                RecordingRequest::Start => {
+                    match recording_state.mode {
+                        RecordingMode::Idle => {
+                            if active_character_q.single().is_ok() {
+                                // Valid transition: start countdown
+                                recording_state.mode = RecordingMode::Countdown;
+                                recording_state.countdown_remaining =
+                                    Some(RecordingState::COUNTDOWN_DURATION);
+                                info!("Started recording countdown for active character");
+                            } else {
+                                warn!("Cannot start recording - no active character found");
+                            }
+                        }
+                        _ => {
+                            warn!(
+                                "Cannot start recording from state: {:?}",
+                                recording_state.mode
+                            );
+                        }
+                    }
+                }
 
-    if previous_mode != recording_state.mode {
-        info!(
-            "Recording state: {:?} → {:?}",
-            previous_mode, recording_state.mode
-        );
+                RecordingRequest::Stop { reason } => {
+                    match recording_state.mode {
+                        RecordingMode::Recording => {
+                            // Valid transition: stop recording
+                            recording_state.mode = RecordingMode::Idle;
+
+                            // Remove Recording component from Active Character
+                            if let Ok((entity, _, _)) = active_character_q.single() {
+                                commands.entity(entity).remove::<Recording>();
+                                info!(
+                                    "Stopped recording for active character {:?} due to: {:?}",
+                                    entity, reason
+                                );
+                            } else {
+                                warn!("No active character found to stop recording for");
+                            }
+                        }
+                        _ => {
+                            warn!(
+                                "Cannot stop recording from state: {:?}",
+                                recording_state.mode
+                            );
+                        }
+                    }
+                }
+
+                RecordingRequest::Commit => {
+                    // Handle commit recording - convert Active Character to ghost
+                    if let Ok((entity, _, _)) = active_character_q.single() {
+                        commands.entity(entity).insert(Ghost).remove::<Recording>();
+                        info!(
+                            "Committed recording for active character {:?} in arena {:?}",
+                            entity,
+                            current_arena.id()
+                        );
+                    } else {
+                        warn!("Cannot commit recording - no active character found");
+                    }
+                }
+
+                RecordingRequest::Clear => {
+                    // Handle clear recording - discard timeline for Active Character
+                    if let Ok((entity, _, _)) = active_character_q.single() {
+                        commands.entity(entity).remove::<Recording>();
+                        recording_state.mode = RecordingMode::Idle;
+                        info!("Cleared recording for active character {:?}", entity);
+                    } else {
+                        warn!("Cannot clear recording - no active character found");
+                    }
+                }
+
+                RecordingRequest::ShowDialog => {
+                    // Handle show dialog request - transition to DialogPaused state
+                    match recording_state.mode {
+                        RecordingMode::Idle => {
+                            recording_state.mode = RecordingMode::DialogPaused;
+                            if let Ok((entity, _, _)) = active_character_q.single() {
+                                info!("Showing dialog for active ghost character {:?}", entity);
+                            } else {
+                                info!("Showing dialog for active character (none found)");
+                            }
+                        }
+                        _ => {
+                            warn!("Cannot show dialog from state: {:?}", recording_state.mode);
+                        }
+                    }
+                }
+
+                RecordingRequest::ShowCancelDialog => {
+                    // Handle recording cancellation confirmation dialog
+                    match recording_state.mode {
+                        RecordingMode::Recording => {
+                            recording_state.mode = RecordingMode::DialogPaused;
+                            if let Ok((entity, _, _)) = active_character_q.single() {
+                                info!(
+                                    "Showing recording cancellation dialog for active character {:?}",
+                                    entity
+                                );
+                            } else {
+                                info!(
+                                    "Showing recording cancellation dialog for active character (none found)"
+                                );
+                            }
+                        }
+                        _ => {
+                            warn!(
+                                "Cannot show cancel dialog from state: {:?}",
+                                recording_state.mode
+                            );
+                        }
+                    }
+                }
+
+                RecordingRequest::ShowSwitchDialog => {
+                    // Handle character switch confirmation dialog during recording
+                    match recording_state.mode {
+                        RecordingMode::Recording => {
+                            recording_state.mode = RecordingMode::DialogPaused;
+                            if let Ok((entity, _, _)) = active_character_q.single() {
+                                info!(
+                                    "Showing character switch confirmation dialog for active character {:?}",
+                                    entity
+                                );
+                            } else {
+                                info!(
+                                    "Showing character switch confirmation dialog for active character (none found)"
+                                );
+                            }
+                        }
+                        _ => {
+                            warn!(
+                                "Cannot show switch dialog from state: {:?}",
+                                recording_state.mode
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // Additional coordination logic can go here:
+        // - Dialog pause/resume handling
+        // - Timeline synchronization
+        // - Ghost spawning
+        // - Material updates
+        // - UI state updates
+
+        if previous_mode != recording_state.mode {
+            info!(
+                "Recording state: {:?} → {:?}",
+                previous_mode, recording_state.mode
+            );
+        }
     }
 }
 
@@ -484,6 +521,8 @@ mod tests {
             RecordingRequest::Commit,
             RecordingRequest::Clear,
             RecordingRequest::ShowDialog,
+            RecordingRequest::ShowCancelDialog,
+            RecordingRequest::ShowSwitchDialog,
         ];
 
         // Test that Debug is implemented

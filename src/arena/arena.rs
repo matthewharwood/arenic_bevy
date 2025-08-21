@@ -52,10 +52,7 @@ impl ArenaName {
         Self::ALL_ARENAS[clamped_idx as usize]
     }
 
-    /// Iterator over all arena names in order
-    pub fn all() -> impl Iterator<Item = Self> {
-        Self::ALL_ARENAS.into_iter()
-    }
+    // Note: all() method removed as genuinely unused
 }
 
 impl Display for ArenaName {
@@ -138,9 +135,7 @@ impl Display for Arena {
     }
 }
 
-/// Marker component for arena tile entities.
-#[derive(Component, Debug)]
-pub struct ArenaTile;
+// Note: ArenaTile component removed as genuinely unused
 
 #[derive(Resource, Debug, Clone)]
 pub struct CurrentArena(pub ArenaId);
@@ -169,18 +164,16 @@ impl ArenaEntities {
         self.entities[name as usize]
     }
 
-    /// Find which arena an entity belongs to - O(n) but only 9 entities max
-    /// Returns None if entity is not found in any arena
-    #[must_use]
-    pub fn find_arena_for_entity(&self, entity: Entity) -> Option<ArenaName> {
-        self.entities
-            .iter()
-            .position(|&e| e == entity)
-            .map(|idx| ArenaName::from_index_safe(idx as u8))
-    }
+    // Note: find_arena_for_entity removed as genuinely unused
 }
 
 impl CurrentArena {
+    /// Helper method to get the arena entity directly
+    /// Eliminates the repetitive lookup pattern used throughout the codebase
+    pub fn entity(&self, arena_entities: &ArenaEntities) -> Entity {
+        arena_entities.get(self.name())
+    }
+
     /// Increment arena cyclically (Labyrinth -> GuildHouse -> ... -> Gala -> Labyrinth)
     pub fn increment(arena_id: ArenaId) -> ArenaId {
         let next_idx = (arena_id.as_u8() + 1) % 9;

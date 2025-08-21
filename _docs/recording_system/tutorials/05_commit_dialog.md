@@ -64,6 +64,8 @@ pub enum DialogType {
         arena: ArenaId,
         has_recording: bool 
     },
+    /// Character switch confirmation during recording
+    CharacterSwitchConfirm,
 }
 // APPROVED: Enum with data is cleaner than separate dialog structs
 // REJECTED: "Use trait objects for dialogs" - Unnecessary indirection
@@ -75,8 +77,10 @@ pub enum DialogChoice {
     Clear,
     Cancel,
     Retry,
-    KeepExisting,    // For ghost replay dialog - keep playing current recording
-    DraftNew,        // For ghost replay dialog - convert to character for new recording
+    KeepExisting,         // For ghost replay dialog - keep playing current recording
+    DraftNew,             // For ghost replay dialog - convert to character for new recording
+    SwitchCharacter,      // For character switch dialog - stop recording and switch
+    ContinueRecording,    // For character switch dialog - cancel switch and continue recording
 }
 
 /// Component for dialog UI root entity
@@ -306,6 +310,12 @@ fn spawn_dialog_buttons(buttons: &mut ChildBuilder, dialog_type: &DialogType) {
                 ]
             }
         }
+        DialogType::CharacterSwitchConfirm => {
+            vec![
+                ("Switch Character", DialogChoice::SwitchCharacter),
+                ("Continue Recording", DialogChoice::ContinueRecording),
+            ]
+        }
     };
 
     for (label, choice) in button_choices {
@@ -338,6 +348,7 @@ fn get_dialog_title(dialog_type: &DialogType) -> &'static str {
         DialogType::EndRecording => "Recording Complete",
         DialogType::RetryGhost { .. } => "Retry Ghost Recording?",
         DialogType::GhostReplay { .. } => "Ghost Replay Options",
+        DialogType::CharacterSwitchConfirm => "Character Switch During Recording",
     }
 }
 
@@ -358,6 +369,7 @@ fn get_dialog_description(dialog_type: &DialogType) -> &'static str {
                 "This ghost has no recording for this arena. Start a new recording?"
             }
         },
+        DialogType::CharacterSwitchConfirm => "You're currently recording. Stop recording and switch character?",
     }
 }
 ```
@@ -510,6 +522,22 @@ pub fn process_dialog_choices(
                     info!("Active ghost {:?} converted to character for new recording", entity);
                 }
                 resume_events.write(ResumeAllTimelines);
+            }
+            DialogChoice::SwitchCharacter => {
+                // Stop recording and allow character switch
+                if active_character_q.single().is_ok() {
+                    recording_state.pending_request = Some(RecordingRequest::Clear);
+                    recording_update_events.write(RecordingUpdate);
+                    recording_state.mode = RecordingMode::Idle;
+                    info!("Stopping recording to allow character switch");
+                }
+                resume_events.write(ResumeAllTimelines);
+            }
+            DialogChoice::ContinueRecording => {
+                // Resume recording without switching
+                recording_state.mode = RecordingMode::Recording;
+                resume_events.write(ResumeAllTimelines);
+                info!("Continuing recording, cancelled character switch");
             }
         }
     }
@@ -717,6 +745,10 @@ mod tests {
             DialogChoice::Clear,
             DialogChoice::Cancel,
             DialogChoice::Retry,
+            DialogChoice::KeepExisting,
+            DialogChoice::DraftNew,
+            DialogChoice::SwitchCharacter,
+            DialogChoice::ContinueRecording,
         ];
 
         // Ensure all are distinct
@@ -795,7 +827,10 @@ Test sequence:
 3. Press 1 (Commit), 2 (Clear), or 3 (Cancel) to make choice
 4. Start another recording and wait 2 minutes - EndRecording dialog
 5. Press R on a ghost with existing recording - GhostReplay dialog with "Keep Existing" or "Draft New"
-6. Test both choices to verify ghost behavior
+6. Press Tab during recording - CharacterSwitchConfirm dialog appears with options:
+   - "Switch Character" - stops recording and allows character switch
+   - "Continue Recording" - cancels switch and continues recording
+7. Test both choices to verify character switch behavior
 
 ## Next Steps
 

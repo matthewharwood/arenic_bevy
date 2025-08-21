@@ -1,4 +1,4 @@
-use crate::arena::ArenaName;
+// Note: ArenaName import removed as unused after cleaning up get_arena_color
 use bevy::prelude::*;
 
 /// Grid dimensions for each arena
@@ -29,7 +29,5 @@ pub const DEBUG_COLORS: [Color; 9] = [
     Color::srgb(1.0, 0.275, 0.984),   // Gala - #ff46fb
 ];
 
-/// Get debug color for specific arena
-pub fn get_arena_color(arena: ArenaName) -> Color {
-    DEBUG_COLORS[arena as usize]
-}
+// Note: get_arena_color function removed as genuinely unused
+// Use DEBUG_COLORS[arena as usize] directly if needed

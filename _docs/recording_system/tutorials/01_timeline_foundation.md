@@ -506,11 +506,8 @@ pub fn debug_timeline_clocks(
     arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
     current_arena: Res<CurrentArena>,
 ) {
-    // O(1) lookup for current arena entity using ArenaEntities
-    let current_arena_entity = arena_entities.get(current_arena.name());
-    
-    // Direct query for the current arena - no iteration needed
-    let Ok((arena, clock)) = arena_q.get(current_arena_entity) else {
+    // Helper method eliminates repetitive lookup pattern
+    let Ok((arena, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
         return;
     };
 
@@ -854,8 +851,7 @@ This becomes a performance bottleneck when supporting 320+ ghosts across 9 arena
 
 ```rust
 // NEW WAY - O(1) lookup using ArenaEntities (FAST!)
-let current_arena_entity = arena_entities.get(current_arena.name());
-let Ok((arena, clock)) = arena_q.get(current_arena_entity) else {
+let Ok((arena, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
     return;
 };
 ```
