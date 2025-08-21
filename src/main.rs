@@ -18,9 +18,9 @@ use crate::ability::{
     auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
 };
 use crate::arena::{
-    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaEntities, ArenaId, ArenaName, CameraUpdate,
-    CharacterMoved, CurrentArena, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero, TILE_SIZE,
-    TOTAL_ARENAS, arena_update, decrement_current_arena, get_local_tile_space,
+    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaEntities, ArenaName, CameraUpdate, CharacterMoved,
+    CurrentArena, CurrentArenaEntity, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
+    TILE_SIZE, TOTAL_ARENAS, arena_update, decrement_current_arena, get_local_tile_space,
     handle_character_moved, increment_current_arena,
 };
 use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
@@ -111,7 +111,7 @@ fn setup_scene(
 ) {
     commands.insert_resource(Materials::new(&mut materials));
     commands.insert_resource(Audio::new(&asset_server));
-    commands.insert_resource(CurrentArena(ArenaId::new(ArenaName::GuildHouse))); // Arena index 1
+    commands.insert_resource(CurrentArena(ArenaName::GuildHouse)); // Arena index 1
     let tile_mesh = meshes.add(Cuboid::new(TILE_SIZE, TILE_SIZE, TILE_SIZE));
     commands.spawn(Debug);
 
@@ -141,7 +141,7 @@ fn setup_scene(
                 let arena_entity = battleground
                     .spawn((
                         Transform::from_xyz(offset_x, offset_y, 0.0),
-                        Arena::from_index_safe(arena_index),
+                        Arena(ArenaName::from_index_safe(arena_index)),
                         InheritedVisibility::default(),
                         TimelineClock::default(),
                         class_type,
@@ -182,11 +182,10 @@ fn spawn_starting_hero(
     mut commands: Commands,
     mats: Res<Materials>,
     mut meshes: ResMut<Assets<Mesh>>,
-    current_arena: Res<CurrentArena>,
-    arena_entities: Res<ArenaEntities>,
+    current: CurrentArenaEntity,
 ) {
     // O(1) lookup for current arena entity
-    let arena_entity = arena_entities.get(current_arena.name());
+    let arena_entity = current.get();
 
     let sphere_radius = 0.125;
     let sphere_mesh = meshes.add(Sphere::new(sphere_radius));

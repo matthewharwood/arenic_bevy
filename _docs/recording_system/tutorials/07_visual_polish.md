@@ -144,8 +144,8 @@ pub fn update_timeline_progress(
     current_arena: Res<CurrentArena>,
     mut progress_q: Query<&mut Node, With<TimelineProgressBar>>,
 ) {
-    // Use ArenaId for current arena comparison
-    let current_arena_id = current_arena.id();
+    // Use ArenaName for current arena comparison
+    let current_arena_name = current_arena.0;
     
     let current_time = arena_q
         .iter()
@@ -656,7 +656,7 @@ pub fn update_arena_status_display(
         let ghost_count = stats.ghost_counts.get(&arena_idx).unwrap_or(&0);
         let recording_count = stats.recording_counts.get(&arena_idx).unwrap_or(&0);
 
-        let current_arena_id = current_arena.id();
+        let current_arena_name = current_arena.0;
         
         let color = if arena_idx == current_arena_id.as_u8() {
             Color::srgb(0.2, 0.5, 0.2) // Green for current

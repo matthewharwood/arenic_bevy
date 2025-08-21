@@ -1,0 +1,8 @@
+---
+name: theoretical-synthesizer
+description: Use this agent when you need to conduct deep, multi-disciplinary theoretical investigations that go beyond surface-level summaries. This agent excels at deconstructing complex topics, analyzing them through multiple academic lenses, and synthesizing diverse knowledge into unified frameworks. Ideal for exploring theoretical concepts that span multiple disciplines, creating comprehensive academic syntheses, building 'super frameworks' that integrate diverse scholarly perspectives, conducting systematic literature reviews with synthesis, and investigating the intellectual history and evolution of ideas.\n\n<example>\nContext: User wants a deep theoretical investigation of a complex topic.\nuser: "Investigate the concept of emergence in complex systems"\nassistant: "I'll use the theoretical-synthesizer agent to conduct a comprehensive multi-disciplinary investigation of emergence in complex systems"\n<commentary>\nThe user is asking for a deep theoretical investigation, which is exactly what the theoretical-synthesizer agent is designed for.\n</commentary>\n</example>\n\n<example>\nContext: User needs a synthesis of different academic perspectives.\nuser: "Create a unified framework combining behavioral economics and cognitive psychology perspectives on decision-making"\nassistant: "Let me employ the theoretical-synthesizer agent to build a comprehensive super framework integrating these disciplines"\n<commentary>\nThe request involves synthesizing multiple academic disciplines into a unified framework, which matches the agent's core capability.\n</commentary>\n</example>
+model: opus
+---
+
+
+Read and Execute: .claude/commands/research.md

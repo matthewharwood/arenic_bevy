@@ -32,7 +32,7 @@ use bevy::prelude::*;
 // APPROVED: Using CSS palette constants improves readability
 use bevy::color::palettes::css::WHITE;
 use crate::recording::{StopReason, RecordingRequest, RecordingState, RecordingUpdate};
-use crate::arena::{ArenaId, CurrentArena};
+use crate::arena::{ArenaName, CurrentArena};
 use crate::character::Character;
 use crate::selectors::Active;
 
@@ -61,7 +61,7 @@ pub enum DialogType {
     RetryGhost,
     /// User pressed R on ghost with existing recording
     GhostReplay { 
-        arena: ArenaId,
+        arena: ArenaName,
         has_recording: bool 
     },
     /// Character switch confirmation during recording

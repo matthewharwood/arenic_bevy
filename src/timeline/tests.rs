@@ -194,8 +194,8 @@ mod tests {
         use crate::arena::Arena;
 
         // Safe index always succeeds
-        let safe = Arena::from_index_safe(15);
-        assert_eq!(safe.as_u8(), 8); // Should clamp to max valid arena
+        let safe = Arena(ArenaName::from_index_safe(15));
+        assert_eq!(safe.0.as_u8(), 8); // Should clamp to max valid arena
     }
 
     #[test]
@@ -225,8 +225,8 @@ mod tests {
         let timeline_gala = PublishTimeline::from_draft(draft_gala).expect("Failed to create timeline");
         
         // Store timelines for different arenas
-        let labyrinth_id = ArenaId::from_index_safe(0); // Labyrinth
-        let gala_id = ArenaId::from_index_safe(8);      // Gala
+        let labyrinth_id = ArenaName::from_index_safe(0); // Labyrinth
+        let gala_id = ArenaName::from_index_safe(8);      // Gala
         
         character_timelines.store_timeline(labyrinth_id, timeline_labyrinth);
         character_timelines.store_timeline(gala_id, timeline_gala);
@@ -235,7 +235,7 @@ mod tests {
         assert_eq!(character_timelines.arena_count(), 2);
         assert!(character_timelines.has_recording_for(labyrinth_id));
         assert!(character_timelines.has_recording_for(gala_id));
-        assert!(!character_timelines.has_recording_for(ArenaId::from_index_safe(1))); // GuildHouse - no recording
+        assert!(!character_timelines.has_recording_for(ArenaName::from_index_safe(1))); // GuildHouse - no recording
         
         // Verify we can retrieve specific arena timelines
         let labyrinth_timeline = character_timelines.get_timeline(labyrinth_id).unwrap();

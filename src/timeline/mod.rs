@@ -102,7 +102,7 @@ pub enum Target {
 use crate::ability::AbilityType;
 
 /// Import arena types from the arena module
-use crate::arena::{Arena, ArenaEntities, ArenaId, CurrentArena};
+use crate::arena::{Arena, ArenaName, CurrentArenaEntity};
 
 /// Newtype for grid positions using IVec2 internally
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
@@ -192,7 +192,7 @@ pub struct PublishTimeline {
 /// Component that stores multiple timelines per character (one per arena)
 #[derive(Component, Default)]
 pub struct CharacterTimelines {
-    pub timelines: HashMap<ArenaId, PublishTimeline>,
+    pub timelines: HashMap<ArenaName, PublishTimeline>,
 }
 
 impl CharacterTimelines {
@@ -202,15 +202,15 @@ impl CharacterTimelines {
         }
     }
 
-    pub fn store_timeline(&mut self, arena: ArenaId, timeline: PublishTimeline) {
+    pub fn store_timeline(&mut self, arena: ArenaName, timeline: PublishTimeline) {
         self.timelines.insert(arena, timeline);
     }
 
-    pub fn get_timeline(&self, arena: ArenaId) -> Option<&PublishTimeline> {
+    pub fn get_timeline(&self, arena: ArenaName) -> Option<&PublishTimeline> {
         self.timelines.get(&arena)
     }
 
-    pub fn has_recording_for(&self, arena: ArenaId) -> bool {
+    pub fn has_recording_for(&self, arena: ArenaName) -> bool {
         self.timelines.contains_key(&arena)
     }
 
@@ -218,7 +218,7 @@ impl CharacterTimelines {
         self.timelines.len()
     }
 
-    pub fn recorded_arenas(&self) -> impl Iterator<Item = ArenaId> + '_ {
+    pub fn recorded_arenas(&self) -> impl Iterator<Item = ArenaName> + '_ {
         self.timelines.keys().copied()
     }
 }
@@ -398,10 +398,9 @@ pub fn control_virtual_time_pause(
 /// System to display current clock values (for debugging)
 pub fn debug_timeline_clocks(
     arena_q: Query<(&Arena, &TimelineClock)>,
-    arena_entities: Res<ArenaEntities>,
-    current_arena: Res<CurrentArena>,
+    current: CurrentArenaEntity,
 ) {
-    let current_arena_entity = arena_entities.get(current_arena.name());
+    let current_arena_entity = current.get();
 
     let Ok((arena, clock)) = arena_q.get(current_arena_entity) else {
         return;
@@ -522,8 +521,8 @@ mod tests {
             .expect("Failed to add event");
         let timeline_gala = PublishTimeline::from_draft(draft_gala);
 
-        let labyrinth_id = ArenaId::from_index_safe(0);
-        let gala_id = ArenaId::from_index_safe(8);
+        let labyrinth_id = ArenaName::from_index_safe(0);
+        let gala_id = ArenaName::from_index_safe(8);
 
         character_timelines.store_timeline(labyrinth_id, timeline_labyrinth);
         character_timelines.store_timeline(gala_id, timeline_gala);

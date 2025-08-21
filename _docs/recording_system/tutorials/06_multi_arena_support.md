@@ -24,7 +24,7 @@ We'll create:
 
 ### Character Timelines Per Arena
 Each character stores a separate timeline for each arena they've recorded in:
-- `CharacterTimelines` component contains `HashMap<ArenaId, PublishTimeline>`
+- `CharacterTimelines` component contains `HashMap<ArenaName, PublishTimeline>`
 - Characters can have up to 9 separate recordings (one per arena)
 - When a ghost moves between arenas, they can replay different recordings
 
@@ -141,7 +141,7 @@ pub fn playback_arena_ghosts(
     let current_arena_name = current_arena.name();
     
     // Helper method eliminates repetitive lookup pattern
-    if let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) {
+    if let Ok((_, clock)) = arena_q.get(arena_entities.get(current_arena.0)) {
         let current_time = clock.current();
         let current_arena_ghosts = registry.get_arena_ghosts(current_arena_name);
 
@@ -163,9 +163,8 @@ pub fn playback_arena_ghosts(
     // Process other arenas at reduced fidelity using ArenaName iteration
     for arena_name in ArenaName::all() {
         if arena_name != current_arena_name {
-            // Helper method eliminates repetitive lookup pattern
-            let arena_id = ArenaId::new(arena_name);
-            if let Ok((_, clock)) = arena_q.get(arena_id.entity(&arena_entities)) {
+            // ArenaEntities provides O(1) lookup using ArenaName
+            if let Ok((_, clock)) = arena_q.get(arena_entities.get(arena_name)) {
                 let current_time = clock.current();
     
                 // Update every 10th frame for distant arenas
@@ -309,9 +308,9 @@ pub fn check_ghost_limits(
     current_arena: Res<CurrentArena>,
 ) {
     let total = registry.total_ghost_count();
-    let current_arena_id = current_arena.id();
+    let current_arena_name = current_arena.0;
     let current_arena_count = registry
-        .get_arena_ghosts(current_arena_id.name())
+        .get_arena_ghosts(current_arena_name)
         .len();
 
     if total >= limits.max_total_ghosts {
@@ -332,7 +331,7 @@ pub fn check_ghost_limits(
     if current_arena_count >= limits.max_ghosts_per_arena {
         error!(
             "Arena {} has maximum ghosts: {}/{}", 
-            current_idx.as_u8(),
+            current_arena_name.as_u8(),
             current_arena_count,
             limits.max_ghosts_per_arena
         );
@@ -368,15 +367,15 @@ pub fn update_ghost_lod(
     ghost_q: Query<(Entity, &Parent), With<Ghost>>,
     arena_q: Query<&Arena>,
 ) {
-    let current_arena_id = current_arena.id();
+    let current_arena_name = current_arena.0;
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
             let arena_idx = arena.as_u8();
 
             // Calculate "distance" between arenas
-            let row_diff = (arena_idx / 3).abs_diff(current_arena_id.as_u8() / 3);
-            let col_diff = (arena_idx % 3).abs_diff(current_arena_id.as_u8() % 3);
+            let row_diff = (arena_idx / 3).abs_diff(current_arena_name.as_u8() / 3);
+            let col_diff = (arena_idx % 3).abs_diff(current_arena_name.as_u8() % 3);
             let distance = row_diff + col_diff;
 
             let lod_level = match distance {
@@ -432,14 +431,14 @@ pub fn commit_recording_to_arena(
         
         // Store in the hashmap with current arena as key
         // This allows the same character to have different recordings per arena
-        timelines.store_timeline(current_arena.id(), published);
+        timelines.store_timeline(current_arena.0, published);
         
         // Convert character to ghost
         commands.entity(entity)
             .remove::<Recording>()
             .insert(Ghost);
             
-        info!("Committed recording for arena {:?}", current_arena.id());
+        info!("Committed recording for arena {:?}", current_arena.0);
     }
 }
 
@@ -459,12 +458,12 @@ pub fn handle_ghost_replay_input(
     };
     
     // Check if this ghost has a recording for the current arena
-    let has_recording = timelines.has_recording_for(current_arena.id());
+    let has_recording = timelines.has_recording_for(current_arena.0);
     
     // Show dialog for ghost replay choice
     dialog_events.write(ShowDialog {
         dialog_type: DialogType::GhostReplay {
-            arena: current_arena.id(),
+            arena: current_arena.0,
             has_recording,
         },
     });
@@ -806,7 +805,7 @@ With multi-arena support complete, we can now:
 ```rust
 // OLD WAY - O(n) linear search in multi-arena context (VERY SLOW!)
 if let Some((_, clock)) = arena_q.iter()
-    .find(|(arena, _)| arena.name() == current_arena_id.name())
+    .find(|(arena, _)| arena.0 == current_arena_name)
 {
     // Process arena...
 }
@@ -844,22 +843,22 @@ The simplified ghost replay system is elegant and straightforward:
 **The `CharacterTimelines` hashmap IS the source of truth** - no additional state tracking needed.
 
 ### How It Works
-1. **Storage**: Each character entity has a `CharacterTimelines` component containing `HashMap<ArenaId, PublishTimeline>`
+1. **Storage**: Each character entity has a `CharacterTimelines` component containing `HashMap<ArenaName, PublishTimeline>`
 2. **Recording**: When a recording is committed, it's stored with the current arena as the key
-3. **Automatic Playback**: Ghost plays `timelines.get_timeline(current_arena.id())` - if no timeline exists, ghost stays idle
+3. **Automatic Playback**: Ghost plays `timelines.get_timeline(current_arena.0)` - if no timeline exists, ghost stays idle
 4. **User Control**: Press R on ghost → dialog offers "Keep Existing" or "Draft New"
 
 ### Example Flow
 ```rust
 // Character records in Arena 0 (Labyrinth)
-CharacterTimelines.store_timeline(ArenaId::Labyrinth, timeline_labyrinth);
+CharacterTimelines.store_timeline(ArenaName::Labyrinth, timeline_labyrinth);
 
 // Character moves to Arena 8 (Gala) and records there
-CharacterTimelines.store_timeline(ArenaId::Gala, timeline_gala);
+CharacterTimelines.store_timeline(ArenaName::Gala, timeline_gala);
 
-// Ghost in Arena 0: timelines.get_timeline(ArenaId::Labyrinth) → plays timeline_labyrinth
-// Ghost in Arena 8: timelines.get_timeline(ArenaId::Gala) → plays timeline_gala  
-// Ghost in Arena 5: timelines.get_timeline(ArenaId::Forest) → None → stays idle
+// Ghost in Arena 0: timelines.get_timeline(ArenaName::Labyrinth) → plays timeline_labyrinth
+// Ghost in Arena 8: timelines.get_timeline(ArenaName::Gala) → plays timeline_gala  
+// Ghost in Arena 5: timelines.get_timeline(ArenaName::Pawnshop) → None → stays idle
 ```
 
 ### Benefits

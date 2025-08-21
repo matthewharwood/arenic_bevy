@@ -47,10 +47,9 @@ Create `src/recording/capture.rs`:
 ```rust
 use bevy::prelude::*;
 use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, GridPos, Target, TimelineClock};
-use crate::arena::{Arena, ArenaId, CurrentArena, ArenaEntities};
+use crate::arena::{Arena, CurrentArena, ArenaEntities, CurrentArenaEntity};
 use crate::ability::AbilityType;
 use crate::recording::{Recording, RecordingMode, RecordingState};
-use crate::arena::CurrentArena;
 use crate::character::Character;
 
 // Const keymaps for movement
@@ -73,10 +72,9 @@ pub fn capture_movement_intent(
     keyboard: Res<ButtonInput<KeyCode>>,
     global_pause: Res<GlobalTimelinePause>,
     recording_state: Res<RecordingState>,
-    current_arena: Res<CurrentArena>,
     mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
-    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
+    current: CurrentArenaEntity,
 ) {
     // Tutorial Note: We use a simple early return check here for clarity.
     // The lead suggested .run_if(not_paused) but for juniors learning,
@@ -98,8 +96,8 @@ pub fn capture_movement_intent(
         return;
     }
 
-    // Helper method eliminates repetitive lookup pattern
-    let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
+    // CurrentArenaEntity provides O(1) lookup
+    let Ok((_, clock)) = arena_q.get(current.get()) else {
         return;
     };
 
@@ -157,10 +155,9 @@ pub fn optimize_movement_recording(
     keyboard: Res<ButtonInput<KeyCode>>,
     global_pause: Res<GlobalTimelinePause>,
     recording_state: Res<RecordingState>,
-    current_arena: Res<CurrentArena>,
     mut recording_q: Query<(Entity, &mut DraftTimeline, Option<&mut LastRecordedMovement>), With<Recording>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
-    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
+    current: CurrentArenaEntity,
     mut commands: Commands,
 ) {
     // PR Gate: Respecting GlobalTimelinePause
@@ -175,8 +172,8 @@ pub fn optimize_movement_recording(
 
     let movement_dir = get_movement_direction(&keyboard);
 
-    // Helper method eliminates repetitive lookup pattern
-    let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
+    // CurrentArenaEntity provides O(1) lookup
+    let Ok((_, clock)) = arena_q.get(current.get()) else {
         return;
     };
 
@@ -228,10 +225,9 @@ pub fn capture_ability_intent(
     keyboard: Res<ButtonInput<KeyCode>>,
     global_pause: Res<GlobalTimelinePause>,
     recording_state: Res<RecordingState>,
-    current_arena: Res<CurrentArena>,
     mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
-    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
+    current: CurrentArenaEntity,
     mouse_button: Res<ButtonInput<MouseButton>>,
     cursor_ray: Option<Res<CursorRay>>,
 ) {
@@ -255,8 +251,8 @@ pub fn capture_ability_intent(
         return;
     };
 
-    // Helper method eliminates repetitive lookup pattern
-    let Ok((_, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
+    // CurrentArenaEntity provides O(1) lookup
+    let Ok((_, clock)) = arena_q.get(current.get()) else {
         return;
     };
 

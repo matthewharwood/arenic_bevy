@@ -30,7 +30,7 @@ Create `src/playback/mod.rs`:
 ```rust
 use bevy::prelude::*;
 use crate::timeline::{PublishTimeline, TimelinePosition, EventType, TimeStamp, TimelineClock};
-use crate::arena::{Arena, ArenaId, ArenaEntities};
+use crate::arena::{Arena, ArenaName, ArenaEntities};
 use crate::ability::AbilityType;
 use crate::recording::Ghost;
 use crate::character::Character;
@@ -68,7 +68,7 @@ pub struct GhostSource(pub Entity);
 
 /// Each ghost tracks its own arena for independent clocks
 #[derive(Component)]
-pub struct GhostArena(pub ArenaId);
+pub struct GhostArena(pub ArenaName);
 
 /// Visual properties for ghosts
 #[derive(Component)]
@@ -97,7 +97,7 @@ Add to `src/playback/mod.rs`:
 /// Event for showing replay dialog when user presses R on ghost
 #[derive(Event)]
 pub struct ShowGhostReplayDialog {
-    pub arena: ArenaId,
+    pub arena: ArenaName,
     pub has_previous_recording: bool,
 }
 
@@ -271,13 +271,13 @@ pub fn playback_ghost_movement(
     for (timelines, mut position, mut transform, ghost_arena, mut movement_state) in ghost_q.iter_mut() {
         // Helper method eliminates repetitive lookup pattern
         // Each ghost uses its parent arena's clock, NOT CurrentArena
-        let Ok((_, clock)) = arena_q.get(ghost_arena.0.entity(&arena_entities)) else {
+        let Ok((_, clock)) = arena_q.get(arena_entities.get(ghost_arena.0)) else {
             continue;
         };
         
         // Simple rule: Ghost plays timeline for its current arena (from its CharacterTimelines hashmap)
         // If no timeline exists for this arena, ghost has nothing to play (stays idle)
-        let Some(timeline) = timelines.get_timeline(current_arena.id()) else {
+        let Some(timeline) = timelines.get_timeline(current_arena.0) else {
             continue; // No timeline stored for current arena - ghost stays idle
         };
         
@@ -342,8 +342,8 @@ pub fn loop_ghost_timelines(
     arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
 ) {
     for (mut position, ghost_arena) in ghost_q.iter_mut() {
-        // Helper method eliminates repetitive lookup pattern
-        let Ok((_, clock)) = arena_q.get(ghost_arena.0.entity(&arena_entities)) else {
+        // ArenaEntities provides O(1) lookup using ArenaName
+        let Ok((_, clock)) = arena_q.get(arena_entities.get(ghost_arena.0)) else {
             continue;
         };
         
@@ -694,8 +694,8 @@ mod tests {
     #[test]
     fn test_ghost_arena_independence() {
         // Create two ghosts with different arenas using explicit constructors
-        let ghost_arena_0 = GhostArena(ArenaId::from_index_safe(0));
-        let ghost_arena_5 = GhostArena(ArenaId::from_index_safe(5));
+        let ghost_arena_0 = GhostArena(ArenaName::from_index_safe(0));
+        let ghost_arena_5 = GhostArena(ArenaName::from_index_safe(5));
         
         // Create different clocks for each arena
         let mut clock_0 = TimelineClock::default();
@@ -705,8 +705,8 @@ mod tests {
         
         // Verify ghosts track different times based on their arena
         assert_ne!(clock_0.current().as_secs(), clock_5.current().as_secs());
-        assert_eq!(ghost_arena_0.0, ArenaId::from_index_safe(0));
-        assert_eq!(ghost_arena_5.0, ArenaId::from_index_safe(5));
+        assert_eq!(ghost_arena_0.0, ArenaName::from_index_safe(0));
+        assert_eq!(ghost_arena_5.0, ArenaName::from_index_safe(5));
         
         // Each ghost will use its own arena's clock during playback
         // This ensures off-screen ghosts advance independently
@@ -810,11 +810,11 @@ With playback working, we can now:
 
 ## Key Takeaways
 
-1. **Simple Timeline Lookup**: Ghosts play `timelines.get_timeline(current_arena.id())` - no complex state needed
+1. **Simple Timeline Lookup**: Ghosts play `timelines.get_timeline(current_arena.0)` - no complex state needed
 2. **Timeline Replay**: Interpolation creates smooth movement from keyframes  
 3. **Ability Triggers**: Deterministic range-based detection using [prev, curr] slices prevents duplicate triggers
 4. **Visual Distinction**: Ghosts have transparency and glow effects
-5. **Explicit Constructors**: TimeStamp::new(), ArenaId construction throughout playback code
+5. **Explicit Constructors**: TimeStamp::new(), ArenaName::from_index_safe() construction throughout playback code
 6. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
 7. **CharacterTimelines as Source of Truth**: The hashmap IS the ghost's behavior - no additional state tracking needed
 8. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup in ghost systems - critical for performance with 320+ ghosts across 9 arenas

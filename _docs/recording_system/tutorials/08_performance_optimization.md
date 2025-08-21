@@ -387,15 +387,15 @@ pub fn adjust_ghost_update_frequency(
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
-            // Use ArenaId for current arena comparison
-            let current_arena_id = current_arena.id();
+            // Use ArenaName for current arena comparison
+            let current_arena_name = current_arena.0;
             
             // Calculate update frequency based on arena distance
-            let frequency = if arena.0 == current_idx.as_u8() {
+            let frequency = if arena.0 == current_arena_name {
                 60.0 // Full speed for current arena
             } else {
-                let row_diff = (arena.0 / 3).abs_diff(current_idx.as_u8() / 3);
-                let col_diff = (arena.0 % 3).abs_diff(current_idx.as_u8() % 3);
+                let row_diff = (arena.0 / 3).abs_diff(current_arena_name.as_u8() / 3);
+                let col_diff = (arena.0 % 3).abs_diff(current_arena_name.as_u8() % 3);
                 let distance = row_diff + col_diff;
 
                 match distance {
@@ -429,8 +429,8 @@ pub fn frequency_limited_ghost_update(
     let current_time = time.elapsed().as_secs_f32();
 
     // Process current arena ghosts first (high priority)
-    let current_arena_id = current_arena.id();
-    let current_ghosts = registry.get_arena_ghosts(current_arena_id.name());
+    let current_arena_name = current_arena.0;
+    let current_ghosts = registry.get_arena_ghosts(current_arena_name);
     if !current_ghosts.is_empty() {
         // Use iter_many_mut for current arena ghosts
         for (mut transform, mut frequency, position, timeline) in
@@ -448,7 +448,7 @@ pub fn frequency_limited_ghost_update(
 
     // Process other arenas (can be done less frequently)
     for (arena_idx, ghost_entities) in &registry.ghosts_by_arena {
-        if *arena_idx != current_idx && !ghost_entities.is_empty() {
+        if *arena_idx != current_arena_name && !ghost_entities.is_empty() {
             // Use iter_many_mut for batch processing
             for (mut transform, mut frequency, position, timeline) in
                 ghost_q.iter_many_mut(ghost_entities.iter().copied())

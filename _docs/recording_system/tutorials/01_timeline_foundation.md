@@ -143,7 +143,7 @@ use crate::ability::AbilityType;
 // - Integration with the actual ability system components (AutoShot, HolyNova)
 
 // Import arena types from the arena module - no duplicates!
-use crate::arena::{Arena, ArenaId, ArenaName, ArenaEntities};
+use crate::arena::{Arena, ArenaName, ArenaEntities, CurrentArenaEntity};
 
 /// Newtype for grid positions using IVec2 internally
 #[derive(Clone, Copy, Debug, PartialEq, Component)]
@@ -250,7 +250,7 @@ pub struct PublishTimeline {
 /// Resolves the architectural issue where characters need separate recordings per arena
 #[derive(Component, Default)]
 pub struct CharacterTimelines {
-    pub timelines: HashMap<ArenaId, PublishTimeline>,
+    pub timelines: HashMap<ArenaName, PublishTimeline>,
 }
 
 impl CharacterTimelines {
@@ -260,15 +260,15 @@ impl CharacterTimelines {
         }
     }
 
-    pub fn store_timeline(&mut self, arena: ArenaId, timeline: PublishTimeline) {
+    pub fn store_timeline(&mut self, arena: ArenaName, timeline: PublishTimeline) {
         self.timelines.insert(arena, timeline);
     }
 
-    pub fn get_timeline(&self, arena: ArenaId) -> Option<&PublishTimeline> {
+    pub fn get_timeline(&self, arena: ArenaName) -> Option<&PublishTimeline> {
         self.timelines.get(&arena)
     }
 
-    pub fn has_recording_for(&self, arena: ArenaId) -> bool {
+    pub fn has_recording_for(&self, arena: ArenaName) -> bool {
         self.timelines.contains_key(&arena)
     }
 
@@ -276,7 +276,7 @@ impl CharacterTimelines {
         self.timelines.len()
     }
 
-    pub fn recorded_arenas(&self) -> impl Iterator<Item = ArenaId> + '_ {
+    pub fn recorded_arenas(&self) -> impl Iterator<Item = ArenaName> + '_ {
         self.timelines.keys().copied()
     }
 }
@@ -500,14 +500,13 @@ pub fn control_virtual_time_pause(
 }
 
 /// System to display current clock values (for debugging)
-/// 🆕 Uses ArenaEntities O(1) lookup - eliminates O(n) linear search!
+/// 🆕 Uses CurrentArenaEntity SystemParam - eliminates O(n) linear search!
 pub fn debug_timeline_clocks(
     arena_q: Query<(&Arena, &TimelineClock)>,
-    arena_entities: Res<ArenaEntities>,  // O(1) arena entity lookup
-    current_arena: Res<CurrentArena>,
+    current: CurrentArenaEntity,
 ) {
-    // Helper method eliminates repetitive lookup pattern
-    let Ok((arena, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
+    // CurrentArenaEntity provides O(1) arena entity lookup
+    let Ok((arena, clock)) = arena_q.get(current.get()) else {
         return;
     };
 
@@ -523,7 +522,7 @@ pub fn debug_timeline_clocks(
 Add to `src/timeline/mod.rs`:
 
 ```rust
-use crate::arena::{CurrentArena, ArenaEntities};
+use crate::arena::{CurrentArena, ArenaEntities, CurrentArenaEntity};
 
 pub struct TimelinePlugin;
 
@@ -560,7 +559,7 @@ Also update arena spawning in `setup_scene` to include timer:
 battleground
 .spawn((
 Transform::from_xyz(offset_x, offset_y, 0.0),
-Arena::from_index_safe(arena_index), // Use safe constructor for startup initialization
+Arena(ArenaName::from_index_safe(arena_index)), // ArenaName provides safe constructor
 TimelineClock::new(), // Use explicit constructor
 // InheritedVisibility is automatically added via required components
 class_type,
@@ -721,23 +720,14 @@ mod tests {
         // Test TimeStamp::ZERO constant
         assert_eq!(TimeStamp::ZERO.as_secs(), TimeStamp::ZERO.0);
 
-        // Test ArenaId::from_u8() for u8 conversion with proper error handling
-        let idx = ArenaId::from_u8(3).expect("Arena 3 should be valid");
-        assert_eq!(idx.as_u8(), 3);
-        assert_eq!(idx.to_string(), "Mountain (3)");
+        // Test ArenaName safe constructor for internal use
+        let safe_arena_name = ArenaName::from_index_safe(15);
+        assert_eq!(safe_arena_name.as_u8(), 8); // Should clamp to max valid arena (Gala)
 
-        // Test error case - arena out of bounds
-        let invalid = ArenaId::from_u8(10);
-        assert!(invalid.is_err());
-
-        // Test safe constructor for internal use
-        let safe = ArenaId::from_index_safe(15);
-        assert_eq!(safe.as_u8(), 8); // Should clamp to max valid arena (Gala)
-
-        // Test Arena::new() with ArenaName enum
-        let arena = Arena::new(ArenaName::Bastion);
-        assert_eq!(arena.as_u8(), 4);
-        assert_eq!(arena.name(), ArenaName::Bastion);
+        // Test Arena component with ArenaName enum
+        let arena = Arena(ArenaName::Bastion);
+        assert_eq!(arena.0.as_u8(), 4);
+        assert_eq!(arena.0, ArenaName::Bastion);
 
         // Test GridPos::new() as primary constructor
         let pos = GridPos::new(5, -3);
@@ -761,42 +751,42 @@ mod tests {
             timestamp: TimeStamp::new(10.0),
             event_type: EventType::Movement(GridPos::new(0, 0)),
         }).expect("Failed to add event");
-        let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth).expect("Failed to create timeline");
+        let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth);
         
         let mut draft_gala = DraftTimeline::new();
         draft_gala.add_event(TimelineEvent {
             timestamp: TimeStamp::new(30.0),
             event_type: EventType::Ability(AbilityType::AutoShot, None),
         }).expect("Failed to add event");
-        let timeline_gala = PublishTimeline::from_draft(draft_gala).expect("Failed to create timeline");
+        let timeline_gala = PublishTimeline::from_draft(draft_gala);
         
-        // Store timelines for different arenas
-        let labyrinth_id = ArenaId::from_index_safe(0); // Labyrinth
-        let gala_id = ArenaId::from_index_safe(8);      // Gala
+        // Store timelines for different arenas using ArenaName directly
+        let labyrinth_name = ArenaName::Labyrinth;
+        let gala_name = ArenaName::Gala;
         
-        character_timelines.store_timeline(labyrinth_id, timeline_labyrinth);
-        character_timelines.store_timeline(gala_id, timeline_gala);
+        character_timelines.store_timeline(labyrinth_name, timeline_labyrinth);
+        character_timelines.store_timeline(gala_name, timeline_gala);
         
         // Verify separate timeline storage
         assert_eq!(character_timelines.arena_count(), 2);
-        assert!(character_timelines.has_recording_for(labyrinth_id));
-        assert!(character_timelines.has_recording_for(gala_id));
-        assert!(!character_timelines.has_recording_for(ArenaId::from_index_safe(1))); // GuildHouse - no recording
+        assert!(character_timelines.has_recording_for(labyrinth_name));
+        assert!(character_timelines.has_recording_for(gala_name));
+        assert!(!character_timelines.has_recording_for(ArenaName::GuildHouse)); // GuildHouse - no recording
         
         // Verify we can retrieve specific arena timelines
-        let labyrinth_timeline = character_timelines.get_timeline(labyrinth_id).unwrap();
+        let labyrinth_timeline = character_timelines.get_timeline(labyrinth_name).unwrap();
         assert_eq!(labyrinth_timeline.events.len(), 1);
         assert_eq!(labyrinth_timeline.events[0].timestamp, TimeStamp::new(10.0));
         
-        let gala_timeline = character_timelines.get_timeline(gala_id).unwrap();
+        let gala_timeline = character_timelines.get_timeline(gala_name).unwrap();
         assert_eq!(gala_timeline.events.len(), 1);
         assert_eq!(gala_timeline.events[0].timestamp, TimeStamp::new(30.0));
         
         // Verify recorded arenas iterator
         let recorded: Vec<_> = character_timelines.recorded_arenas().collect();
         assert_eq!(recorded.len(), 2);
-        assert!(recorded.contains(&labyrinth_id));
-        assert!(recorded.contains(&gala_id));
+        assert!(recorded.contains(&labyrinth_name));
+        assert!(recorded.contains(&gala_name));
     }
 }
 ```
@@ -811,11 +801,11 @@ With the timeline foundation in place, we can now:
 
 ## Key Takeaways
 
-1. **Type Domain Separation**: ArenaId (value type) for data passing, Arena (component) for entity attachment
-2. **Type-Safe Newtypes**: TimeStamp, ArenaId, GridPos provide compile-time safety
+1. **Type Domain Separation**: ArenaName (domain logic) for arena identification, Arena (component) for entity attachment
+2. **Type-Safe Newtypes**: TimeStamp, ArenaName, GridPos provide compile-time safety
 3. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
 4. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
-5. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), ArenaId::new(ArenaName) for value types, Arena::new(ArenaName) for components
+5. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), ArenaName methods for domain logic, Arena(ArenaName) for components
 6. **Binary Search**: Efficient O(log n) operations on sorted timelines
 7. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
 8. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
@@ -825,9 +815,9 @@ With the timeline foundation in place, we can now:
 11. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust
     error handling
 12. **🆕 Compile-Time Safe Arena Creation**: Use `from_index_safe()` for all arena creation - no runtime validation needed
-13. **🎯 Multi-Arena Timeline Storage**: CharacterTimelines component stores HashMap<ArenaId, PublishTimeline> to support characters recording in all 9 arenas with separate timeline storage per arena
+13. **🎯 Multi-Arena Timeline Storage**: CharacterTimelines component stores HashMap<ArenaName, PublishTimeline> to support characters recording in all 9 arenas with separate timeline storage per arena
 14. **🚀 Unified Event Architecture**: Like CameraUpdate, use RecordingUpdate as root orchestration event to prevent event explosion and race conditions
-15. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup instead of O(n) linear search. Performance is critical when supporting 320+ ghosts across 9 arenas!
+15. **⚡ CurrentArenaEntity SystemParam**: Use CurrentArenaEntity SystemParam for O(1) current arena entity access instead of repetitive lookups. Performance is critical when supporting 320+ ghosts across 9 arenas!
 
 ## Production Notes
 
@@ -839,7 +829,7 @@ With the timeline foundation in place, we can now:
 // OLD WAY - O(n) linear search (SLOW!)
 let Some((arena, clock)) = arena_q
     .iter()
-    .find(|(arena, _)| arena.name() == current_arena.name())
+    .find(|(arena, _)| arena.0 == current_arena.0)
 else {
     return;
 };
@@ -847,11 +837,11 @@ else {
 
 This becomes a performance bottleneck when supporting 320+ ghosts across 9 arenas.
 
-**The Solution:** Use ArenaEntities resource for O(1) lookup:
+**The Solution:** Use CurrentArenaEntity SystemParam for O(1) lookup:
 
 ```rust
-// NEW WAY - O(1) lookup using ArenaEntities (FAST!)
-let Ok((arena, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else {
+// NEW WAY - O(1) lookup using CurrentArenaEntity (FAST!)
+let Ok((arena, clock)) = arena_q.get(current.get()) else {
     return;
 };
 ```
@@ -860,14 +850,14 @@ let Ok((arena, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else
 - O(n) search: 9 comparisons worst case per system per frame
 - O(1) lookup: 1 array access using enum discriminant as index
 - With 100+ systems doing arena lookups, this saves thousands of comparisons per frame
-- ArenaEntities uses ArenaName enum discriminants (0-8) as array indices for instant access
+- CurrentArenaEntity uses ArenaEntities resource which maps ArenaName enum discriminants (0-8) to entities for instant access
 
 ### Critical Architectural Fix: Multi-Arena Timeline Storage
 
 **The Problem:** The original design assumed characters would only have one timeline, but characters can move between all 9 arenas and need to store separate recordings for each arena they've been in.
 
 **The Solution:** 
-- `CharacterTimelines` component stores `HashMap<ArenaId, PublishTimeline>` per character
+- `CharacterTimelines` component stores `HashMap<ArenaName, PublishTimeline>` per character
 - `RecordingRequest::Commit` event queries Active Character and CurrentArena resource
 - Each character can store up to 9 separate timelines (one per arena)
 - O(1) lookup by arena using HashMap for efficient retrieval
@@ -902,7 +892,7 @@ let Ok((arena, clock)) = arena_q.get(current_arena.entity(&arena_entities)) else
   methods for event type filtering instead of specialized methods
 - **🆕 Bevy 0.16 Error-Safe Patterns**: Query methods now return Results - use
   `let Ok(...) = query.single() else { return; }` for graceful early returns
-- **🆕 Compile-Time Safe Arena Creation**: `from_index_safe()` eliminates runtime validation for all arena creation by clamping to valid ranges. This follows Rule #1 (Type Domain Separation) and Rule #30 (Build for Now).
+- **🆕 Compile-Time Safe Arena Creation**: `ArenaName::from_index_safe()` eliminates runtime validation for all arena creation by clamping to valid ranges. This follows Rule #1 (Type Domain Separation) and Rule #30 (Build for Now).
 
 ### Zero-Copy Principle Applied:
 

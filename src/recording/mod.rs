@@ -296,8 +296,7 @@ pub fn recording_update(
                         commands.entity(entity).insert(Ghost).remove::<Recording>();
                         info!(
                             "Committed recording for active character {:?} in arena {:?}",
-                            entity,
-                            current_arena.id()
+                            entity, current_arena.0
                         );
                     } else {
                         warn!("Cannot commit recording - no active character found");
@@ -465,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_unified_recording_architecture() {
-        use crate::arena::{ArenaEntities, ArenaId, ArenaName, CurrentArena};
+        use crate::arena::{ArenaEntities, ArenaName, CurrentArena};
         use bevy::app::App;
         use bevy::prelude::*;
 
@@ -489,7 +488,7 @@ mod tests {
             (ArenaName::Gala, Entity::PLACEHOLDER),
         ]);
         app.insert_resource(arena_entities);
-        app.insert_resource(CurrentArena(ArenaId::new(ArenaName::GuildHouse)));
+        app.insert_resource(CurrentArena(ArenaName::GuildHouse));
 
         // Simulate a start recording request
         {
@@ -534,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_show_dialog_state_transition() {
-        use crate::arena::{ArenaEntities, ArenaId, ArenaName, CurrentArena};
+        use crate::arena::{ArenaEntities, ArenaName, CurrentArena};
         use bevy::app::App;
         use bevy::prelude::*;
 
@@ -558,7 +557,7 @@ mod tests {
             (ArenaName::Gala, Entity::PLACEHOLDER),
         ]);
         app.insert_resource(arena_entities);
-        app.insert_resource(CurrentArena(ArenaId::new(ArenaName::GuildHouse)));
+        app.insert_resource(CurrentArena(ArenaName::GuildHouse));
 
         // Simulate a show dialog request
         {

@@ -33,7 +33,7 @@ use std::fmt::{self, Display, Formatter};
 use std::error::Error;
 use std::time::Duration;
 use crate::timeline::{DraftTimeline, TimelineEvent, EventType, TimeStamp, GridPos, TimelineClock};
-use crate::arena::{Arena, ArenaEntities, CameraUpdate, CurrentArena};
+use crate::arena::{Arena, ArenaEntities, CameraUpdate, CurrentArena, CurrentArenaEntity};
 use crate::character::Character;
 use crate::selectors::Active;
 
@@ -207,8 +207,7 @@ pub fn block_recording_interruptions(
 /// Triggers RecordingUpdate to stop recording when time limit reached
 pub fn check_recording_time_limit(
     arena_q: Query<&TimelineClock, With<Arena>>,
-    current_arena: Res<CurrentArena>,
-    arena_entities: Res<ArenaEntities>,
+    current: CurrentArenaEntity,
     mut recording_state: ResMut<RecordingState>,
     mut recording_update_events: EventWriter<RecordingUpdate>,
 ) {
@@ -217,8 +216,8 @@ pub fn check_recording_time_limit(
         return;
     }
 
-    // Helper method eliminates repetitive lookup pattern
-    let Ok(clock) = arena_q.get(current_arena.entity(&arena_entities)) else {
+    // CurrentArenaEntity provides O(1) lookup
+    let Ok(clock) = arena_q.get(current.get()) else {
         return;
     };
 
@@ -337,7 +336,7 @@ pub fn recording_update(
                     info!(
                         "Committed recording for active character {:?} in arena {:?}",
                         entity,
-                        current_arena.id()
+                        current_arena.0
                     );
                 } else {
                     warn!("Cannot commit recording - no active character found");
@@ -528,7 +527,7 @@ mod tests {
     
     #[test]
     fn test_unified_recording_architecture() {
-        use crate::arena::{ArenaId, ArenaName, CurrentArena};
+        use crate::arena::{ArenaName, CurrentArena};
         use bevy::app::App;
         use bevy::prelude::*;
         
@@ -540,10 +539,7 @@ mod tests {
         app.add_systems(Update, recording_update);
 
         // Add required resources for recording_update system
-        app.insert_resource(CurrentArena::new(
-            ArenaId::new(ArenaName::GuildHouse),
-            Entity::PLACEHOLDER
-        ));
+        app.insert_resource(CurrentArena(ArenaName::GuildHouse));
         
         // Simulate a start recording request
         {
@@ -588,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_show_dialog_state_transition() {
-        use crate::arena::{ArenaId, ArenaName, CurrentArena};
+        use crate::arena::{ArenaName, CurrentArena};
         use bevy::app::App;
         use bevy::prelude::*;
 
@@ -600,10 +596,7 @@ mod tests {
         app.add_systems(Update, recording_update);
 
         // Add required resources for recording_update system
-        app.insert_resource(CurrentArena::new(
-            ArenaId::new(ArenaName::GuildHouse),
-            Entity::PLACEHOLDER
-        ));
+        app.insert_resource(CurrentArena(ArenaName::GuildHouse));
 
         // Simulate a show dialog request
         {

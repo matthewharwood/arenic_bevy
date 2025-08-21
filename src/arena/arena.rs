@@ -3,11 +3,13 @@ use crate::arena_camera::{ZOOM, ZoomOut, position_camera_for_arena};
 use crate::character::Character;
 use crate::materials::Materials;
 use crate::selectors::Active;
+use bevy::ecs::system::SystemParam;
 use bevy::prelude::*;
 use std::fmt::{Display, Formatter, Result as FmtResult};
 
-/// Arena names enum with explicit discriminants for all 9 arenas
-/// This is a VALUE TYPE only - not a Component
+/// Arena names enum - THE SINGLE SOURCE OF DOMAIN LOGIC
+/// This enum provides all arena identification and conversion functionality
+/// Following Type Domain Separation - this is the only place with arena methods
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum ArenaName {
@@ -52,7 +54,23 @@ impl ArenaName {
         Self::ALL_ARENAS[clamped_idx as usize]
     }
 
-    // Note: all() method removed as genuinely unused
+    /// Increment arena cyclically (Labyrinth -> GuildHouse -> ... -> Gala -> Labyrinth)
+    #[must_use]
+    pub fn increment(self) -> Self {
+        let next_idx = (self.as_u8() + 1) % 9;
+        Self::from_index_safe(next_idx)
+    }
+
+    /// Decrement arena cyclically (Gala -> Casino -> ... -> Labyrinth -> Gala)
+    #[must_use]
+    pub fn decrement(self) -> Self {
+        let prev_idx = if self.as_u8() == 0 {
+            8
+        } else {
+            self.as_u8() - 1
+        };
+        Self::from_index_safe(prev_idx)
+    }
 }
 
 impl Display for ArenaName {
@@ -71,74 +89,26 @@ impl Display for ArenaName {
     }
 }
 
-/// Arena ID value type for passing arena identifiers in events and data
-/// This is a VALUE TYPE only - not a Component
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ArenaId(pub ArenaName);
-
 /// Arena component that marks arena entities
-/// This is a COMPONENT TYPE only - for attaching to arena entities
+/// Simple wrapper around ArenaName - NO DUPLICATE METHODS
 #[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Arena(pub ArenaName);
 
-impl ArenaId {
-    /// Creates new ArenaId from ArenaName
-    #[must_use]
-    pub fn new(name: ArenaName) -> Self {
-        Self(name)
-    }
-
-    /// Creates ArenaId from index with compile-time safety (clamps to valid range)
-    /// Use this for internal code where we control the input
-    #[must_use]
-    pub fn from_index_safe(idx: u8) -> Self {
-        Self(ArenaName::from_index_safe(idx))
-    }
-
-    /// Returns the arena's numeric index (0-8)
-    #[must_use]
-    pub fn as_u8(&self) -> u8 {
-        self.0.as_u8()
-    }
-
-    /// Returns the ArenaName enum value
-    #[must_use]
-    pub fn name(&self) -> ArenaName {
-        self.0
-    }
-}
-
-impl Arena {
-    /// Creates Arena from index with compile-time safety (clamps to valid range)
-    /// Use this for internal code where we control the input
-    #[must_use]
-    pub fn from_index_safe(idx: u8) -> Self {
-        Self(ArenaName::from_index_safe(idx))
-    }
-
-    /// Returns the arena's numeric index (0-8)
-    #[must_use]
-    pub fn as_u8(&self) -> u8 {
-        self.0.as_u8()
-    }
-}
-
-impl Display for ArenaId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "{} ({})", self.0, self.as_u8())
-    }
-}
-
 impl Display for Arena {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "{} ({})", self.0, self.as_u8())
+        write!(f, "{} ({})", self.0, self.0.as_u8())
     }
 }
 
-// Note: ArenaTile component removed as genuinely unused
-
+/// Current arena resource - Simple wrapper around ArenaName - NO DUPLICATE METHODS
 #[derive(Resource, Debug, Clone)]
-pub struct CurrentArena(pub ArenaId);
+pub struct CurrentArena(pub ArenaName);
+
+impl Display for CurrentArena {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "{} ({})", self.0, self.0.as_u8())
+    }
+}
 
 /// O(1) arena entity lookup resource - eliminates linear searches
 /// Maps ArenaName enum values (0-8) to their corresponding arena entities
@@ -163,46 +133,50 @@ impl ArenaEntities {
     pub fn get(&self, name: ArenaName) -> Entity {
         self.entities[name as usize]
     }
-
-    // Note: find_arena_for_entity removed as genuinely unused
 }
 
 impl CurrentArena {
     /// Helper method to get the arena entity directly
     /// Eliminates the repetitive lookup pattern used throughout the codebase
     pub fn entity(&self, arena_entities: &ArenaEntities) -> Entity {
-        arena_entities.get(self.name())
+        arena_entities.get(self.0)
+    }
+}
+
+/// SystemParam that provides convenient access to the current arena entity
+/// This eliminates the repetitive `arena_entities.get(current_arena.0)` pattern
+/// used throughout the codebase by providing a clean, composable system parameter.
+///
+/// # Usage:
+/// ```rust
+/// fn my_system(current: CurrentArenaEntity) {
+///     let arena_entity = current.get();
+///     // Use arena_entity...
+/// }
+/// ```
+#[derive(SystemParam)]
+pub struct CurrentArenaEntity<'w> {
+    current_arena: Res<'w, CurrentArena>,
+    arena_entities: Res<'w, ArenaEntities>,
+}
+
+impl CurrentArenaEntity<'_> {
+    /// Get the current arena's entity with O(1) lookup
+    #[must_use]
+    pub fn get(&self) -> Entity {
+        self.arena_entities.get(self.current_arena.0)
     }
 
-    /// Increment arena cyclically (Labyrinth -> GuildHouse -> ... -> Gala -> Labyrinth)
-    pub fn increment(arena_id: ArenaId) -> ArenaId {
-        let next_idx = (arena_id.as_u8() + 1) % 9;
-        ArenaId::from_index_safe(next_idx)
-    }
-
-    /// Decrement arena cyclically (Gala -> Casino -> ... -> Labyrinth -> Gala)
-    pub fn decrement(arena_id: ArenaId) -> ArenaId {
-        let prev_idx = if arena_id.as_u8() == 0 {
-            8
-        } else {
-            arena_id.as_u8() - 1
-        };
-        ArenaId::from_index_safe(prev_idx)
-    }
-
-    /// Get the arena's numeric index (0-8)
-    pub fn as_u8(&self) -> u8 {
-        self.0.as_u8()
-    }
-
-    /// Get the ArenaName enum value
+    /// Get the current arena name for additional context
+    #[must_use]
     pub fn name(&self) -> ArenaName {
-        self.0.name()
+        self.current_arena.0
     }
 
-    /// Get the ArenaId value type
-    pub fn id(&self) -> ArenaId {
-        self.0
+    /// Check if a given arena name is the current arena
+    #[must_use]
+    pub fn is_current(&self, arena_name: ArenaName) -> bool {
+        self.current_arena.0 == arena_name
     }
 }
 
@@ -212,7 +186,7 @@ pub fn decrement_current_arena(
     mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::BracketLeft) {
-        current_arena.0 = CurrentArena::decrement(current_arena.0);
+        current_arena.0 = current_arena.0.decrement();
 
         // Send event
         arena_refresh_event.write(CameraUpdate);
@@ -225,7 +199,7 @@ pub fn increment_current_arena(
     mut arena_refresh_event: EventWriter<CameraUpdate>,
 ) {
     if keycode.just_pressed(KeyCode::BracketRight) {
-        current_arena.0 = CurrentArena::increment(current_arena.0);
+        current_arena.0 = current_arena.0.increment();
 
         // Send event
         arena_refresh_event.write(CameraUpdate);
@@ -250,14 +224,14 @@ pub fn handle_character_moved(
     // Handle character movement between arenas
     for event in character_moved_events.read() {
         // Only update camera if we're not zoomed out and the target arena is the current arena
-        if zoom.is_none() && event.to_arena.name() == current_arena.name() {
+        if zoom.is_none() && event.to_arena == current_arena.0 {
             // Update camera position to the new arena
             position_camera_for_arena(&mut camera_transform, event.to_arena.as_u8(), ZOOM.0);
             commands.entity(camera_entity).remove::<ZoomOut>();
         }
 
         // Update LastActiveHero for the target arena - O(1) lookup
-        let arena_entity = arena_entities.get(event.to_arena.name());
+        let arena_entity = arena_entities.get(event.to_arena);
         commands
             .entity(arena_entity)
             .insert(LastActiveHero(Some(event.character_entity)));
@@ -276,9 +250,8 @@ pub fn handle_character_moved(
 pub fn arena_update(
     mut commands: Commands,
     mut arena_refresh_events: EventReader<CameraUpdate>,
-    current_arena: Res<CurrentArena>,
+    current: CurrentArenaEntity,
     camera: Single<(Entity, &mut Transform, Option<&ZoomOut>), With<Camera3d>>,
-    arena_entities: Res<ArenaEntities>,
     arena_q: Query<(&Arena, &Children, Option<&LastActiveHero>), With<Arena>>,
     characters_q: Query<(Entity, Option<&Active>), With<Character>>,
     mats: Res<Materials>,
@@ -288,7 +261,7 @@ pub fn arena_update(
         return;
     }
     arena_refresh_events.clear();
-    let current_arena = &*current_arena;
+    let current_arena_name = current.name();
     let (camera_entity, mut camera_transform, zoom) = camera.into_inner();
     if zoom.is_some() {
         for (entity, active) in characters_q.iter() {
@@ -300,11 +273,11 @@ pub fn arena_update(
             }
         }
     } else {
-        position_camera_for_arena(&mut camera_transform, current_arena.as_u8(), ZOOM.0);
+        position_camera_for_arena(&mut camera_transform, current_arena_name.as_u8(), ZOOM.0);
         commands.entity(camera_entity).remove::<ZoomOut>();
 
         // O(1) lookup for current arena entity
-        let current_arena_entity = arena_entities.get(current_arena.name());
+        let current_arena_entity = current.get();
 
         // Direct query for the current arena - no iteration needed
         if let Ok((arena, children, last_active_hero)) = arena_q.get(current_arena_entity) {
