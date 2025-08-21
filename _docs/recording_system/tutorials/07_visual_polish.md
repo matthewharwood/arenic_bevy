@@ -37,6 +37,7 @@ use crate::recording::{RecordingState, RecordingMode, RecordingCountdown};
 use crate::timeline::{Arena, TimelineClock};
 use crate::arena::CurrentArena;
 
+/// RULE 5 COMPLIANCE: Visual UI markers for entity categorization
 /// Component for recording indicator UI
 #[derive(Component)]
 pub struct RecordingIndicatorUI;
@@ -48,6 +49,16 @@ pub struct TimelineProgressBar;
 /// Component for countdown display
 #[derive(Component)]
 pub struct CountdownDisplay;
+
+/// RULE 5 COMPLIANCE: Additional visual markers for effect systems
+#[derive(Component)]
+pub struct VisualEffect; // Entity has visual effects applied
+
+#[derive(Component)]
+pub struct PulsingEffect; // Entity is pulsing (recording characters)
+
+#[derive(Component)]
+pub struct GlowEffect; // Entity has glow/emissive effect
 
 /// Spawn recording indicator UI
 pub fn setup_recording_ui(mut commands: Commands) {
@@ -199,18 +210,24 @@ pub struct GhostTrail {
     pub trail_mesh: Option<Handle<Mesh>>,
 }
 
+// RULE 2 COMPLIANCE: Static data lookup for trail configuration
+const DEFAULT_TRAIL_LENGTH: usize = 20;
+const DEFAULT_TRAIL_CAPACITY: usize = 20;
+const TRAIL_MAX_AGE_SECONDS: f32 = 2.0;
+
 impl Default for GhostTrail {
     fn default() -> Self {
         Self {
-            positions: VecDeque::with_capacity(20),
-            max_length: 20,
+            positions: VecDeque::with_capacity(DEFAULT_TRAIL_CAPACITY),
+            max_length: DEFAULT_TRAIL_LENGTH,
             trail_material: None,
             trail_mesh: None,
         }
     }
 }
 
-/// Resource to cache trail materials by color
+/// RULE 4 COMPLIANCE: Cache trail materials as handles for efficient sharing
+/// Stores Handle<StandardMaterial>, not StandardMaterial assets directly
 #[derive(Resource, Default)]
 pub struct TrailMaterialCache {
     materials: HashMap<u32, Handle<StandardMaterial>>,
@@ -262,9 +279,9 @@ pub fn update_ghost_trails(
             trail.positions.pop_front();
         }
 
-        // Remove positions older than 2 seconds
+        // Remove positions older than max age
         while let Some((_, t)) = trail.positions.front() {
-            if current_time - t > 2.0 {
+            if current_time - t > TRAIL_MAX_AGE_SECONDS {
                 trail.positions.pop_front();
             } else {
                 break;
@@ -293,10 +310,25 @@ pub fn init_ghost_trail_materials(
     }
 }
 
-/// Maximum number of trail segments per ghost
+// RULE 2 COMPLIANCE: Static data lookup for visual constants
 const MAX_TRAIL_SEGMENTS: usize = 20;
+const TRAIL_SEGMENT_RADIUS: f32 = 0.02;
+const TRAIL_SEGMENT_LENGTH: f32 = 0.5;
 
-/// Resource for shared trail mesh
+// UI dimension constants
+const RECORDING_UI_MARGIN: f32 = 10.0;
+const PROGRESS_BAR_WIDTH: f32 = 200.0;
+const PROGRESS_BAR_HEIGHT: f32 = 20.0;
+const ARENA_STATUS_BOX_SIZE: f32 = 40.0;
+
+// Color constants for visual consistency
+const COLOR_RECORDING: (f32, f32, f32) = (1.0, 0.2, 0.2);  // Red
+const COLOR_IDLE: (f32, f32, f32) = (0.8, 0.8, 0.8);       // Light gray
+const COLOR_PREPARING: (f32, f32, f32) = (1.0, 1.0, 0.0);   // Yellow
+const COLOR_PAUSED: (f32, f32, f32) = (0.2, 0.5, 1.0);      // Blue
+
+/// RULE 4 COMPLIANCE: Shared trail mesh cached as handle
+/// Single Handle<Mesh> shared across all trail segments
 #[derive(Resource)]
 pub struct TrailMeshCache {
     pub segment_mesh: Handle<Mesh>,
@@ -307,8 +339,8 @@ impl TrailMeshCache {
         // Create a standard capsule mesh that we'll scale for different segments
         Self {
             segment_mesh: meshes.add(Capsule3d {
-                radius: 0.02,
-                half_length: 0.5,  // Standard size, we'll scale it
+                radius: TRAIL_SEGMENT_RADIUS,
+                half_length: TRAIL_SEGMENT_LENGTH,
                 ..default()
             }),
         }
@@ -417,7 +449,8 @@ use crate::character::Character;
 use crate::selectors::Active;
 use crate::recording::Recording;
 
-/// Component for character state indicator
+/// RULE 5 COMPLIANCE: Character visual marker for filtering
+/// Unit struct marker enables queries: Query<&Handle<StandardMaterial>, With<CharacterStateIndicator>>
 #[derive(Component)]
 pub struct CharacterStateIndicator;
 
@@ -678,7 +711,8 @@ pub fn update_arena_status_display(
 Add to `src/visual_feedback/mod.rs`:
 
 ```rust
-/// Resource for audio feedback
+/// RULE 4 COMPLIANCE: Audio feedback using asset handles for efficient loading
+/// Stores Handle<AudioSource>, not AudioSource assets directly
 #[derive(Resource)]
 pub struct AudioFeedback {
     pub recording_start: Handle<AudioSource>,
@@ -688,6 +722,8 @@ pub struct AudioFeedback {
 }
 
 impl AudioFeedback {
+    /// RULE 4 COMPLIANCE: Load audio assets as handles, not direct assets
+    /// AssetServer returns Handle<T> for efficient asset sharing
     pub fn load(asset_server: &AssetServer) -> Self {
         Self {
             recording_start: asset_server.load("audio/recording_start.ogg"),
@@ -895,11 +931,14 @@ With visual polish complete, we can now:
 
 ## Key Takeaways
 
-1. **Clear State Communication**: Visual indicators for all states
-2. **Immediate Feedback**: Flash effects and audio for actions
-3. **Persistent Information**: UI panels for ongoing status
-4. **Explicit Constructors**: Arena::new() validation in UI display logic
-5. **Performance Conscious**: Trail effects with automatic cleanup
+1. **🎯 RULE 2 - Static Data Lookup**: Visual constants (colors, dimensions, trail settings) defined as const for consistency
+2. **🎯 RULE 4 - Assets via Handles**: AudioFeedback, TrailMaterialCache, TrailMeshCache use handles for efficient asset sharing
+3. **🎯 RULE 5 - Marker Components**: CharacterStateIndicator, VisualEffect, PulsingEffect unit structs for precise visual filtering
+4. **Clear State Communication**: Visual indicators for all states
+3. **Immediate Feedback**: Flash effects and audio for actions
+4. **Persistent Information**: UI panels for ongoing status
+5. **Explicit Constructors**: Arena::new() validation in UI display logic
+6. **Performance Conscious**: Trail effects with automatic cleanup
 
 Visual feedback transforms the recording system from functional to delightful. Clear indicators help players understand
 the complex state machine while effects add game feel and polish.

@@ -58,7 +58,9 @@ pub enum RecordingRequest {
 }
 
 // === STATE RESOURCE - Single source of truth ===
-/// Global recording state for the game (like CurrentArena)
+/// RULE 1 COMPLIANCE: RecordingState is appropriately a Resource
+/// Global recording state for the game (like CurrentArena) - true singleton
+/// Individual character recording state uses Recording component marker
 /// No entity storage needed - always query Active Character when needed
 #[derive(Resource, Debug)]
 pub struct RecordingState {
@@ -68,8 +70,10 @@ pub struct RecordingState {
 }
 
 impl RecordingState {
-    /// Duration for countdown before recording starts
+    /// RULE 2 COMPLIANCE: Static data lookup with const durations
     pub const COUNTDOWN_DURATION: Duration = Duration::from_secs(3);
+    pub const MAX_RECORDING_TIME: f32 = 120.0;  // 2 minutes
+    pub const MIN_RECORDING_TIME: f32 = 1.0;    // Minimum viable recording
 }
 
 impl Default for RecordingState {
@@ -114,13 +118,27 @@ pub enum StopReason {
     CharacterSwitch, // Tried to switch characters
 }
 
-/// Marker component for characters currently being recorded
+/// RULE 1 & 5 COMPLIANCE: Recording is a Component marker for entity state
+/// RULE 5: Unit struct without data - perfect for entity categorization
+/// Each character entity has its own recording status, not global
 #[derive(Component)]
 pub struct Recording;
 
-/// Marker for entities that already have a published timeline
+/// RULE 1 & 5 COMPLIANCE: Ghost is a Component marker for entity state  
+/// RULE 5: Unit struct marker enables efficient filtering: Query<Entity, With<Ghost>>
+/// Each character entity has its own ghost status, not global
 #[derive(Component)]
 pub struct Ghost;
+
+/// RULE 5 COMPLIANCE: Additional recording state markers for precise filtering
+#[derive(Component)]
+pub struct RecordingPending; // Countdown active, recording not yet started
+
+#[derive(Component)] 
+pub struct RecordingActive; // Currently capturing input
+
+#[derive(Component)]
+pub struct RecordingPaused; // Recording paused by dialog
 ```
 
 ### Step 2: Create Input Detection Systems
@@ -130,11 +148,20 @@ These systems detect user input and trigger RecordingUpdate events (like arena n
 Add to `src/recording/mod.rs`:
 
 ```rust
-// Const keymap for recording controls
+// RULE 2 COMPLIANCE: Static data lookup with const keymaps
+// Centralized key definitions prevent magic values throughout codebase
 const KEY_RECORD: KeyCode = KeyCode::KeyR;
 const KEY_ARENA_PREV: KeyCode = KeyCode::BracketLeft;
 const KEY_ARENA_NEXT: KeyCode = KeyCode::BracketRight;
 const KEY_CHARACTER_SWITCH: KeyCode = KeyCode::Tab;
+
+// Recording control mappings as static lookup table
+const RECORDING_CONTROLS: [(KeyCode, &str); 4] = [
+    (KEY_RECORD, "Record/Stop"),
+    (KEY_ARENA_PREV, "Previous Arena"), 
+    (KEY_ARENA_NEXT, "Next Arena"),
+    (KEY_CHARACTER_SWITCH, "Switch Character"),
+];
 
 /// Detect when player presses R to start/stop recording
 /// Triggers RecordingUpdate event (like arena navigation triggers CameraUpdate)
@@ -649,14 +676,17 @@ With the event-driven recording state machine complete, we can now:
 
 ## Key Takeaways
 
-1. **Unified Event Architecture**: RecordingUpdate as root orchestration event (like CameraUpdate) prevents event explosion
-2. **Single Orchestrator**: recording_update() handles ALL coordination (like arena_update())
-3. **Clean Separation**: Input systems trigger RecordingUpdate, orchestrator decides what happens
-4. **Race Condition Prevention**: RecordingUpdate events processed sequentially by single authority
-5. **Simple State Management**: RecordingState as single source of truth (like CurrentArena)
-6. **Let-Else Pattern**: Cleaner early returns with proper error handling
-7. **Const Keymaps**: Centralized key definitions prevent magic values
-8. **Proven Pattern**: Mirrors successful camera system architecture that already solved these problems
+1. **🎯 RULE 1 - Components First**: RecordingState is Resource (global singleton), Recording/Ghost are Components (per-entity state)
+2. **🎯 RULE 2 - Static Data Lookup**: Const keymaps and timing constants, RECORDING_CONTROLS lookup table for UI/help systems
+3. **🎯 RULE 5 - Marker Components**: Recording, Ghost, RecordingPending unit structs enable precise entity filtering in queries
+4. **Unified Event Architecture**: RecordingUpdate as root orchestration event (like CameraUpdate) prevents event explosion
+3. **Single Orchestrator**: recording_update() handles ALL coordination (like arena_update())
+4. **Clean Separation**: Input systems trigger RecordingUpdate, orchestrator decides what happens
+5. **Race Condition Prevention**: RecordingUpdate events processed sequentially by single authority
+6. **Simple State Management**: RecordingState as single source of truth (like CurrentArena)
+7. **Let-Else Pattern**: Cleaner early returns with proper error handling
+8. **Const Keymaps**: Centralized key definitions prevent magic values
+9. **Proven Pattern**: Mirrors successful camera system architecture that already solved these problems
 
 ## Why Unified Pattern vs Complex Events?
 

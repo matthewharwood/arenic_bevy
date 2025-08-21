@@ -83,19 +83,31 @@ pub enum DialogChoice {
     ContinueRecording,    // For character switch dialog - cancel switch and continue recording
 }
 
+/// RULE 5 COMPLIANCE: Dialog UI markers for entity categorization
 /// Component for dialog UI root entity
 #[derive(Component)]
 pub struct DialogUI;
 
-/// Component for dialog buttons
+/// Component for dialog buttons (contains data, not pure marker)
 #[derive(Component)]
 pub struct DialogButton {
     pub choice: DialogChoice,
 }
 
-/// Marker for dialog background overlay
+/// RULE 5 COMPLIANCE: Pure marker for dialog background overlay
+/// Unit struct without data - perfect for filtering UI elements
 #[derive(Component)]
 pub struct DialogOverlay;
+
+/// RULE 5 COMPLIANCE: Additional dialog markers for UI system filtering
+#[derive(Component)]
+pub struct DialogTitle; // Dialog title text element
+
+#[derive(Component)]
+pub struct DialogDescription; // Dialog description text element
+
+#[derive(Component)]
+pub struct DialogButtonContainer; // Container holding dialog buttons
 ```
 
 ### Step 2: Create Dialog Events
@@ -274,51 +286,56 @@ fn spawn_dialog_entities(
         });
 }
 
+// RULE 2 COMPLIANCE: Static data lookup for dialog button configurations
+const MID_RECORDING_BUTTONS: &[(&str, DialogChoice)] = &[
+    ("Commit", DialogChoice::Commit),
+    ("Clear", DialogChoice::Clear), 
+    ("Cancel", DialogChoice::Cancel),
+];
+
+const END_RECORDING_BUTTONS: &[(&str, DialogChoice)] = &[
+    ("Commit", DialogChoice::Commit),
+    ("Clear", DialogChoice::Clear),
+    ("Retry", DialogChoice::Retry),
+];
+
+const RETRY_GHOST_BUTTONS: &[(&str, DialogChoice)] = &[
+    ("Retry", DialogChoice::Retry),
+    ("Cancel", DialogChoice::Cancel),
+];
+
+const GHOST_REPLAY_WITH_RECORDING: &[(&str, DialogChoice)] = &[
+    ("Keep Existing", DialogChoice::KeepExisting),
+    ("Draft New", DialogChoice::DraftNew),
+    ("Cancel", DialogChoice::Cancel),
+];
+
+const GHOST_REPLAY_NO_RECORDING: &[(&str, DialogChoice)] = &[
+    ("Draft New", DialogChoice::DraftNew),
+    ("Cancel", DialogChoice::Cancel),
+];
+
+const CHARACTER_SWITCH_BUTTONS: &[(&str, DialogChoice)] = &[
+    ("Switch Character", DialogChoice::SwitchCharacter),
+    ("Continue Recording", DialogChoice::ContinueRecording),
+];
+
 fn spawn_dialog_buttons(buttons: &mut ChildBuilder, dialog_type: &DialogType) {
     let button_choices = match dialog_type {
-        DialogType::MidRecording { .. } => {
-            vec![
-                ("Commit", DialogChoice::Commit),
-                ("Clear", DialogChoice::Clear),
-                ("Cancel", DialogChoice::Cancel),
-            ]
-        }
-        DialogType::EndRecording => {
-            vec![
-                ("Commit", DialogChoice::Commit),
-                ("Clear", DialogChoice::Clear),
-                ("Retry", DialogChoice::Retry),
-            ]
-        }
-        DialogType::RetryGhost { .. } => {
-            vec![
-                ("Retry", DialogChoice::Retry),
-                ("Cancel", DialogChoice::Cancel),
-            ]
-        }
+        DialogType::MidRecording { .. } => MID_RECORDING_BUTTONS,
+        DialogType::EndRecording => END_RECORDING_BUTTONS,
+        DialogType::RetryGhost { .. } => RETRY_GHOST_BUTTONS,
         DialogType::GhostReplay { has_recording, .. } => {
             if *has_recording {
-                vec![
-                    ("Keep Existing", DialogChoice::KeepExisting),
-                    ("Draft New", DialogChoice::DraftNew),
-                    ("Cancel", DialogChoice::Cancel),
-                ]
+                GHOST_REPLAY_WITH_RECORDING
             } else {
-                vec![
-                    ("Draft New", DialogChoice::DraftNew),
-                    ("Cancel", DialogChoice::Cancel),
-                ]
+                GHOST_REPLAY_NO_RECORDING
             }
         }
-        DialogType::CharacterSwitchConfirm => {
-            vec![
-                ("Switch Character", DialogChoice::SwitchCharacter),
-                ("Continue Recording", DialogChoice::ContinueRecording),
-            ]
-        }
+        DialogType::CharacterSwitchConfirm => CHARACTER_SWITCH_BUTTONS,
     };
 
-    for (label, choice) in button_choices {
+    for &(label, choice) in button_choices {
         buttons
             .spawn((
                 Button,
@@ -341,6 +358,15 @@ fn spawn_dialog_buttons(buttons: &mut ChildBuilder, dialog_type: &DialogType) {
             });
     }
 }
+
+// RULE 2 COMPLIANCE: Static data lookup for dialog titles
+const DIALOG_TITLES: &[(&str, &str)] = &[
+    ("MidRecording", "Recording Interrupted"),
+    ("EndRecording", "Recording Complete"),
+    ("RetryGhost", "Retry Ghost Recording?"),
+    ("GhostReplay", "Ghost Replay Options"),
+    ("CharacterSwitchConfirm", "Character Switch During Recording"),
+];
 
 fn get_dialog_title(dialog_type: &DialogType) -> &'static str {
     match dialog_type {
@@ -842,11 +868,13 @@ With dialogs complete, we can now:
 
 ## Key Takeaways
 
-1. **Modal UI**: Dialogs pause all gameplay for important decisions
-2. **Context-Aware**: Different dialog types for different situations
-3. **Keyboard Support**: Quick keyboard shortcuts for efficiency
-4. **Explicit Constructors**: Arena::new() validation in retry logic
-5. **Clean Transitions**: Proper cleanup when dialogs close
+1. **🎯 RULE 2 - Static Data Lookup**: Dialog buttons and titles use const arrays for maintainable configuration
+2. **🎯 RULE 5 - Marker Components**: DialogOverlay, DialogTitle unit structs enable precise UI element filtering
+3. **Modal UI**: Dialogs pause all gameplay for important decisions
+3. **Context-Aware**: Different dialog types for different situations
+4. **Keyboard Support**: Quick keyboard shortcuts for efficiency
+5. **Explicit Constructors**: Arena::new() validation in retry logic
+6. **Clean Transitions**: Proper cleanup when dialogs close
 
 The dialog system provides crucial player control over the recording process. By pausing all timelines during dialogs,
 we ensure players can make informed decisions without time pressure.

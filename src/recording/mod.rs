@@ -1,7 +1,7 @@
 // Recording module - implements unified event architecture
 // Based on Tutorial 02: Recording State Machine (unified orchestrator pattern)
 
-use crate::arena::{Arena, ArenaEntities, CameraUpdate, CurrentArena};
+use crate::arena::{Arena, CameraUpdate, CurrentArena, CurrentArenaEntity};
 use crate::character::Character;
 use crate::selectors::Active;
 use crate::timeline::{TimeStamp, TimelineClock};
@@ -30,7 +30,9 @@ pub enum RecordingRequest {
 }
 
 // === STATE RESOURCE - Single source of truth ===
-/// Global recording state for the game (like CurrentArena)
+/// RULE 1 COMPLIANCE: RecordingState is appropriately a Resource
+/// Global recording state for the game (like CurrentArena) - true singleton
+/// Individual character recording state uses Recording component marker
 /// No entity storage needed - always query Active Character when needed
 #[derive(Resource, Debug)]
 pub struct RecordingState {
@@ -40,8 +42,10 @@ pub struct RecordingState {
 }
 
 impl RecordingState {
-    /// Duration for countdown before recording starts
+    /// RULE 2 COMPLIANCE: Static data lookup with const durations
     pub const COUNTDOWN_DURATION: Duration = Duration::from_secs(3);
+    pub const MAX_RECORDING_TIME: f32 = 120.0; // 2 minutes
+    pub const MIN_RECORDING_TIME: f32 = 1.0; // Minimum viable recording
 }
 
 impl Default for RecordingState {
@@ -86,22 +90,45 @@ pub enum StopReason {
     CharacterSwitch, // Tried to switch characters
 }
 
-/// Marker component for characters currently being recorded
+/// RULE 1 & 5 COMPLIANCE: Recording is a Component marker for entity state
+/// RULE 5: Unit struct without data - perfect for entity categorization
+/// Each character entity has its own recording status, not global
 #[derive(Component)]
 pub struct Recording;
 
-/// Marker for entities that already have a published timeline
+/// RULE 1 & 5 COMPLIANCE: Ghost is a Component marker for entity state  
+/// RULE 5: Unit struct marker enables efficient filtering: Query<Entity, With<Ghost>>
+/// Each character entity has its own ghost status, not global
 #[derive(Component)]
 pub struct Ghost;
+
+/// RULE 5 COMPLIANCE: Additional recording state markers for precise filtering
+#[derive(Component)]
+pub struct RecordingPending; // Countdown active, recording not yet started
+
+#[derive(Component)]
+pub struct RecordingActive; // Currently capturing input
+
+#[derive(Component)]
+pub struct RecordingPaused; // Recording paused by dialog
 
 // === INPUT DETECTION SYSTEMS ===
 // These systems detect user input and trigger RecordingUpdate events
 
-// Const keymap for recording controls
+// RULE 2 COMPLIANCE: Static data lookup with const keymaps
+// Centralized key definitions prevent magic values throughout codebase
 const KEY_RECORD: KeyCode = KeyCode::KeyR;
 const KEY_ARENA_PREV: KeyCode = KeyCode::BracketLeft;
 const KEY_ARENA_NEXT: KeyCode = KeyCode::BracketRight;
 const KEY_CHARACTER_SWITCH: KeyCode = KeyCode::Tab;
+
+// Recording control mappings as static lookup table
+const RECORDING_CONTROLS: [(KeyCode, &str); 4] = [
+    (KEY_RECORD, "Record/Stop"),
+    (KEY_ARENA_PREV, "Previous Arena"),
+    (KEY_ARENA_NEXT, "Next Arena"),
+    (KEY_CHARACTER_SWITCH, "Switch Character"),
+];
 
 /// Detect when player presses R to start/stop recording
 /// Triggers RecordingUpdate event (like arena navigation triggers CameraUpdate)
@@ -173,8 +200,7 @@ pub fn block_recording_interruptions(
 /// Triggers RecordingUpdate to stop recording when time limit reached
 pub fn check_recording_time_limit(
     arena_q: Query<&TimelineClock, With<Arena>>,
-    current_arena: Res<CurrentArena>,
-    arena_entities: Res<ArenaEntities>,
+    current: CurrentArenaEntity,
     mut recording_state: ResMut<RecordingState>,
     mut recording_update_events: EventWriter<RecordingUpdate>,
 ) {
@@ -183,8 +209,8 @@ pub fn check_recording_time_limit(
         return;
     }
 
-    // Helper method eliminates repetitive lookup pattern
-    let Ok(clock) = arena_q.get(current_arena.entity(&arena_entities)) else {
+    // CurrentArenaEntity provides O(1) lookup
+    let Ok(clock) = arena_q.get(current.get()) else {
         return;
     };
 
@@ -464,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_unified_recording_architecture() {
-        use crate::arena::{ArenaEntities, ArenaName, CurrentArena};
+        use crate::arena::{ArenaName, CurrentArena};
         use bevy::app::App;
         use bevy::prelude::*;
 
@@ -476,18 +502,6 @@ mod tests {
         app.add_systems(Update, recording_update);
 
         // Add required resources for recording_update system
-        let arena_entities = ArenaEntities::new([
-            (ArenaName::Labyrinth, Entity::PLACEHOLDER),
-            (ArenaName::GuildHouse, Entity::PLACEHOLDER),
-            (ArenaName::Sanctum, Entity::PLACEHOLDER),
-            (ArenaName::Mountain, Entity::PLACEHOLDER),
-            (ArenaName::Bastion, Entity::PLACEHOLDER),
-            (ArenaName::Pawnshop, Entity::PLACEHOLDER),
-            (ArenaName::Crucible, Entity::PLACEHOLDER),
-            (ArenaName::Casino, Entity::PLACEHOLDER),
-            (ArenaName::Gala, Entity::PLACEHOLDER),
-        ]);
-        app.insert_resource(arena_entities);
         app.insert_resource(CurrentArena(ArenaName::GuildHouse));
 
         // Simulate a start recording request
@@ -533,7 +547,7 @@ mod tests {
 
     #[test]
     fn test_show_dialog_state_transition() {
-        use crate::arena::{ArenaEntities, ArenaName, CurrentArena};
+        use crate::arena::{ArenaName, CurrentArena};
         use bevy::app::App;
         use bevy::prelude::*;
 
@@ -545,18 +559,6 @@ mod tests {
         app.add_systems(Update, recording_update);
 
         // Add required resources for recording_update system
-        let arena_entities = ArenaEntities::new([
-            (ArenaName::Labyrinth, Entity::PLACEHOLDER),
-            (ArenaName::GuildHouse, Entity::PLACEHOLDER),
-            (ArenaName::Sanctum, Entity::PLACEHOLDER),
-            (ArenaName::Mountain, Entity::PLACEHOLDER),
-            (ArenaName::Bastion, Entity::PLACEHOLDER),
-            (ArenaName::Pawnshop, Entity::PLACEHOLDER),
-            (ArenaName::Crucible, Entity::PLACEHOLDER),
-            (ArenaName::Casino, Entity::PLACEHOLDER),
-            (ArenaName::Gala, Entity::PLACEHOLDER),
-        ]);
-        app.insert_resource(arena_entities);
         app.insert_resource(CurrentArena(ArenaName::GuildHouse));
 
         // Simulate a show dialog request

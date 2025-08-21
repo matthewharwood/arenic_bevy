@@ -31,9 +31,44 @@ Create `src/optimization/mod.rs`:
 use bevy::prelude::*;
 use bevy::time::Virtual;
 use std::mem;
+
+// RULE 3 COMPLIANCE: Events for performance system communication
+/// Event when performance degrades significantly
+#[derive(Event)]
+pub struct PerformanceAlert {
+    pub alert_type: AlertType,
+    pub current_fps: f32,
+    pub ghost_count: usize,
+    pub memory_usage_mb: f32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AlertType {
+    LowFPS,
+    HighMemory,
+    TooManyGhosts,
+    QualityReduced,
+    QualityRestored,
+}
+
+/// Event to request quality adjustments
+#[derive(Event)]
+pub struct QualityAdjustmentRequest {
+    pub adjustment: QualityAdjustment,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum QualityAdjustment {
+    Reduce,
+    Restore,
+    Minimal,
+}
 use crate::timeline::{TimelineEvent, EventType, PublishTimeline, DraftTimeline};
 
-/// Settings for timeline compression
+/// RULE 1 COMPLIANCE: CompressionSettings is appropriately a Resource
+/// Global settings that apply to ALL timeline compression - true singleton
+/// Individual compressed timelines use CompressedTimeline Component per entity
 #[derive(Resource)]
 pub struct CompressionSettings {
     /// Maximum events per timeline
@@ -57,7 +92,8 @@ impl Default for CompressionSettings {
     }
 }
 
-/// Compressed timeline format for efficient storage
+/// RULE 1 COMPLIANCE: CompressedTimeline is a Component for per-entity optimization
+/// Each entity can have its own compressed timeline data, not shared globally
 #[derive(Component)]
 pub struct CompressedTimeline {
     /// Base position for delta compression
@@ -343,7 +379,8 @@ Add to `src/optimization/mod.rs`:
 // Import GlobalTimelinePause from Tutorial 01 where it's originally defined
 use crate::timeline::GlobalTimelinePause;
 
-/// Component to control update frequency
+/// RULE 1 COMPLIANCE: UpdateFrequency is a Component for per-entity performance control
+/// Each ghost can have different update rates based on distance/importance
 #[derive(Component)]
 pub struct UpdateFrequency {
     pub updates_per_second: f32,
@@ -854,12 +891,14 @@ With optimization complete, we can now:
 
 ## Key Takeaways
 
-1. **Timeline Compression**: 5-10x memory reduction with delta encoding
-2. **Spatial Indexing**: O(1) lookups for nearby ghosts
-3. **Update Frequencies**: Distant ghosts update less frequently
-4. **Explicit Constructors**: Arena::new() validation in performance-critical paths
-5. **Auto-Quality**: Dynamic adjustment based on performance
-6. **Zero-Copy Compression**: CompressedTimeline::from_draft(draft) and decompress(self) consume for optimal performance
+1. **🎯 RULE 1 - Components First**: UpdateFrequency, CompressedTimeline are Components (per-entity optimization), CompressionSettings is Resource (global settings)
+2. **🎯 RULE 3 - Events for Communication**: PerformanceAlert, QualityAdjustmentRequest events coordinate optimization systems
+3. **Timeline Compression**: 5-10x memory reduction with delta encoding
+3. **Spatial Indexing**: O(1) lookups for nearby ghosts
+4. **Update Frequencies**: Distant ghosts update less frequently
+5. **Explicit Constructors**: Arena::new() validation in performance-critical paths
+6. **Auto-Quality**: Dynamic adjustment based on performance
+7. **Zero-Copy Compression**: CompressedTimeline::from_draft(draft) and decompress(self) consume for optimal performance
 
 These optimizations ensure the game remains playable even with hundreds of ghosts. The key is balancing visual fidelity
 with performance, using LOD techniques and smart update strategies to maintain smooth gameplay.

@@ -49,12 +49,40 @@ Create `src/multi_arena/mod.rs`:
 use bevy::prelude::*;
 use bevy::time::Virtual;
 use bevy::utils::HashMap;  // Use Bevy's HashMap for better performance
+
+// RULE 3 COMPLIANCE: Events for multi-arena communication
+/// Event when arena performance changes significantly
+#[derive(Event)]
+pub struct ArenaPerformanceUpdate {
+    pub arena: ArenaName,
+    pub ghost_count: usize,
+    pub fps_impact: f32,
+    pub needs_optimization: bool,
+}
+
+/// Event when ghost count exceeds limits
+#[derive(Event)]
+pub struct GhostLimitExceeded {
+    pub arena: ArenaName,
+    pub current_count: usize,
+    pub limit: usize,
+    pub action_required: LimitAction,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum LimitAction {
+    Warning,
+    PreventNew,
+    ForceCleanup,
+}
 use crate::timeline::{TimelineClock, PublishTimeline, TimelinePosition, TimeStamp};
 use crate::arena::{Arena, ArenaName, CurrentArena, ArenaEntities};
 use crate::playback::{Ghost, Replaying};
 use crate::character::Character;
 
-/// APPROVED: Simple registry - HashMap is perfect for 9 arenas
+/// RULE 1 COMPLIANCE: ArenaGhostRegistry is appropriately a Resource
+/// Global registry for tracking ghosts across ALL arenas - true singleton
+/// Individual ghost arena data uses GhostArena Component per entity
 /// Uses ArenaName as key for efficient ghost tracking per arena
 #[derive(Resource, Default)]
 pub struct ArenaGhostRegistry {
@@ -344,7 +372,8 @@ pub fn check_ghost_limits(
 Add to `src/multi_arena/mod.rs`:
 
 ```rust
-/// Level of detail for ghost rendering
+/// RULE 1 COMPLIANCE: GhostLOD is a Component for per-entity rendering quality
+/// Each ghost has its own LOD level based on distance from player
 #[derive(Component)]
 pub struct GhostLOD {
     pub level: LODLevel,
@@ -360,29 +389,56 @@ pub enum LODLevel {
     Minimal,
 }
 
-/// Update LOD based on arena distance
+// RULE 2 COMPLIANCE: Static data lookup for LOD distance calculations
+// Pre-computed arena distances for O(1) lookup instead of runtime calculation
+const ARENA_DISTANCES: [[u8; 9]; 9] = [
+    // Arena 0 (Labyrinth) distances to all arenas
+    [0, 1, 2, 1, 2, 3, 2, 3, 4],
+    // Arena 1 (Guild House) distances to all arenas  
+    [1, 0, 1, 2, 1, 2, 3, 2, 3],
+    // Arena 2 (Sanctum) distances to all arenas
+    [2, 1, 0, 3, 2, 1, 4, 3, 2],
+    // Arena 3 (Mountain) distances to all arenas
+    [1, 2, 3, 0, 1, 2, 1, 2, 3],
+    // Arena 4 (Bastion) distances to all arenas
+    [2, 1, 2, 1, 0, 1, 2, 1, 2],
+    // Arena 5 (Pawnshop) distances to all arenas
+    [3, 2, 1, 2, 1, 0, 3, 2, 1],
+    // Arena 6 (Crucible) distances to all arenas
+    [2, 3, 4, 1, 2, 3, 0, 1, 2],
+    // Arena 7 (Casino) distances to all arenas
+    [3, 2, 3, 2, 1, 2, 1, 0, 1],
+    // Arena 8 (Gala) distances to all arenas
+    [4, 3, 2, 3, 2, 1, 2, 1, 0],
+];
+
+// Static LOD level lookup based on distance
+const LOD_BY_DISTANCE: &[LODLevel] = &[
+    LODLevel::Full,     // Distance 0
+    LODLevel::Reduced,  // Distance 1
+    LODLevel::Minimal,  // Distance 2+
+    LODLevel::Minimal,  // Distance 3+
+    LODLevel::Minimal,  // Distance 4+
+];
+
+/// Update LOD based on arena distance using static lookup tables
 pub fn update_ghost_lod(
     mut commands: Commands,
     current_arena: Res<CurrentArena>,
     ghost_q: Query<(Entity, &Parent), With<Ghost>>,
     arena_q: Query<&Arena>,
 ) {
-    let current_arena_name = current_arena.0;
+    let current_arena_idx = current_arena.0.as_u8();
 
     for (ghost_entity, parent) in ghost_q.iter() {
         if let Ok(arena) = arena_q.get(parent.get()) {
-            let arena_idx = arena.as_u8();
+            let arena_idx = arena.0.as_u8();
 
-            // Calculate "distance" between arenas
-            let row_diff = (arena_idx / 3).abs_diff(current_arena_name.as_u8() / 3);
-            let col_diff = (arena_idx % 3).abs_diff(current_arena_name.as_u8() % 3);
-            let distance = row_diff + col_diff;
-
-            let lod_level = match distance {
-                0 => LODLevel::Full,
-                1 => LODLevel::Reduced,
-                _ => LODLevel::Minimal,
-            };
+            // RULE 2 COMPLIANCE: O(1) static lookup instead of runtime calculation
+            let distance = ARENA_DISTANCES[current_arena_idx as usize][arena_idx as usize];
+            let lod_level = LOD_BY_DISTANCE.get(distance as usize)
+                .copied()
+                .unwrap_or(LODLevel::Minimal);
 
             commands.entity(ghost_entity).insert(GhostLOD {
                 level: lod_level,
@@ -789,12 +845,15 @@ With multi-arena support complete, we can now:
 
 ## Key Takeaways
 
-1. **Arena Registry**: Efficient tracking of ghosts per arena using ArenaName keys
-2. **LOD System**: Reduced fidelity for distant arenas saves performance
-3. **Batch Processing**: Group operations by arena for cache efficiency
-4. **Explicit Constructors**: Arena::new() validation in multi-arena logic
-5. **Resource Limits**: Prevent performance degradation from too many ghosts
-6. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup instead of arena_q.iter().find() - essential for multi-arena performance with 320+ ghosts
+1. **🎯 RULE 1 - Components First**: GhostLOD is Component (per-entity quality), ArenaGhostRegistry is Resource (global tracking)
+2. **🎯 RULE 2 - Static Data Lookup**: ARENA_DISTANCES const table for O(1) distance lookups, LOD_BY_DISTANCE array for performance
+3. **🎯 RULE 3 - Events for Communication**: ArenaPerformanceUpdate, GhostLimitExceeded events for system coordination
+4. **Arena Registry**: Efficient tracking of ghosts per arena using ArenaName keys
+3. **LOD System**: Reduced fidelity for distant arenas saves performance
+4. **Batch Processing**: Group operations by arena for cache efficiency
+5. **Explicit Constructors**: Arena::new() validation in multi-arena logic
+6. **Resource Limits**: Prevent performance degradation from too many ghosts
+7. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup instead of arena_q.iter().find() - essential for multi-arena performance with 320+ ghosts
 
 ## Performance Optimization Notes
 

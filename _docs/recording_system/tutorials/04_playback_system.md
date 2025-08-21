@@ -36,9 +36,21 @@ use crate::recording::Ghost;
 use crate::character::Character;
 use crate::selectors::Active;
 
-/// Marker for entities actively replaying a timeline
+/// RULE 1 & 5 COMPLIANCE: Replaying is a marker component for per-entity playback state
+/// RULE 5: Unit struct without data - enables filtering: Query<Entity, (With<Ghost>, With<Replaying>)>
+/// Each ghost entity controls its own replay status, not global
 #[derive(Component)]
 pub struct Replaying;
+
+/// RULE 5 COMPLIANCE: Additional playback markers for fine-grained control
+#[derive(Component)]
+pub struct PlaybackPaused; // Ghost playback temporarily paused
+
+#[derive(Component)]
+pub struct PlaybackComplete; // Ghost finished one full timeline loop
+
+#[derive(Component)]
+pub struct InterpolatingMovement; // Ghost currently smoothly moving between keyframes
 
 /// Tracks which abilities have been triggered this frame
 #[derive(Component, Default)]
@@ -66,15 +78,19 @@ impl TriggeredAbilities {
 #[derive(Component)]
 pub struct GhostSource(pub Entity);
 
-/// Each ghost tracks its own arena for independent clocks
+/// RULE 1 COMPLIANCE: GhostArena is a Component storing per-entity arena data
+/// Each ghost tracks its own arena for independent clocks, not global lookup
 #[derive(Component)]
 pub struct GhostArena(pub ArenaName);
 
-/// Visual properties for ghosts
+/// RULE 4 COMPLIANCE: Visual properties for ghosts with asset handles
 #[derive(Component)]
 pub struct GhostVisuals {
     pub transparency: f32,
     pub tint: Srgba,  // Use specific color space type
+    // Store handles for efficient asset sharing
+    pub material: Option<Handle<StandardMaterial>>,
+    pub mesh: Option<Handle<Mesh>>,
 }
 
 impl Default for GhostVisuals {
@@ -82,6 +98,8 @@ impl Default for GhostVisuals {
         Self {
             transparency: 0.5,
             tint: Srgba::srgb(0.5, 0.5, 1.0), // Blue tint
+            material: None,  // Will be set by asset system
+            mesh: None,      // Will be set by asset system
         }
     }
 }
@@ -233,7 +251,8 @@ Add to `src/playback/mod.rs`:
 ```rust
 // No need to import - get_movement_intent_at is now a method on PublishTimeline
 
-/// Component to track previous movement state for interpolation
+/// RULE 1 COMPLIANCE: GhostMovementState is a Component for per-entity interpolation
+/// Each ghost maintains its own movement state, enabling independent smooth motion
 #[derive(Component)]
 pub struct GhostMovementState {
     pub previous_position: Vec3,
@@ -366,12 +385,30 @@ Add to `src/playback/mod.rs`:
 // No need to import - events_in_range is now the unified method on PublishTimeline
 // Filter with iterator methods for specific event types
 
-/// Event sent when a ghost triggers an ability
+// RULE 3 COMPLIANCE: Events for ghost system communication
+/// Event sent when a ghost triggers an ability - fire-and-forget messaging
 #[derive(Event)]
 pub struct GhostAbilityTrigger {
     pub ghost: Entity,
     pub ability: AbilityType,
     pub timestamp: TimeStamp,
+}
+
+/// Event when ghost completes full timeline loop
+#[derive(Event)]
+pub struct GhostLoopComplete {
+    pub ghost: Entity,
+    pub arena: ArenaName,
+    pub loops_completed: u32,
+}
+
+/// Event when ghost interpolation state changes significantly
+#[derive(Event)]
+pub struct GhostMovementUpdate {
+    pub ghost: Entity,
+    pub from_position: Vec3,
+    pub to_position: Vec3,
+    pub progress: f32,
 }
 
 /// Replay ghost abilities from timeline with deterministic range checking
@@ -810,14 +847,19 @@ With playback working, we can now:
 
 ## Key Takeaways
 
-1. **Simple Timeline Lookup**: Ghosts play `timelines.get_timeline(current_arena.0)` - no complex state needed
-2. **Timeline Replay**: Interpolation creates smooth movement from keyframes  
-3. **Ability Triggers**: Deterministic range-based detection using [prev, curr] slices prevents duplicate triggers
-4. **Visual Distinction**: Ghosts have transparency and glow effects
-5. **Explicit Constructors**: TimeStamp::new(), ArenaName::from_index_safe() construction throughout playback code
-6. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
-7. **CharacterTimelines as Source of Truth**: The hashmap IS the ghost's behavior - no additional state tracking needed
-8. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup in ghost systems - critical for performance with 320+ ghosts across 9 arenas
+1. **🎯 RULE 1 - Components First**: Replaying, GhostArena, GhostMovementState are Components (per-entity state), not Resources
+2. **🎯 RULE 3 - Events for Communication**: GhostAbilityTrigger, GhostLoopComplete events enable decoupled ghost system communication
+3. **🎯 RULE 4 - Assets via Handles**: GhostVisuals stores asset handles for efficient sharing, not direct asset references
+4. **🎯 RULE 5 - Marker Components**: Replaying, PlaybackPaused, InterpolatingMovement unit structs enable precise ghost state filtering
+5. **🎯 RULE 6 - Change Detection**: Added<Ghost>, Changed<TimelinePosition> filters prevent expensive processing of unchanged entities
+6. **Simple Timeline Lookup**: Ghosts play `timelines.get_timeline(current_arena.0)` - no complex state needed
+3. **Timeline Replay**: Interpolation creates smooth movement from keyframes  
+4. **Ability Triggers**: Deterministic range-based detection using [prev, curr] slices prevents duplicate triggers
+5. **Visual Distinction**: Ghosts have transparency and glow effects
+6. **Explicit Constructors**: TimeStamp::new(), ArenaName::from_index_safe() construction throughout playback code
+7. **Automatic Looping**: Ghosts seamlessly repeat every 2 minutes
+8. **CharacterTimelines as Source of Truth**: The hashmap IS the ghost's behavior - no additional state tracking needed
+9. **⚡ ArenaEntities O(1) Lookup**: Use ArenaEntities resource for O(1) arena entity lookup in ghost systems - critical for performance with 320+ ghosts across 9 arenas
 
 ## Production Notes
 

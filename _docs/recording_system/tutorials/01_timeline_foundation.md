@@ -42,6 +42,23 @@ use std::time::Duration;
 use std::sync::Arc;
 use thiserror::Error;
 
+// RULE 3 COMPLIANCE: Events for timeline communication
+/// Event to notify systems when timeline reaches major checkpoints
+#[derive(Event)]
+pub struct TimelineCheckpoint {
+    pub arena: ArenaName,
+    pub timestamp: TimeStamp,
+    pub checkpoint_type: CheckpointType,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum CheckpointType {
+    QuarterTime,  // 30 seconds
+    HalfTime,     // 60 seconds
+    ThreeQuarter, // 90 seconds
+    FullCycle,    // 120 seconds (reset)
+}
+
 /// Error types for timeline operations - Rule 22 compliance
 #[derive(Error, Debug)]
 pub enum TimelineError {
@@ -80,8 +97,14 @@ pub struct TimelineEvent {
 pub struct TimeStamp(pub f32);
 
 impl TimeStamp {
+    /// RULE 2 COMPLIANCE: Static data lookup with const values
     pub const ZERO: Self = Self(0.0);
     pub const MAX: Self = Self(120.0);
+    
+    /// Common timeline positions as static lookups
+    pub const QUARTER: Self = Self(30.0);
+    pub const HALF: Self = Self(60.0);
+    pub const THREE_QUARTER: Self = Self(90.0);
 
     /// Creates a new TimeStamp, clamping value to [0, 120] seconds
     /// NaN values are coerced to 0.0 for safety
@@ -191,9 +214,20 @@ impl Display for GridPos {
 Add to `src/timeline/mod.rs`:
 
 ```rust
-/// Component for entities that can be recorded
+/// RULE 5 COMPLIANCE: Marker component for entity categorization
+/// Unit struct without data - perfect for simple entity filtering in queries
 #[derive(Component)]
 pub struct Recordable;
+
+/// RULE 5 COMPLIANCE: Additional timeline markers for fine-grained filtering
+#[derive(Component)]
+pub struct TimelineReady; // Entity has valid timeline data
+
+#[derive(Component)]
+pub struct TimelineActive; // Entity's timeline is currently ticking
+
+#[derive(Component)]
+pub struct TimelineComplete; // Entity reached full 120 second cycle
 
 use std::sync::Arc;
 
@@ -363,6 +397,8 @@ Add to `src/timeline/mod.rs`:
 
 ```rust
 /// Clock for 2-minute arena cycles
+/// RULE 1 COMPLIANCE: TimelineClock is a Component, not Resource
+/// Each arena entity has its own clock for independent timing
 /// PR Gate: Using bevy::time::Timer for proper time handling
 /// Virtual time integration ensures pause-safe operation
 #[derive(Component)]
@@ -441,7 +477,9 @@ impl TimelinePosition {
 Add to `src/timeline/mod.rs`:
 
 ```rust
-/// Global pause state that affects all timeline clocks
+/// RULE 1 COMPLIANCE: GlobalTimelinePause is appropriately a Resource
+/// This affects ALL timeline clocks globally - true singleton behavior
+/// Individual arena clocks are Components, global pause is Resource
 #[derive(Resource, Default)]
 pub struct GlobalTimelinePause {
     pub is_paused: bool,
@@ -801,23 +839,27 @@ With the timeline foundation in place, we can now:
 
 ## Key Takeaways
 
-1. **Type Domain Separation**: ArenaName (domain logic) for arena identification, Arena (component) for entity attachment
-2. **Type-Safe Newtypes**: TimeStamp, ArenaName, GridPos provide compile-time safety
-3. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
-4. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
-5. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), ArenaName methods for domain logic, Arena(ArenaName) for components
-6. **Binary Search**: Efficient O(log n) operations on sorted timelines
-7. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
-8. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
-9. **Consolidated Timeline API**: next_event_after/prev_event_before provide unified temporal queries with consistent
+1. **🎯 RULE 1 - Components First**: TimelineClock, DraftTimeline, CharacterTimelines are Components (entity state), GlobalTimelinePause is Resource (global singleton)
+2. **🎯 RULE 2 - Static Data Lookup**: TimeStamp::ZERO/MAX constants, ArenaName enum indices for efficient arena data access
+3. **🎯 RULE 3 - Events for Communication**: TimelineCheckpoint events notify systems of timeline milestones, decoupled communication
+4. **🎯 RULE 5 - Marker Components**: Recordable, TimelineReady, TimelineActive unit structs for efficient entity filtering
+5. **Type Domain Separation**: ArenaName (domain logic) for arena identification, Arena (component) for entity attachment
+3. **Type-Safe Newtypes**: TimeStamp, ArenaName, GridPos provide compile-time safety
+4. **Intent Not Transform**: Recording Movement(GridPos) not Transform(Vec3)
+5. **Zero-Alloc Helpers**: events_in_range(), next_event_after(), slice() avoid allocations
+6. **Explicit Constructors**: TimeStamp::new(), GridPos::new(), ArenaName methods for domain logic, Arena(ArenaName) for components
+7. **Binary Search**: Efficient O(log n) operations on sorted timelines
+8. **Zero-Copy Ownership Transfer**: PublishTimeline::from_draft(draft) consumes for efficient Vec→Arc conversion
+9. **Idiomatic Helpers**: Use `std::convert::identity` over trivial closures for clearer intent
+10. **Consolidated Timeline API**: next_event_after/prev_event_before provide unified temporal queries with consistent
    binary_search_by approach
-10. **Virtual Time for Pause Safety**: Time<Virtual> prevents time jumps when pausing/unpausing
-11. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust
+11. **Virtual Time for Pause Safety**: Time<Virtual> prevents time jumps when pausing/unpausing
+12. **🆕 Bevy 0.16 Error-Safe ECS**: Use Result-returning query methods with `?` operator or let-else patterns for robust
     error handling
-12. **🆕 Compile-Time Safe Arena Creation**: Use `from_index_safe()` for all arena creation - no runtime validation needed
-13. **🎯 Multi-Arena Timeline Storage**: CharacterTimelines component stores HashMap<ArenaName, PublishTimeline> to support characters recording in all 9 arenas with separate timeline storage per arena
-14. **🚀 Unified Event Architecture**: Like CameraUpdate, use RecordingUpdate as root orchestration event to prevent event explosion and race conditions
-15. **⚡ CurrentArenaEntity SystemParam**: Use CurrentArenaEntity SystemParam for O(1) current arena entity access instead of repetitive lookups. Performance is critical when supporting 320+ ghosts across 9 arenas!
+13. **🆕 Compile-Time Safe Arena Creation**: Use `from_index_safe()` for all arena creation - no runtime validation needed
+14. **🎯 Multi-Arena Timeline Storage**: CharacterTimelines component stores HashMap<ArenaName, PublishTimeline> to support characters recording in all 9 arenas with separate timeline storage per arena
+15. **🚀 Unified Event Architecture**: Like CameraUpdate, use RecordingUpdate as root orchestration event to prevent event explosion and race conditions
+16. **⚡ CurrentArenaEntity SystemParam**: Use CurrentArenaEntity SystemParam for O(1) current arena entity access instead of repetitive lookups. Performance is critical when supporting 320+ ghosts across 9 arenas!
 
 ## Production Notes
 

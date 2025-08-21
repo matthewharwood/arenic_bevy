@@ -43,7 +43,10 @@
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(timeout 10s cargo run)",
       "Bash(true)",
-      "WebFetch(domain:bevy-cheatbook.github.io)"
+      "WebFetch(domain:bevy-cheatbook.github.io)",
+      "WebFetch(domain:cookbook.openai.com)",
+      "Bash(timeout 10 cargo run)",
+      "Bash(timeout 3s cargo run)"
     ],
     "deny": []
   },
