@@ -450,6 +450,63 @@ The game rewards both analytical optimization and creative experimentation, prov
 
 ---
 
+## Technical Architecture Principles
+
+### Active Character Query Pattern
+
+**Architectural Rule**: All recording system operations should query for the Active Character dynamically rather than storing or passing character entities as parameters.
+
+#### Implementation Principle
+```rust
+// ✅ CORRECT - Query Active Character when needed
+pub enum RecordingRequest {
+    Start,        // Query active_character_q.single() when processing
+    Stop { reason: StopReason },
+    ShowDialog,   // Query active_character_q.single() when showing dialog
+    Commit,       // Query active_character_q.single() when committing
+    Clear,        // Query active_character_q.single() when clearing
+}
+
+// ❌ INCORRECT - Storing/passing entities
+pub enum RecordingRequest {
+    Start { entity: Entity },           // Don't store entities
+    ShowDialog { character: Entity },   // Don't pass character data
+}
+```
+
+#### Rationale
+1. **Single Source of Truth**: The `Active` component determines which character receives input
+2. **R Key Behavior**: "R always operates on whoever is CURRENTLY active when pressed" 
+3. **Dynamic Dialog Behavior**: Dialog should switch if player changes active character
+4. **Type Safety**: `active_character_q.single()` guarantees exactly one Active Character
+5. **Simplicity**: Eliminates entity synchronization and parameter passing complexity
+
+#### Query Pattern
+```rust
+// Standard query for Active Character operations
+active_character_q: Single<(Entity, Option<&Ghost>), (With<Character>, With<Active>)>
+
+// Usage in recording systems
+let (character_entity, ghost_marker) = active_character_q.single();
+```
+
+#### Benefits
+- **Architectural Consistency**: All recording operations follow the same pattern
+- **Reduced Coupling**: No entity parameters between systems  
+- **Automatic Updates**: Dialog and UI automatically reflect current active character
+- **Performance**: O(1) queries with minimal overhead
+- **Maintainability**: Eliminates entity storage synchronization bugs
+
+#### Application Scope
+This pattern applies to:
+- All `RecordingRequest` variants
+- Dialog state management (`RecordingMode::DialogPaused`)
+- Recording state tracking
+- UI systems that need character context
+- Any system that operates on "the current character"
+
+---
+
 ## Conclusion
 
 Arenic offers a unique gaming experience that combines the strategic depth of MMO raiding with innovative single-player mechanics. Through mastering the Record & Replay system, understanding character class synergies, and developing sophisticated multi-arena strategies, players can achieve the satisfaction of commanding massive coordinated raids while maintaining complete control over every aspect of their guild's performance.
