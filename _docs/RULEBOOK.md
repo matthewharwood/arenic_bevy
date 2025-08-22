@@ -54,6 +54,30 @@ Build a guild powerful enough to simultaneously manage 8 different arenas, each 
 
 ---
 
+## Input System Rules
+
+**🎯 CRITICAL: Single Keypress Action System**
+
+Arenic uses a **single keypress** input system - every action requires exactly one key press:
+
+- **Movement**: Each WASD press moves your character exactly one tile
+- **Abilities**: Each number key (1-4) press activates the ability once  
+- **No Held Keys**: Holding down movement keys does NOT create continuous movement
+- **Intent-Based**: The recording system captures when you pressed a key, not how long you held it
+- **Precision Required**: Strategic timing comes from when you choose to press keys, not how fast you can spam them
+
+**Why This Matters for Recording:**
+- No duplicate events are ever recorded (impossible with single keypress system)
+- Ghost replays are perfectly deterministic and precise
+- Strategic depth comes from timing your keypresses, not reaction speed
+- Recordings are highly compressed and efficient
+
+**Example:**
+- ❌ **Wrong**: Hold W to move multiple tiles → Only moves one tile on initial press
+- ✅ **Correct**: Press W, W, W, W to move four tiles → Each press moves one tile
+
+---
+
 ## The Record & Replay System (Core Mechanic)
 
 The recording system allows you to capture 2-minute sequences of character actions that replay as autonomous "ghosts" every arena cycle. This core mechanic enables you to build up complex, coordinated strategies across multiple characters and arenas.

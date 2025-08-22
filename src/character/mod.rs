@@ -1,6 +1,6 @@
 use crate::arena::{
-    Arena, ArenaEntities, ArenaName, CharacterMoved, CurrentArena, CurrentArenaEntity, GRID_HEIGHT,
-    GRID_WIDTH, LastActiveHero, TILE_SIZE,
+    Arena, ArenaEntities, ArenaName, CharacterMoved, CurrentArena, CurrentArenaEntity, LastActiveHero,
+    GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
 };
 use crate::materials::Materials;
 use crate::selectors::Active;
@@ -55,14 +55,14 @@ pub fn toggle_active_character(
             // Calculate next index (cyclical)
             let next_index = (current_index + 1) % characters_data.len();
 
-            // Remove Active from current character
+            // Remove Active from the current character
             let current_entity = characters_data[current_index].0;
             commands
                 .entity(current_entity)
                 .insert(MeshMaterial3d(mats.gray.clone()))
                 .remove::<Active>();
 
-            // Add Active to next character
+            // Add Active to the next character
             let next_entity = characters_data[next_index].0;
             commands
                 .entity(next_entity)
@@ -108,7 +108,7 @@ pub fn move_active_character(
     }
     let (character_entity, mut character_transform) = active_character_q.into_inner();
 
-    // Calculate new position
+    // Calculate a new position
     let new_position = character_transform.translation + movement;
 
     // Arena boundaries (in local space)
@@ -130,12 +130,12 @@ pub fn move_active_character(
     if new_position.x < min_x {
         // Moving left out of bounds
         if col > 0 {
-            // Can move to arena on the left
+            // Can move to an arena on the left
             let from_arena = current_arena.0;
             let new_arena_index = current_arena_index - 1;
             let new_arena_name = ArenaName::from_index_safe(new_arena_index);
 
-            // Teleport character to right side of new arena
+            // Teleport character to the right side of a new arena
             character_transform.translation.x = max_x;
 
             // Update CurrentArena after character movement
@@ -160,12 +160,12 @@ pub fn move_active_character(
     } else if new_position.x > max_x {
         // Moving right out of bounds
         if col < 2 {
-            // Can move to arena on the right
+            // Can move to an arena on the right
             let from_arena = current_arena.0;
             let new_arena_index = current_arena_index + 1;
             let new_arena_name = ArenaName::from_index_safe(new_arena_index);
 
-            // Teleport character to left side of new arena
+            // Teleport character to the left side of a new arena
             character_transform.translation.x = min_x;
 
             // Update CurrentArena after character movement
@@ -190,12 +190,12 @@ pub fn move_active_character(
     } else if new_position.y < min_y {
         // Moving down out of bounds
         if row < 2 {
-            // Can move to arena below
+            // Can move to an arena below
             let from_arena = current_arena.0;
             let new_arena_index = current_arena_index + 3;
             let new_arena_name = ArenaName::from_index_safe(new_arena_index);
 
-            // Teleport character to top side of new arena
+            // Teleport character to the top side of the new arena
             character_transform.translation.y = max_y;
 
             // Update CurrentArena after character movement
@@ -220,12 +220,12 @@ pub fn move_active_character(
     } else if new_position.y > max_y {
         // Moving up out of bounds
         if row > 0 {
-            // Can move to arena above
+            // Can move to the arena above
             let from_arena = current_arena.0;
             let new_arena_index = current_arena_index - 3;
             let new_arena_name = ArenaName::from_index_safe(new_arena_index);
 
-            // Teleport character to bottom side of new arena
+            // Teleport character to the bottom side of the new arena
             character_transform.translation.y = min_y;
 
             // Update CurrentArena after character movement

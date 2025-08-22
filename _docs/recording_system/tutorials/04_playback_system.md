@@ -210,45 +210,46 @@ use bevy::prelude::Parent;
 pub fn handle_commit_recording(
     mut commands: Commands,
     recording_state: Res<RecordingState>,
-    draft_q: Query<(Entity, &DraftTimeline, &Parent), With<Recording>>,
+    recording_entity: Single<(Entity, &DraftTimeline, &Parent), With<Recording>>,
     arena_q: Query<&Arena>,
 ) {
     for event in commit_events.read() {
-        if let Ok((entity, draft, parent)) = draft_q.get(event.character) {
-            // Only commit if there are events to publish
-            if draft.events.is_empty() {
-                warn!("Cannot commit empty timeline");
-                continue;
-            }
+        let (entity, draft, parent) = recording_entity.into_inner();
+        
+        // Only commit if there are events to publish
+        if draft.events.is_empty() {
+            warn!("Cannot commit empty timeline");
+            continue;
+        }
 
-            // PR Gate: Per-ghost clock from parent arena
-            // Get the arena this character belongs to via parent entity
-            let Ok(arena_idx) = arena_q.get(parent.get()) else {
-                warn!("Character has no parent arena");
-                continue;
-            };
+        // PR Gate: Per-ghost clock from parent arena
+        // Get the arena this character belongs to via parent entity
+        let Ok(arena_idx) = arena_q.get(parent.get()) else {
+            warn!("Character has no parent arena");
+            continue;
+        };
 
-            // Create published timeline from draft using ownership transfer
-            // Note: We need to consume the draft here but can't due to ECS borrow checker
-            // This is a limitation of the Query system - in real code, use Commands to remove and recreate
-            let published = PublishTimeline::from_draft(draft);
+        // Create published timeline from draft using ownership transfer
+        // Note: We need to consume the draft here but can't due to ECS borrow checker
+        // This is a limitation of the Query system - in real code, use Commands to remove and recreate
+        let published = PublishTimeline::from_draft(draft);
 
-            info!("Committing timeline with {} events in arena {}", published.events.len(), **arena_idx);
+        info!("Committing timeline with {} events in arena {}", published.events.len(), **arena_idx);
 
-            // Remove recording components, add playback components
-            // Zero-copy: .remove() transfers component ownership for efficient cleanup
-            // .insert() transfers ownership of published timeline to ECS storage
-            commands.entity(entity)
-                .remove::<Recording>()
-                .remove::<DraftTimeline>() // Ownership transferred for cleanup
-                .insert(published) // Ownership transferred to ECS
-                .insert(Ghost)
-                .insert(Replaying)
-                .insert(TimelinePosition(TimeStamp::ZERO))
-                .insert(TriggeredAbilities::default())
-                .insert(GhostVisuals::default())
-                .insert(GhostMovementState::default())
-                .insert(GhostArena(arena_id)); // Track which arena this ghost belongs to
+        // Remove recording components, add playback components
+        // Zero-copy: .remove() transfers component ownership for efficient cleanup
+        // .insert() transfers ownership of published timeline to ECS storage
+        commands.entity(entity)
+            .remove::<Recording>()
+            .remove::<DraftTimeline>() // Ownership transferred for cleanup
+            .insert(published) // Ownership transferred to ECS
+            .insert(Ghost)
+            .insert(Replaying)
+            .insert(TimelinePosition(TimeStamp::ZERO))
+            .insert(TriggeredAbilities::default())
+            .insert(GhostVisuals::default())
+            .insert(GhostMovementState::default())
+            .insert(GhostArena(arena_id)); // Track which arena this ghost belongs to
         }
     }
 }
@@ -257,16 +258,15 @@ pub fn handle_commit_recording(
 pub fn handle_clear_recording(
     mut commands: Commands,
     recording_state: Res<RecordingState>,
-    recording_q: Query<Entity, With<Recording>>,
+    recording_entity: Single<Entity, With<Recording>>,
 ) {
     for event in clear_events.read() {
-        if recording_q.contains(event.character) {
-            commands.entity(event.character)
-                .remove::<Recording>()
-                .remove::<DraftTimeline>();
+        let entity = recording_entity.get();
+        commands.entity(entity)
+            .remove::<Recording>()
+            .remove::<DraftTimeline>();
 
-            info!("Cleared recording for {:?}", event.character);
-        }
+        info!("Cleared recording for {:?}", entity);
     }
 }
 ```

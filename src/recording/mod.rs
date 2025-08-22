@@ -1,5 +1,7 @@
 // Recording module - implements unified event architecture
 
+mod capture;
+
 use crate::arena::{Arena, CameraUpdate, CurrentArena, CurrentArenaEntity};
 use crate::character::Character;
 use crate::selectors::Active;

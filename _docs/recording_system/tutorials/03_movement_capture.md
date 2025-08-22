@@ -68,11 +68,12 @@ const KEY_ABILITIES: [(KeyCode, AbilityType); 4] = [
 
 /// Capture movement INTENT during recording - NOT transforms!
 /// This records what keys the player pressed, not where the character ended up
+/// Uses just_pressed() so no duplicate events are possible
 pub fn capture_movement_intent(
     keyboard: Res<ButtonInput<KeyCode>>,
     global_pause: Res<GlobalTimelinePause>,
     recording_state: Res<RecordingState>,
-    mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
+    mut recording_timeline: Single<&mut DraftTimeline, With<Recording>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
     current: CurrentArenaEntity,
 ) {
@@ -103,116 +104,47 @@ pub fn capture_movement_intent(
 
     let timestamp = clock.current();
 
-    // Record the movement intent for all recording entities
-    for mut timeline in recording_q.iter_mut() {
-        // Create movement intent event using explicit constructor
-        let event = TimelineEvent {
-            timestamp,
-            event_type: EventType::Movement(GridPos::new(movement_dir.x, movement_dir.y)),
-        };
+    // Record the movement intent for the single recording entity
+    let mut timeline = recording_timeline.into_inner();
+    
+    // Create movement intent event using explicit constructor
+    let event = TimelineEvent {
+        timestamp,
+        event_type: EventType::Movement(GridPos::new(movement_dir.x, movement_dir.y)),
+    };
 
-        // Add to timeline (will be sorted automatically)
-        timeline.add_event(event);
+    // Add to timeline (will be sorted automatically)
+    timeline.add_event(event);
 
-        trace!(
-            "Recorded movement intent at {}: {}", 
-            timestamp, 
-            GridPos::from(movement_dir)
-        );
-    }
+    trace!(
+        "Recorded movement intent at {}: {}", 
+        timestamp, 
+        GridPos::from(movement_dir)
+    );
 }
 
 /// Get movement direction from keyboard input
+/// Uses just_pressed() to capture movement INTENT, not continuous state
 fn get_movement_direction(keyboard: &ButtonInput<KeyCode>) -> IVec2 {
     let mut dir = IVec2::ZERO;
 
-    // Check each movement key
-    if keyboard.pressed(KEY_MOVE_UP) {
+    // Check each movement key - only on the frame it was pressed
+    if keyboard.just_pressed(KEY_MOVE_UP) {
         dir.y += 1;
     }
-    if keyboard.pressed(KEY_MOVE_DOWN) {
+    if keyboard.just_pressed(KEY_MOVE_DOWN) {
         dir.y -= 1;
     }
-    if keyboard.pressed(KEY_MOVE_LEFT) {
+    if keyboard.just_pressed(KEY_MOVE_LEFT) {
         dir.x -= 1;
     }
-    if keyboard.pressed(KEY_MOVE_RIGHT) {
+    if keyboard.just_pressed(KEY_MOVE_RIGHT) {
         dir.x += 1;
     }
 
     dir
 }
 
-/// Component to track last recorded movement to avoid duplicates
-#[derive(Component)]
-pub struct LastRecordedMovement {
-    pub direction: IVec2,
-    pub timestamp: TimeStamp,
-}
-
-/// Optimize movement recording to reduce redundant events
-pub fn optimize_movement_recording(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    global_pause: Res<GlobalTimelinePause>,
-    recording_state: Res<RecordingState>,
-    mut recording_q: Query<(Entity, &mut DraftTimeline, Option<&mut LastRecordedMovement>), With<Recording>>,
-    arena_q: Query<(&Arena, &TimelineClock)>,
-    current: CurrentArenaEntity,
-    mut commands: Commands,
-) {
-    // PR Gate: Respecting GlobalTimelinePause
-    if global_pause.is_paused {
-        return;
-    }
-    
-    // Only process during active recording
-    if recording_state.mode != RecordingMode::Recording {
-        return;
-    }
-
-    let movement_dir = get_movement_direction(&keyboard);
-
-    // CurrentArenaEntity provides O(1) lookup
-    let Ok((_, clock)) = arena_q.get(current.get()) else {
-        return;
-    };
-
-    let timestamp = clock.current();
-
-    for (entity, mut timeline, last_recorded) in recording_q.iter_mut() {
-        // Check if we should record this movement
-        let should_record = if let Some(mut last) = last_recorded {
-            // Only record if direction changed or enough time passed
-            let dir_changed = last.direction != movement_dir;
-            let time_delta = (timestamp.as_secs() - last.timestamp.as_secs()).abs();
-            
-            if dir_changed || time_delta >= 0.1 {
-                last.direction = movement_dir;
-                last.timestamp = timestamp;
-                true
-            } else {
-                false
-            }
-        } else if movement_dir != IVec2::ZERO {
-            // First recording - add component
-            commands.entity(entity).insert(LastRecordedMovement {
-                direction: movement_dir,
-                timestamp,
-            });
-            true
-        } else {
-            false
-        };
-
-        if should_record && movement_dir != IVec2::ZERO {
-            let event = TimelineEvent {
-                timestamp,
-                event_type: EventType::Movement(GridPos::new(movement_dir.x, movement_dir.y)),
-            };
-            timeline.add_event(event);
-        }
-    }
-}
 ```
 
 ### Step 2: Create Ability Intent Capture System
@@ -225,7 +157,7 @@ pub fn capture_ability_intent(
     keyboard: Res<ButtonInput<KeyCode>>,
     global_pause: Res<GlobalTimelinePause>,
     recording_state: Res<RecordingState>,
-    mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
+    mut recording_timeline: Single<&mut DraftTimeline, With<Recording>>,
     arena_q: Query<(&Arena, &TimelineClock)>,
     current: CurrentArenaEntity,
     mouse_button: Res<ButtonInput<MouseButton>>,
@@ -273,21 +205,22 @@ pub fn capture_ability_intent(
         None
     };
 
-    for mut timeline in recording_q.iter_mut() {
-        // Create ability event
-        let event = TimelineEvent {
-            timestamp,
-            event_type: EventType::Ability(ability_id, target),
-        };
+    // Record the ability intent for the single recording entity
+    let mut timeline = recording_timeline.into_inner();
+    
+    // Create ability event
+    let event = TimelineEvent {
+        timestamp,
+        event_type: EventType::Ability(ability_id, target),
+    };
 
-        timeline.add_event(event);
+    timeline.add_event(event);
 
-        info!(
-            "Recorded ability intent {} at {}", 
-            ability_id, 
-            timestamp
-        );
-    }
+    info!(
+        "Recorded ability intent {} at {}", 
+        ability_id, 
+        timestamp
+    );
 }
 ```
 
@@ -298,11 +231,10 @@ Add to `src/recording/capture.rs`:
 ```rust
 /// Optimize timeline by removing redundant events
 pub fn optimize_timeline_events(
-    mut recording_q: Query<&mut DraftTimeline, With<Recording>>,
+    mut recording_timeline: Single<&mut DraftTimeline, With<Recording>>,
 ) {
-    for mut timeline in recording_q.iter_mut() {
-        optimize_timeline(&mut timeline);
-    }
+    let mut timeline = recording_timeline.into_inner();
+    optimize_timeline(&mut timeline);
 }
 
 /// Remove redundant events to save memory

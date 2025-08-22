@@ -602,9 +602,9 @@ When a recording is committed, it's stored in the character's `CharacterTimeline
 pub fn commit_recording_to_arena(
     mut commands: Commands,
     current_arena: Res<CurrentArena>,
-    mut recording_q: Query<(Entity, &DraftTimeline, &mut CharacterTimelines), With<Recording>>,
+    mut recording_entity: Single<(Entity, &DraftTimeline, &mut CharacterTimelines), With<Recording>>,
 ) {
-    for (entity, draft, mut timelines) in recording_q.iter_mut() {
+    let (entity, draft, mut timelines) = recording_entity.into_inner();
         // Convert draft to published timeline
         let published = PublishTimeline::from_draft(draft.clone());
         
@@ -618,7 +618,6 @@ pub fn commit_recording_to_arena(
             .insert(Ghost);
             
         info!("Committed recording for arena {:?}", current_arena.0);
-    }
 }
 
 /// Simple ghost replay - just check if timeline exists when user presses R

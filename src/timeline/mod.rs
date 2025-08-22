@@ -115,7 +115,7 @@ impl Display for TimeStamp {
 #[derive(Clone, Debug)]
 pub enum EventType {
     /// Movement intent from input - uses VALUE type GridPosData
-    Movement(GridPosData),
+    Movement(IVec2),
     /// Ability cast with optional target
     Ability(AbilityType, Option<TargetData>),
     /// Character death event
@@ -126,73 +126,21 @@ pub enum EventType {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TargetData {
     Entity(Entity),
-    Position(GridPosData),
+    Position(IVec2),
 }
 
 use crate::ability::AbilityType;
 use crate::arena::{Arena, ArenaName, CurrentArenaEntity};
 
-// === TYPE DOMAIN SEPARATION ===
-
-// DOMAIN: VALUE TYPES (for events, function parameters, data passing)
-/// Grid position data for event payloads and function parameters
-/// NEVER used as a Component - this is pure value type
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct GridPosData {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl GridPosData {
-    #[must_use]
-    pub fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
-}
-
 // DOMAIN: COMPONENT TYPES (for entity state only)
 /// Component for entity's grid position - NEVER used in events
 /// Only attached to entities, never in event payloads
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
-pub struct GridPositionComponent {
-    pub x: i32,
-    pub y: i32,
-}
-
-impl GridPositionComponent {
-    #[must_use]
-    pub fn new(x: i32, y: i32) -> Self {
-        Self { x, y }
-    }
-
-    /// Convert to value type for event emission
-    pub fn to_data(&self) -> GridPosData {
-        GridPosData::new(self.x, self.y)
-    }
-}
-
-// === CONVERSION UTILITIES ===
-impl From<GridPositionComponent> for GridPosData {
-    fn from(component: GridPositionComponent) -> Self {
-        component.to_data()
-    }
-}
-
-impl From<GridPosData> for GridPositionComponent {
-    fn from(data: GridPosData) -> Self {
-        Self::new(data.x, data.y)
-    }
-}
-
-impl Display for GridPosData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
-    }
-}
+pub struct GridPositionComponent(IVec2);
 
 impl Display for GridPositionComponent {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
+        write!(f, "[{}, {}]", &self.0.x, &self.0.y)
     }
 }
 
@@ -591,7 +539,7 @@ mod tests {
         timeline
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(5.0),
-                event_type: EventType::Movement(GridPosData::new(1, 0)),
+                event_type: EventType::Movement(IVec2::new(1, 0)),
             })
             .expect("Failed to add event");
 
@@ -660,7 +608,7 @@ mod tests {
             draft
                 .add_event(TimelineEvent {
                     timestamp: TimeStamp::new(i as f32 * 2.0),
-                    event_type: EventType::Movement(GridPosData::new(i as i32, 0)),
+                    event_type: EventType::Movement(IVec2::new(i, 0)),
                 })
                 .expect("Failed to add event");
         }
@@ -684,7 +632,7 @@ mod tests {
         draft
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(10.0),
-                event_type: EventType::Movement(GridPosData::new(0, 0)),
+                event_type: EventType::Movement(IVec2::new(0, 0)),
             })
             .expect("Failed to add event");
         draft
@@ -696,7 +644,7 @@ mod tests {
         draft
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(30.0),
-                event_type: EventType::Movement(GridPosData::new(1, 0)),
+                event_type: EventType::Movement(IVec2::new(1, 0)),
             })
             .expect("Failed to add event");
 
@@ -736,19 +684,15 @@ mod tests {
         assert_eq!(arena.0.as_u8(), 4);
         assert_eq!(arena.0, ArenaName::Bastion);
 
-        let pos_data = GridPosData::new(5, -3);
+        let pos_data = IVec2::new(5, -3);
         assert_eq!(pos_data.x, 5);
         assert_eq!(pos_data.y, -3);
-        assert_eq!(pos_data.to_string(), "(5, -3)");
+        assert_eq!(pos_data.to_string(), "[5, -3]");
 
-        let pos_component = GridPositionComponent::new(5, -3);
-        assert_eq!(pos_component.x, 5);
-        assert_eq!(pos_component.y, -3);
-        assert_eq!(pos_component.to_string(), "(5, -3)");
-
-        let converted_data: GridPosData = pos_component.into();
-        assert_eq!(converted_data.x, 5);
-        assert_eq!(converted_data.y, -3);
+        let pos_component = GridPositionComponent(IVec2::new(5, -3));
+        assert_eq!(pos_component.0.x, 5);
+        assert_eq!(pos_component.0.y, -3);
+        assert_eq!(pos_component.to_string(), "[5, -3]");
     }
 
     #[test]
@@ -761,7 +705,7 @@ mod tests {
         draft_labyrinth
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(10.0),
-                event_type: EventType::Movement(GridPosData::new(0, 0)),
+                event_type: EventType::Movement(IVec2::new(0, 0)),
             })
             .expect("Failed to add event");
         let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth);

@@ -586,9 +586,11 @@ impl TimelineEventPool {
 /// Use pooled vectors for timeline operations
 pub fn use_pooled_timeline_vectors(
     mut pool: ResMut<TimelineEventPool>,
-    mut draft_q: Query<&mut DraftTimeline, Added<Recording>>,
+    mut draft_timeline: Option<Single<&mut DraftTimeline, Added<Recording>>>,
 ) {
-    for mut draft in draft_q.iter_mut() {
+    if let Some(draft_timeline) = draft_timeline {
+        let mut draft = draft_timeline.into_inner();
+        
         // Replace default vector with pooled one
         let mut pooled = pool.get();
         mem::swap(&mut draft.events, &mut pooled);
