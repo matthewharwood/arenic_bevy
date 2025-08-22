@@ -246,6 +246,13 @@ impl TimelineManager {
             }
         })
     }
+
+    pub fn event_count_for_arena(&self, arena: ArenaName) -> usize {
+        self.0[arena.as_u8() as usize]
+            .as_ref()
+            .map(|timeline| timeline.events.len())
+            .unwrap_or(0)
+    }
 }
 
 impl Default for TimelineManager {
@@ -259,8 +266,6 @@ impl PublishTimeline {
     /// Takes ownership of DraftTimeline to enable Vec<T> → Arc<[T]> conversion without cloning
     pub fn from_draft(draft: DraftTimeline) -> Self {
         Self {
-            // Zero-copy transformation: Vec<T> → Arc<[T]> via into()
-            // This avoids cloning all timeline events, improving performance
             events: draft.events.into(),
         }
     }

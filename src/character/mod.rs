@@ -9,10 +9,11 @@ use bevy::prelude::{
 
 // Local crate modules
 use crate::arena::{
-    Arena, ArenaEntities, ArenaName, CharacterMoved, CurrentArena, CurrentArenaEntity, GRID_HEIGHT,
-    GRID_WIDTH, LastActiveHero, TILE_SIZE,
+    Arena, ArenaEntities, ArenaName, CharacterMoved, CurrentArena, CurrentArenaEntity, LastActiveHero,
+    GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
 };
 use crate::materials::Materials;
+use crate::recording::RecordingState;
 use crate::selectors::Active;
 use crate::timeline::{
     DraftTimeline, EventType, GlobalTimelinePause, TimelineClock, TimelineEvent,
@@ -96,6 +97,7 @@ pub fn move_active_character(
     arena_entities: Res<ArenaEntities>,
     mut character_moved_event: EventWriter<CharacterMoved>,
     mut draft_timeline: ResMut<DraftTimeline>,
+    current_recording_state: Res<RecordingState>,
     arena_q: Query<(&Arena, &TimelineClock)>,
     global_pause: Res<GlobalTimelinePause>,
 ) {
@@ -119,24 +121,25 @@ pub fn move_active_character(
     let (character_entity, mut character_transform) = active_character_q.into_inner();
 
     // If this character is recording, capture the movement intent in the timeline
+    if current_recording_state.is_recording() {
+        let current_arena_entity = arena_entities.get(current_arena.0);
+        if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
+            let timestamp = clock.current();
 
-    let current_arena_entity = arena_entities.get(current_arena.0);
-    if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
-        let timestamp = clock.current();
-
-        let event = TimelineEvent {
-            timestamp,
-            event_type: EventType::Movement(grid_direction),
-        };
-
-        if let Err(e) = draft_timeline.add_event(event) {
-            bevy::log::warn!("Failed to record movement event: {:?}", e);
-        } else {
-            bevy::log::trace!(
-                "Recorded movement intent at {}: {:?}",
+            let event = TimelineEvent {
                 timestamp,
-                grid_direction
-            );
+                event_type: EventType::Movement(grid_direction),
+            };
+
+            if let Err(e) = draft_timeline.add_event(event) {
+                bevy::log::warn!("Failed to record movement event: {:?}", e);
+            } else {
+                bevy::log::trace!(
+                    "Recorded movement intent at {}: {:?}",
+                    timestamp,
+                    grid_direction
+                );
+            }
         }
     }
 
