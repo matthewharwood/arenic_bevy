@@ -1,6 +1,8 @@
 use bevy::input::ButtonInput;
 // Standard library and external crates
-use bevy::prelude::{App, KeyCode, Plugin, Res, ResMut, Resource, Single, Time, Update, With};
+use bevy::prelude::{
+    App, Component, KeyCode, Plugin, Res, ResMut, Resource, Single, Time, Update, With,
+};
 use std::time::Duration;
 
 // Local crate modules
@@ -9,12 +11,17 @@ use crate::character::Character;
 use crate::selectors::Active;
 use crate::timeline::{DraftTimeline, TimelineManager};
 
+#[derive(Component)]
+pub struct PlaybackMode;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum RecordingMode {
     /// Not recording
     Idle,
     /// Countdown before recording starts
-    Countdown,
+    CountdownRecording,
+    /// Countdown playback
+    CountdownPlayback,
     /// Actively recording character actions
     Recording,
     /// Dialog shown, all timelines paused
@@ -42,8 +49,13 @@ impl Default for RecordingState {
 }
 impl RecordingState {
     /// Start countdown phase before recording
-    pub fn start_countdown(&mut self) {
-        self.mode = RecordingMode::Countdown;
+    pub fn start_countdown_recording(&mut self) {
+        self.mode = RecordingMode::CountdownRecording;
+        self.countdown_time = Duration::from_secs(3); // Reset timer
+        println!("⏱️ Starting 3-second countdown...");
+    }
+    pub fn start_countdown_playback(&mut self) {
+        self.mode = RecordingMode::CountdownPlayback;
         self.countdown_time = Duration::from_secs(3); // Reset timer
         println!("⏱️ Starting 3-second countdown...");
     }
@@ -69,8 +81,11 @@ impl RecordingState {
     }
 
     /// Check if in countdown phase
-    pub fn is_countdown(&self) -> bool {
-        self.mode == RecordingMode::Countdown
+    pub fn is_countdown_recording(&self) -> bool {
+        self.mode == RecordingMode::CountdownRecording
+    }
+    pub fn is_countdown_playback(&self) -> bool {
+        self.mode == RecordingMode::CountdownPlayback
     }
 
     /// Check if actively recording
@@ -96,10 +111,10 @@ pub fn recording_phases(
         return;
     }
     if current_recording_state.is_idle() {
-        current_recording_state.start_countdown();
+        current_recording_state.start_countdown_recording();
         return;
     }
-    if current_recording_state.is_countdown() {
+    if current_recording_state.is_countdown_recording() {
         return;
     }
     if current_recording_state.is_recording() {
@@ -116,9 +131,9 @@ pub fn recording_phases(
     //     bevy::log::trace!("Character has existing recording for {}", current_arena.0);
     // }
 }
-pub fn recording_countdown_update(mut recording_state: ResMut<RecordingState>, time: Res<Time>) {
+pub fn countdown_recording_update(mut recording_state: ResMut<RecordingState>, time: Res<Time>) {
     // Only update if we're in countdown mode
-    if recording_state.mode != RecordingMode::Countdown {
+    if recording_state.mode != RecordingMode::CountdownRecording {
         return;
     }
 
@@ -151,11 +166,54 @@ pub fn recording_countdown_update(mut recording_state: ResMut<RecordingState>, t
         }
     }
 }
+
+pub fn countdown_playback_update(mut recording_state: ResMut<RecordingState>, time: Res<Time>) {
+    // Only update if we're in countdown mode
+    if recording_state.mode != RecordingMode::CountdownPlayback {
+        return;
+    }
+
+    // Get the delta time since last frame
+    let delta = time.delta();
+
+    // Store the previous whole second value for logging
+    let prev_whole_seconds = recording_state.countdown_time.as_secs_f32().ceil() as u32;
+
+    // Check if countdown has finished BEFORE subtracting delta
+    if recording_state.countdown_time <= delta {
+        // Countdown finished - start recording
+        recording_state.mode = RecordingMode::Idle;
+        // Add recording update event.
+        println!("🎬 Recording started!");
+        return; // Important: return early to prevent further processing
+    }
+
+    // Subtract delta time from countdown
+    recording_state.countdown_time -= delta;
+
+    // Log countdown progress (only when crossing whole second boundaries)
+    let current_whole_seconds = recording_state.countdown_time.as_secs_f32().ceil() as u32;
+
+    if current_whole_seconds != prev_whole_seconds && current_whole_seconds > 0 {
+        match current_whole_seconds {
+            3 => println!("🔴 Recording in 3..."),
+            2 => println!("🟡 Recording in 2..."),
+            1 => println!("🟢 Recording in 1..."),
+            _ => {}
+        }
+    }
+}
 pub struct RecordingPlugin;
 
 impl Plugin for RecordingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<RecordingState>()
-            .add_systems(Update, (recording_phases, recording_countdown_update));
+        app.init_resource::<RecordingState>().add_systems(
+            Update,
+            (
+                recording_phases,
+                countdown_recording_update,
+                countdown_playback_update,
+            ),
+        );
     }
 }

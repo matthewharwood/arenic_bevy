@@ -386,7 +386,7 @@ impl PublishTimeline {
 #[derive(Component)]
 pub struct TimelineClock {
     /// Internal timer that processes virtual time deltas
-    pub timer: bevy::time::Timer,
+    pub timer: Timer,
     pub is_paused: bool, // Local pause state (separate from global)
 }
 

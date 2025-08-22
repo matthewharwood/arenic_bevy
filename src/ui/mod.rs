@@ -49,10 +49,9 @@ pub fn handle_dialog_input(
     if keyboard.just_pressed(KeyCode::KeyC) {
         // Get the active character's timeline manager
         let mut timeline_manager = active_character_q.into_inner();
-        
+
         // Move DraftTimeline out of the resource and convert to PublishTimeline (zero-copy)
-        let published_timeline =
-            PublishTimeline::from_draft(std::mem::take(&mut *draft_timeline));
+        let published_timeline = PublishTimeline::from_draft(std::mem::take(&mut *draft_timeline));
 
         // Commit the timeline to the current arena
         timeline_manager.set_timeline(current_arena.0, published_timeline);
@@ -65,7 +64,7 @@ pub fn handle_dialog_input(
             event_count,
             current_arena.0
         );
-        recording_state.stop_recording();
+        recording_state.is_countdown_playback();
     }
 }
 
