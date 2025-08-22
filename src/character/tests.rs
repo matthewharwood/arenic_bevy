@@ -46,6 +46,11 @@ fn create_test_app() -> App {
     // Add events
     app.add_event::<CharacterMoved>();
 
+    // Add recording system resources required by move_active_character
+    app.init_resource::<crate::recording::RecordingState>()
+        .init_resource::<crate::timeline::GlobalTimelinePause>()
+        .init_resource::<crate::timeline::DraftTimeline>();
+
     app
 }
 
@@ -63,6 +68,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
                 Arena(ArenaName::GuildHouse),
                 Transform::default(),
                 LastActiveHero(None),
+                crate::timeline::TimelineClock::default(),
             ))
             .id();
 
@@ -72,6 +78,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
                 Arena(ArenaName::Labyrinth),
                 Transform::default(),
                 LastActiveHero(None),
+                crate::timeline::TimelineClock::default(),
             ))
             .id();
 
@@ -82,6 +89,7 @@ fn test_active_character_remains_active_when_moving_between_arenas() {
                 Active, // This is the key component we're testing!
                 Transform::from_xyz(5.0, 5.0, 0.0),
                 ChildOf(guild_house_entity),
+                crate::timeline::TimelineManager::new(), // Required for recording integration
             ))
             .id();
 

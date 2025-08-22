@@ -1,13 +1,16 @@
+// Standard library and external crates
+use bevy::input::ButtonInput;
+use bevy::log::trace;
+use bevy::math::IVec2;
+use bevy::prelude::{KeyCode, Query, Res, ResMut};
+
+// Local crate modules
 use crate::ability::AbilityType;
 use crate::arena::{Arena, CurrentArenaEntity};
-use crate::recording::{Recording, RecordingMode, RecordingState};
+use crate::recording::{RecordingMode, RecordingState};
 use crate::timeline::{
     DraftTimeline, EventType, GlobalTimelinePause, TimelineClock, TimelineEvent,
 };
-use bevy::input::ButtonInput;
-use bevy::log::{info, trace};
-use bevy::math::IVec2;
-use bevy::prelude::{KeyCode, Query, Res, Single, With};
 
 const KEY_MOVE_UP: KeyCode = KeyCode::KeyW;
 const KEY_MOVE_DOWN: KeyCode = KeyCode::KeyS;
@@ -26,7 +29,7 @@ pub fn capture_movement_intent(
     keyboard: Res<ButtonInput<KeyCode>>,
     global_pause: Res<GlobalTimelinePause>,
     recording_state: Res<RecordingState>,
-    recording_timeline: Single<&mut DraftTimeline, With<Recording>>,
+    mut draft_timeline: ResMut<DraftTimeline>,
     arena_q: Query<(&Arena, &TimelineClock)>,
     current: CurrentArenaEntity,
 ) {
@@ -45,13 +48,14 @@ pub fn capture_movement_intent(
         return;
     };
     let timestamp = clock.current();
-    let mut timeline = recording_timeline.into_inner();
     let event = TimelineEvent {
         timestamp,
         event_type: EventType::Movement(IVec2::new(movement_dir.x, movement_dir.y)),
     };
 
-    timeline.add_event(event).expect("TODO: panic message");
+    draft_timeline
+        .add_event(event)
+        .expect("TODO: panic message");
     trace!(
         "Recorded movement intent at {}: {}",
         timestamp,
@@ -83,7 +87,7 @@ pub fn capture_ability_intent(
     keyboard: Res<ButtonInput<KeyCode>>,
     global_pause: Res<GlobalTimelinePause>,
     recording_state: Res<RecordingState>,
-    recording_timeline: Single<&mut DraftTimeline, With<Recording>>,
+    mut draft_timeline: ResMut<DraftTimeline>,
     arena_q: Query<(&Arena, &TimelineClock)>,
     current: CurrentArenaEntity,
 ) {
@@ -99,19 +103,20 @@ pub fn capture_ability_intent(
         .find(|(key, _)| keyboard.just_pressed(*key))
         .map(|(_, ability)| *ability)
     else {
-        todo!()
+        return; // No ability key was pressed, just return early
     };
 
     let Ok((_, clock)) = arena_q.get(current.get()) else {
         return;
     };
-    let mut timeline = recording_timeline.into_inner();
     let timestamp = clock.current();
     let event = TimelineEvent {
         timestamp,
         event_type: EventType::Ability(ability_type, None),
     };
 
-    timeline.add_event(event).expect("TODO: panic message");
+    draft_timeline
+        .add_event(event)
+        .expect("TODO: panic message");
     // info!("Recorded ability intent {} at {}", ability_type, timestamp);
 }

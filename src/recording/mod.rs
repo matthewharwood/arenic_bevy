@@ -2,13 +2,16 @@
 
 mod capture;
 
-use crate::arena::{Arena, CameraUpdate, CurrentArena, CurrentArenaEntity};
-use crate::character::Character;
-use crate::selectors::Active;
-use crate::timeline::{TimeStamp, TimelineClock};
+// Standard library and external crates
 use bevy::prelude::*;
 use std::fmt::{self, Display, Formatter};
 use std::time::Duration;
+
+// Local crate modules
+use crate::arena::{Arena, CameraUpdate, CurrentArena, CurrentArenaEntity};
+use crate::character::Character;
+use crate::selectors::Active;
+use crate::timeline::{DraftTimeline, PublishTimeline, TimeStamp, TimelineClock, TimelineManager};
 
 /// Root orchestration event that triggers recording coordination
 #[derive(Event, Debug, Clone)]
@@ -99,6 +102,10 @@ pub struct RecordingActive;
 
 #[derive(Component)]
 pub struct RecordingPaused;
+
+/// Marker component to indicate a recording should be committed
+#[derive(Component)]
+pub struct CommitRecordingMarker;
 
 const KEY_RECORD: KeyCode = KeyCode::KeyR;
 const KEY_ARENA_PREV: KeyCode = KeyCode::BracketLeft;
@@ -273,12 +280,16 @@ pub fn recording_update(
                 },
 
                 RecordingRequest::Commit => {
-                    if let Ok((entity, _, _)) = active_character_q.single() {
-                        commands.entity(entity).insert(Ghost).remove::<Recording>();
-                        info!(
-                            "Committed recording for active character {:?} in arena {:?}",
-                            entity, current_arena.0
-                        );
+                    if let Ok((entity, recording_marker, _)) = active_character_q.single() {
+                        if recording_marker.is_some() {
+                            // We need to handle the timeline conversion in a separate system
+                            // because we can't both query and remove components in the same frame
+                            commands.entity(entity).insert(CommitRecordingMarker);
+                            info!(
+                                "Marked recording for commit for character {:?} in arena {:?}",
+                                entity, current_arena.0
+                            );
+                        }
                     } else {
                         warn!("Cannot commit recording - no active character found");
                     }
@@ -363,6 +374,42 @@ pub fn recording_update(
     }
 }
 
+/// System to process commit recording markers and convert DraftTimeline to PublishTimeline
+pub fn process_recording_commits(
+    mut commands: Commands,
+    current_arena: Res<CurrentArena>,
+    mut draft_timeline: ResMut<DraftTimeline>,
+    mut commit_q: Query<(Entity, &mut TimelineManager), With<CommitRecordingMarker>>,
+) {
+    for (entity, mut timeline_manager) in commit_q.iter_mut() {
+        // Convert draft to published timeline
+        let published_timeline = PublishTimeline::from_draft(DraftTimeline {
+            events: draft_timeline.events.clone(),
+            max_duration: draft_timeline.max_duration,
+        });
+
+        // Store the timeline for the current arena
+        timeline_manager.set_timeline(current_arena.0, published_timeline);
+
+        // Clear the global draft timeline
+        draft_timeline.clear();
+
+        // Remove recording components and add ghost components
+        commands
+            .entity(entity)
+            .remove::<Recording>()
+            .remove::<CommitRecordingMarker>()
+            .insert(Ghost);
+
+        info!(
+            "Committed recording with {} events for character {:?} in arena {:?}",
+            draft_timeline.events.len(),
+            entity,
+            current_arena.0
+        );
+    }
+}
+
 /// Recording Plugin
 pub struct RecordingPlugin;
 
@@ -377,6 +424,9 @@ impl Plugin for RecordingPlugin {
                     block_recording_interruptions,
                     check_recording_time_limit,
                     recording_update,
+                    process_recording_commits,
+                    // Note: Movement and ability recording is now integrated directly
+                    // into the movement and ability systems, so no separate capture systems needed
                 )
                     .chain(),
             );

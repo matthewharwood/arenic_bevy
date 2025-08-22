@@ -10,8 +10,8 @@ pub struct Audio {
 impl Audio {
     pub fn new(asset_server: &Res<AssetServer>) -> Self {
         Self {
-            autoshot: asset_server.load("abilities/auto_shot.mp3"),
-            holy_nova: asset_server.load("abilities/holy_nova.mp3"),
+            autoshot: asset_server.load("abilities/auto_shot.ogg"),
+            holy_nova: asset_server.load("abilities/holy_nova.ogg"),
         }
     }
 }

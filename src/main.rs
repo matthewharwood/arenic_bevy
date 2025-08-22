@@ -13,29 +13,35 @@ mod recording;
 mod selectors;
 mod timeline;
 
-use crate::ability::{AutoShot, HolyNova};
+// Standard library and external crates
+use bevy::prelude::*;
+use bevy::window::WindowResolution;
+
+// Local crate modules - abilities
 use crate::ability::{
-    auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx,
+    auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx, AutoShot,
+    HolyNova,
 };
+
+// Local crate modules - arena system
 use crate::arena::{
-    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaEntities, ArenaName, CameraUpdate, CharacterMoved,
-    CurrentArena, CurrentArenaEntity, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
-    TILE_SIZE, TOTAL_ARENAS, arena_update, decrement_current_arena, get_local_tile_space,
-    handle_character_moved, increment_current_arena,
+    arena_update, decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena, Arena, ArenaEntities,
+    ArenaName, CameraUpdate, CharacterMoved, CurrentArena, CurrentArenaEntity, LastActiveHero,
+    ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
+    TILE_SIZE, TOTAL_ARENAS,
 };
 use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
+
+// Local crate modules - core systems
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
-use crate::character::{Boss, Character, move_active_character, toggle_active_character};
+use crate::character::{move_active_character, toggle_active_character, Boss, Character};
 use crate::class_type::ClassType;
 use crate::lights::spawn_lights;
 use crate::materials::Materials;
 use crate::recording::RecordingPlugin;
 use crate::selectors::Active;
-
-use crate::timeline::{TimelineClock, TimelinePlugin};
-use bevy::prelude::*;
-use bevy::window::WindowResolution;
+use crate::timeline::{TimelineClock, TimelineManager, TimelinePlugin};
 
 // Fix for web audio and asset loading
 #[cfg(target_arch = "wasm32")]
@@ -51,7 +57,7 @@ enum GameState {
 }
 
 fn main() {
-    // Configure plugins differently for web vs native
+    // Configure plugins differently for web vs. native
     #[cfg(target_arch = "wasm32")]
     let default_plugins = DefaultPlugins
         .set(WindowPlugin {
@@ -66,7 +72,7 @@ fn main() {
             meta_check: AssetMetaCheck::Never,
             ..default()
         });
-    
+
     #[cfg(not(target_arch = "wasm32"))]
     let default_plugins = DefaultPlugins.set(WindowPlugin {
         primary_window: Some(Window {
@@ -76,7 +82,7 @@ fn main() {
         }),
         ..default()
     });
-    
+
     App::new()
         .add_plugins(default_plugins)
         // Initialize game state
@@ -224,6 +230,7 @@ fn spawn_starting_hero(
             MeshMaterial3d(mats.blue.clone()),
             Transform::from_translation(local_position),
             ChildOf(arena_entity),
+            TimelineManager::new(), // Add multi-arena timeline storage
         ))
         .id();
     let sphere_radius_v2 = 0.125;
@@ -235,6 +242,7 @@ fn spawn_starting_hero(
         Mesh3d(sphere_mesh_v2),
         MeshMaterial3d(mats.gray.clone()),
         Transform::from_translation(local_position_v2),
+        TimelineManager::new(), // Add multi-arena timeline storage
     ));
     println!("Character entity ID: {}", character_entity);
     // Update the arena's LastActiveHero to point to this character

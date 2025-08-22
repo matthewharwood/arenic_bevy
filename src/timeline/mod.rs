@@ -3,7 +3,6 @@ use bevy::log::trace;
 use bevy::prelude::*;
 use bevy::time::Virtual;
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::fmt::{self, Display, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
@@ -159,8 +158,8 @@ pub struct TimelineActive; // Entity's timeline is currently ticking
 #[derive(Component)]
 pub struct TimelineComplete; // Entity reached full 120 second cycle
 
-/// Temporary timeline buffer during recording
-#[derive(Component, Default)]
+/// Temporary timeline buffer during recording - now a global resource
+#[derive(Resource, Default)]
 pub struct DraftTimeline {
     pub events: Vec<TimelineEvent>,
     pub max_duration: TimeStamp,
@@ -214,37 +213,45 @@ pub struct PublishTimeline {
     pub events: Arc<[TimelineEvent]>,
 }
 
-/// Component that stores multiple timelines per character (one per arena)
-#[derive(Component, Default)]
-pub struct CharacterTimelines {
-    pub timelines: HashMap<ArenaName, PublishTimeline>,
-}
+/// Component that stores multiple timelines per character using array indexing
+#[derive(Component)]
+pub struct TimelineManager(pub [Option<PublishTimeline>; 9]);
 
-impl CharacterTimelines {
+impl TimelineManager {
     pub fn new() -> Self {
-        Self {
-            timelines: HashMap::new(),
-        }
-    }
-
-    pub fn store_timeline(&mut self, arena: ArenaName, timeline: PublishTimeline) {
-        self.timelines.insert(arena, timeline);
+        Self([const { None }; 9])
     }
 
     pub fn get_timeline(&self, arena: ArenaName) -> Option<&PublishTimeline> {
-        self.timelines.get(&arena)
+        self.0[arena.as_u8() as usize].as_ref()
+    }
+
+    pub fn set_timeline(&mut self, arena: ArenaName, timeline: PublishTimeline) {
+        self.0[arena.as_u8() as usize] = Some(timeline);
     }
 
     pub fn has_recording_for(&self, arena: ArenaName) -> bool {
-        self.timelines.contains_key(&arena)
+        self.0[arena.as_u8() as usize].is_some()
     }
 
     pub fn arena_count(&self) -> usize {
-        self.timelines.len()
+        self.0.iter().filter(|t| t.is_some()).count()
     }
 
     pub fn recorded_arenas(&self) -> impl Iterator<Item = ArenaName> + '_ {
-        self.timelines.keys().copied()
+        self.0.iter().enumerate().filter_map(|(i, timeline)| {
+            if timeline.is_some() {
+                Some(ArenaName::from_index_safe(i as u8))
+            } else {
+                None
+            }
+        })
+    }
+}
+
+impl Default for TimelineManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -514,6 +521,7 @@ pub struct TimelinePlugin;
 impl Plugin for TimelinePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<GlobalTimelinePause>()
+            .init_resource::<DraftTimeline>()
             .add_event::<TimelineCheckpoint>()
             .add_systems(
                 Update,
@@ -696,9 +704,9 @@ mod tests {
     }
 
     #[test]
-    fn test_character_timelines_multi_arena_storage() {
-        // Test the critical architectural fix: CharacterTimelines stores multiple timelines per character
-        let mut character_timelines = CharacterTimelines::new();
+    fn test_timeline_manager_multi_arena_storage() {
+        // Test the new architecture: TimelineManager stores multiple timelines per character using array indexing
+        let mut timeline_manager = TimelineManager::new();
 
         // Create test timelines for different arenas
         let mut draft_labyrinth = DraftTimeline::new();
@@ -723,26 +731,26 @@ mod tests {
         let labyrinth_name = ArenaName::Labyrinth;
         let gala_name = ArenaName::Gala;
 
-        character_timelines.store_timeline(labyrinth_name, timeline_labyrinth);
-        character_timelines.store_timeline(gala_name, timeline_gala);
+        timeline_manager.set_timeline(labyrinth_name, timeline_labyrinth);
+        timeline_manager.set_timeline(gala_name, timeline_gala);
 
         // Verify separate timeline storage
-        assert_eq!(character_timelines.arena_count(), 2);
-        assert!(character_timelines.has_recording_for(labyrinth_name));
-        assert!(character_timelines.has_recording_for(gala_name));
-        assert!(!character_timelines.has_recording_for(ArenaName::GuildHouse)); // GuildHouse - no recording
+        assert_eq!(timeline_manager.arena_count(), 2);
+        assert!(timeline_manager.has_recording_for(labyrinth_name));
+        assert!(timeline_manager.has_recording_for(gala_name));
+        assert!(!timeline_manager.has_recording_for(ArenaName::GuildHouse)); // GuildHouse - no recording
 
         // Verify we can retrieve specific arena timelines
-        let labyrinth_timeline = character_timelines.get_timeline(labyrinth_name).unwrap();
+        let labyrinth_timeline = timeline_manager.get_timeline(labyrinth_name).unwrap();
         assert_eq!(labyrinth_timeline.events.len(), 1);
         assert_eq!(labyrinth_timeline.events[0].timestamp, TimeStamp::new(10.0));
 
-        let gala_timeline = character_timelines.get_timeline(gala_name).unwrap();
+        let gala_timeline = timeline_manager.get_timeline(gala_name).unwrap();
         assert_eq!(gala_timeline.events.len(), 1);
         assert_eq!(gala_timeline.events[0].timestamp, TimeStamp::new(30.0));
 
         // Verify recorded arenas iterator
-        let recorded: Vec<_> = character_timelines.recorded_arenas().collect();
+        let recorded: Vec<_> = timeline_manager.recorded_arenas().collect();
         assert_eq!(recorded.len(), 2);
         assert!(recorded.contains(&labyrinth_name));
         assert!(recorded.contains(&gala_name));
