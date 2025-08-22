@@ -46,9 +46,8 @@ fn create_test_app() -> App {
     // Add events
     app.add_event::<CharacterMoved>();
 
-    // Add recording system resources required by move_active_character
-    app.init_resource::<crate::recording::RecordingState>()
-        .init_resource::<crate::timeline::GlobalTimelinePause>()
+    // Add timeline resources required by move_active_character
+    app.init_resource::<crate::timeline::GlobalTimelinePause>()
         .init_resource::<crate::timeline::DraftTimeline>();
 
     app

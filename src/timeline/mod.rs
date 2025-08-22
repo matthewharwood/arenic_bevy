@@ -1,3 +1,5 @@
+use crate::ability::AbilityType;
+use crate::arena::{Arena, ArenaName, CurrentArenaEntity};
 use bevy::ecs::change_detection::DetectChanges;
 use bevy::log::trace;
 use bevy::prelude::*;
@@ -113,8 +115,8 @@ impl Display for TimeStamp {
 /// Types of events that can be recorded - ALL use value types
 #[derive(Clone, Debug)]
 pub enum EventType {
-    /// Movement intent from input - uses VALUE type GridPosData
-    Movement(IVec2),
+    /// Movement intent from input - uses Vec3 directly (x, y, z)
+    Movement(Vec3),
     /// Ability cast with optional target
     Ability(AbilityType, Option<TargetData>),
     /// Character death event
@@ -127,9 +129,6 @@ pub enum TargetData {
     Entity(Entity),
     Position(IVec2),
 }
-
-use crate::ability::AbilityType;
-use crate::arena::{Arena, ArenaName, CurrentArenaEntity};
 
 // DOMAIN: COMPONENT TYPES (for entity state only)
 /// Component for entity's grid position - NEVER used in events
@@ -547,7 +546,7 @@ mod tests {
         timeline
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(5.0),
-                event_type: EventType::Movement(IVec2::new(1, 0)),
+                event_type: EventType::Movement(Vec3::new(1.0, 0.0, 0.0)),
             })
             .expect("Failed to add event");
 
@@ -616,7 +615,7 @@ mod tests {
             draft
                 .add_event(TimelineEvent {
                     timestamp: TimeStamp::new(i as f32 * 2.0),
-                    event_type: EventType::Movement(IVec2::new(i, 0)),
+                    event_type: EventType::Movement(Vec3::new(i as f32, 0.0, 0.0)),
                 })
                 .expect("Failed to add event");
         }
@@ -640,7 +639,7 @@ mod tests {
         draft
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(10.0),
-                event_type: EventType::Movement(IVec2::new(0, 0)),
+                event_type: EventType::Movement(Vec3::new(0.0, 0.0, 0.0)),
             })
             .expect("Failed to add event");
         draft
@@ -652,7 +651,7 @@ mod tests {
         draft
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(30.0),
-                event_type: EventType::Movement(IVec2::new(1, 0)),
+                event_type: EventType::Movement(Vec3::new(1.0, 0.0, 0.0)),
             })
             .expect("Failed to add event");
 
@@ -713,7 +712,7 @@ mod tests {
         draft_labyrinth
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(10.0),
-                event_type: EventType::Movement(IVec2::new(0, 0)),
+                event_type: EventType::Movement(Vec3::new(0.0, 0.0, 0.0)),
             })
             .expect("Failed to add event");
         let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth);

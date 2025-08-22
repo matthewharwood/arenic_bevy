@@ -15,7 +15,7 @@ mod tests {
         timeline
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(5.0),
-                event_type: EventType::Movement(GridPos::new(1, 0)),
+                event_type: EventType::Movement(IVec3::new(1, 0, 0)),
             })
             .expect("Failed to add movement event");
 
@@ -97,7 +97,7 @@ mod tests {
         draft_timeline
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(3.0),
-                event_type: EventType::Movement(GridPos::new(1, 0)),
+                event_type: EventType::Movement(IVec3::new(1, 0, 0)),
             })
             .expect("Failed to add movement event");
 
@@ -120,7 +120,7 @@ mod tests {
         draft
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(10.0),
-                event_type: EventType::Movement(GridPos::new(0, 0)),
+                event_type: EventType::Movement(IVec3::new(0, 0, 0)),
             })
             .expect("Failed to add movement event");
 
@@ -134,7 +134,7 @@ mod tests {
         draft
             .add_event(TimelineEvent {
                 timestamp: TimeStamp::new(30.0),
-                event_type: EventType::Movement(GridPos::new(1, 0)),
+                event_type: EventType::Movement(IVec3::new(1, 0, 0)),
             })
             .expect("Failed to add movement event");
 
@@ -206,14 +206,14 @@ mod tests {
 
     #[test]
     fn test_character_timelines_multi_arena_storage() {
-        // Test the critical architectural fix: CharacterTimelines stores multiple timelines per character
-        let mut character_timelines = CharacterTimelines::new();
+        // Test the critical architectural fix: TimelineManager stores multiple timelines per character
+        let mut timeline_manager = TimelineManager::new();
         
         // Create test timelines for different arenas
         let mut draft_labyrinth = DraftTimeline::new();
         draft_labyrinth.add_event(TimelineEvent {
             timestamp: TimeStamp::new(10.0),
-            event_type: EventType::Movement(GridPos::new(0, 0)),
+            event_type: EventType::Movement(IVec3::new(0, 0, 0)),
         }).expect("Failed to add event");
         let timeline_labyrinth = PublishTimeline::from_draft(draft_labyrinth).expect("Failed to create timeline");
         
@@ -228,26 +228,26 @@ mod tests {
         let labyrinth_id = ArenaName::from_index_safe(0); // Labyrinth
         let gala_id = ArenaName::from_index_safe(8);      // Gala
         
-        character_timelines.store_timeline(labyrinth_id, timeline_labyrinth);
-        character_timelines.store_timeline(gala_id, timeline_gala);
+        timeline_manager.set_timeline(labyrinth_id, timeline_labyrinth);
+        timeline_manager.set_timeline(gala_id, timeline_gala);
         
         // Verify separate timeline storage
-        assert_eq!(character_timelines.arena_count(), 2);
-        assert!(character_timelines.has_recording_for(labyrinth_id));
-        assert!(character_timelines.has_recording_for(gala_id));
-        assert!(!character_timelines.has_recording_for(ArenaName::from_index_safe(1))); // GuildHouse - no recording
+        assert_eq!(timeline_manager.arena_count(), 2);
+        assert!(timeline_manager.has_recording_for(labyrinth_id));
+        assert!(timeline_manager.has_recording_for(gala_id));
+        assert!(!timeline_manager.has_recording_for(ArenaName::from_index_safe(1))); // GuildHouse - no recording
         
         // Verify we can retrieve specific arena timelines
-        let labyrinth_timeline = character_timelines.get_timeline(labyrinth_id).unwrap();
+        let labyrinth_timeline = timeline_manager.get_timeline(labyrinth_id).unwrap();
         assert_eq!(labyrinth_timeline.events.len(), 1);
         assert_eq!(labyrinth_timeline.events[0].timestamp, TimeStamp::new(10.0));
         
-        let gala_timeline = character_timelines.get_timeline(gala_id).unwrap();
+        let gala_timeline = timeline_manager.get_timeline(gala_id).unwrap();
         assert_eq!(gala_timeline.events.len(), 1);
         assert_eq!(gala_timeline.events[0].timestamp, TimeStamp::new(30.0));
         
         // Verify recorded arenas iterator
-        let recorded: Vec<_> = character_timelines.recorded_arenas().collect();
+        let recorded: Vec<_> = timeline_manager.recorded_arenas().collect();
         assert_eq!(recorded.len(), 2);
         assert!(recorded.contains(&labyrinth_id));
         assert!(recorded.contains(&gala_id));

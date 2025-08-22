@@ -1,7 +1,7 @@
 // Standard library and external crates
 use bevy::input::ButtonInput;
 use bevy::log::trace;
-use bevy::math::IVec2;
+use bevy::math::{IVec2, IVec3};
 use bevy::prelude::{KeyCode, Query, Res, ResMut};
 
 // Local crate modules
@@ -50,7 +50,7 @@ pub fn capture_movement_intent(
     let timestamp = clock.current();
     let event = TimelineEvent {
         timestamp,
-        event_type: EventType::Movement(IVec2::new(movement_dir.x, movement_dir.y)),
+        event_type: EventType::Movement(IVec3::new(movement_dir.x, movement_dir.y, 0)),
     };
 
     draft_timeline
@@ -59,7 +59,7 @@ pub fn capture_movement_intent(
     trace!(
         "Recorded movement intent at {}: {}",
         timestamp,
-        IVec2::new(movement_dir.x, movement_dir.y)
+        IVec3::new(movement_dir.x, movement_dir.y, 0)
     );
 }
 

@@ -1,6 +1,6 @@
 // Standard library and external crates
 use bevy::input::ButtonInput;
-use bevy::math::{IVec2, Vec3};
+use bevy::math::Vec3;
 use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::{
     ChildOf, Children, Commands, Component, Entity, EventWriter, KeyCode, Query, Res, ResMut,
@@ -13,7 +13,6 @@ use crate::arena::{
     GRID_WIDTH, LastActiveHero, TILE_SIZE,
 };
 use crate::materials::Materials;
-use crate::recording::{Recording, RecordingMode, RecordingState};
 use crate::selectors::Active;
 use crate::timeline::{
     DraftTimeline, EventType, GlobalTimelinePause, TimelineClock, TimelineEvent,
@@ -93,78 +92,56 @@ pub fn move_active_character(
     mut commands: Commands,
     keycode: Res<ButtonInput<KeyCode>>,
     mut current_arena: ResMut<CurrentArena>,
-    active_character_q: Single<
-        (Entity, &mut Transform, Option<&Recording>),
-        (With<Character>, With<Active>),
-    >,
+    active_character_q: Single<(Entity, &mut Transform), (With<Character>, With<Active>)>,
     arena_entities: Res<ArenaEntities>,
     mut character_moved_event: EventWriter<CharacterMoved>,
-    // Recording system integration
-    recording_state: Res<RecordingState>,
     mut draft_timeline: ResMut<DraftTimeline>,
     arena_q: Query<(&Arena, &TimelineClock)>,
-    arena_entities_res: Res<ArenaEntities>,
     global_pause: Res<GlobalTimelinePause>,
 ) {
-    let mut movement = Vec3::ZERO;
-    if keycode.just_pressed(KeyCode::KeyW) {
-        movement.y += TILE_SIZE;
-    }
-    if keycode.just_pressed(KeyCode::KeyS) {
-        movement.y -= TILE_SIZE;
-    }
-    if keycode.just_pressed(KeyCode::KeyA) {
-        movement.x -= TILE_SIZE;
-    }
-    if keycode.just_pressed(KeyCode::KeyD) {
-        movement.x += TILE_SIZE;
-    }
-    if movement == Vec3::ZERO {
+    if global_pause.is_paused {
         return;
     }
-    let (character_entity, mut character_transform, recording_marker) =
-        active_character_q.into_inner();
+
+    // Calculate grid direction directly from key presses
+    let grid_direction = if keycode.just_pressed(KeyCode::KeyW) {
+        Vec3::new(0.0, 1.0, 0.0) // Up
+    } else if keycode.just_pressed(KeyCode::KeyS) {
+        Vec3::new(0.0, -1.0, 0.0) // Down
+    } else if keycode.just_pressed(KeyCode::KeyA) {
+        Vec3::new(-1.0, 0.0, 0.0) // Left
+    } else if keycode.just_pressed(KeyCode::KeyD) {
+        Vec3::new(1.0, 0.0, 0.0) // Right
+    } else {
+        return;
+    };
+
+    let (character_entity, mut character_transform) = active_character_q.into_inner();
 
     // If this character is recording, capture the movement intent in the timeline
-    if let Some(_) = recording_marker {
-        if recording_state.mode == RecordingMode::Recording && !global_pause.is_paused {
-            let current_arena_entity = arena_entities_res.get(current_arena.0);
-            if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
-                let timestamp = clock.current();
 
-                // Convert Vec3 movement back to grid direction for intent recording
-                let grid_direction = if movement.y > 0.0 {
-                    IVec2::new(0, 1) // Moving up
-                } else if movement.y < 0.0 {
-                    IVec2::new(0, -1) // Moving down
-                } else if movement.x > 0.0 {
-                    IVec2::new(1, 0) // Moving right
-                } else if movement.x < 0.0 {
-                    IVec2::new(-1, 0) // Moving left
-                } else {
-                    IVec2::ZERO
-                };
+    let current_arena_entity = arena_entities.get(current_arena.0);
+    if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
+        let timestamp = clock.current();
 
-                let event = TimelineEvent {
-                    timestamp,
-                    event_type: EventType::Movement(grid_direction),
-                };
+        let event = TimelineEvent {
+            timestamp,
+            event_type: EventType::Movement(grid_direction),
+        };
 
-                if let Err(e) = draft_timeline.add_event(event) {
-                    bevy::log::warn!("Failed to record movement event: {:?}", e);
-                } else {
-                    bevy::log::trace!(
-                        "Recorded movement intent at {}: {:?}",
-                        timestamp,
-                        grid_direction
-                    );
-                }
-            }
+        if let Err(e) = draft_timeline.add_event(event) {
+            bevy::log::warn!("Failed to record movement event: {:?}", e);
+        } else {
+            bevy::log::trace!(
+                "Recorded movement intent at {}: {:?}",
+                timestamp,
+                grid_direction
+            );
         }
     }
 
-    // Calculate a new position
-    let new_position = character_transform.translation + movement;
+    // Calculate a new position (scale grid direction by TILE_SIZE)
+    let new_position = character_transform.translation + grid_direction * TILE_SIZE;
 
     // Arena boundaries (in local space)
     let min_x = 0.0;

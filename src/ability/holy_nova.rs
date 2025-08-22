@@ -9,7 +9,6 @@ use crate::arena::{Arena, ArenaEntities, CurrentArena};
 use crate::audio::Audio;
 use crate::character::Character;
 use crate::materials::Materials;
-use crate::recording::{Recording, RecordingMode, RecordingState};
 use crate::selectors::Active;
 use crate::timeline::{
     DraftTimeline, EventType, GlobalTimelinePause, TimelineClock, TimelineEvent,
@@ -34,12 +33,7 @@ pub fn holy_nova_ability(
     audio: Res<Audio>,
     mut meshes: ResMut<Assets<Mesh>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    character_q: Query<
-        (Entity, Option<&Recording>),
-        (With<Character>, With<Active>, With<HolyNova>),
-    >,
-    // Recording system integration
-    recording_state: Res<RecordingState>,
+    character_q: Query<(Entity), (With<Character>, With<Active>, With<HolyNova>)>,
     mut draft_timeline: ResMut<DraftTimeline>,
     arena_q: Query<(&Arena, &TimelineClock)>,
     current_arena: Res<CurrentArena>,
@@ -54,30 +48,29 @@ pub fn holy_nova_ability(
         return;
     }
 
-    // Check if there are any valid characters with HolyNova before executing
     if character_q.is_empty() {
         return;
     }
 
+    if global_pause.is_paused {
+        return;
+    }
+
     // Handle recording for characters that are recording
-    for (_character_entity, recording_marker) in character_q.iter() {
-        if let Some(_) = recording_marker {
-            if recording_state.mode == RecordingMode::Recording && !global_pause.is_paused {
-                let current_arena_entity = arena_entities_res.get(current_arena.0);
-                if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
-                    let timestamp = clock.current();
+    for (_character_entity) in character_q.iter() {
+        let current_arena_entity = arena_entities_res.get(current_arena.0);
+        if let Ok((_, clock)) = arena_q.get(current_arena_entity) {
+            let timestamp = clock.current();
 
-                    let event = TimelineEvent {
-                        timestamp,
-                        event_type: EventType::Ability(AbilityType::HolyNova, None),
-                    };
+            let event = TimelineEvent {
+                timestamp,
+                event_type: EventType::Ability(AbilityType::HolyNova, None),
+            };
 
-                    if let Err(e) = draft_timeline.add_event(event) {
-                        bevy::log::warn!("Failed to record ability event: {:?}", e);
-                    } else {
-                        bevy::log::trace!("Recorded HolyNova ability at {}", timestamp);
-                    }
-                }
+            if let Err(e) = draft_timeline.add_event(event) {
+                bevy::log::warn!("Failed to record ability event: {:?}", e);
+            } else {
+                bevy::log::trace!("Recorded HolyNova ability at {}", timestamp);
             }
         }
     }
@@ -89,7 +82,7 @@ pub fn holy_nova_ability(
     ));
 
     // Spawn a VFX sphere as a child of each active character
-    for (character_entity, _) in character_q.iter() {
+    for (character_entity) in character_q.iter() {
         let vfx_mesh = meshes.add(Sphere::new(0.0625)); // unit sphere, scale controls radius
         commands.entity(character_entity).with_child((
             HolyNovaVfx::new(),
