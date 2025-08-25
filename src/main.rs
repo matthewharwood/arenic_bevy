@@ -99,6 +99,7 @@ fn main() {
                 setup_camera,
                 spawn_starting_bosses,
                 spawn_starting_hero,
+                spawn_labyrinth_characters,
                 // spawn_starting_hero_v2,
             )
                 .chain(),
@@ -254,6 +255,60 @@ fn spawn_starting_hero(
     commands
         .entity(arena_entity)
         .insert(LastActiveHero(Some(character_entity)));
+}
+
+// TODO DELETE LATER
+/// Spawn a Warrior and Bard in the Labyrinth arena on startup
+fn spawn_labyrinth_characters(
+    mut commands: Commands,
+    mats: Res<Materials>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    arena_entities: Res<ArenaEntities>,
+) {
+    // Get the Labyrinth arena entity (index 0)
+    let labyrinth_entity = arena_entities.get(ArenaName::Labyrinth);
+
+    let character_radius = 0.125;
+    let character_mesh = meshes.add(Sphere::new(character_radius));
+
+    // Create a purple material for the Warrior
+    let purple_material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.5, 0.0, 0.8), // Purple
+        metallic: 0.2,
+        perceptual_roughness: 0.5,
+        ..default()
+    });
+
+    // Spawn Warrior at position (20, 15)
+    let warrior_position = get_local_tile_space(20.0, 15.0, character_radius);
+    commands.entity(labyrinth_entity).with_child((
+        Character,
+        ClassType::Warrior,
+        // Warrior abilities - instantiate the components
+        crate::ability::Bash,
+        crate::ability::Block,
+        Mesh3d(character_mesh.clone()),
+        MeshMaterial3d(purple_material),
+        Transform::from_translation(warrior_position),
+        Name::new("Warrior"),
+    ));
+
+    // Spawn Bard at position (40, 15)
+    let bard_position = get_local_tile_space(40.0, 15.0, character_radius);
+    commands.entity(labyrinth_entity).with_child((
+        Character,
+        ClassType::Bard,
+        // Bard abilities - instantiate the components
+        crate::ability::Dance,
+        crate::ability::Mimic,
+        Mesh3d(character_mesh.clone()),
+        MeshMaterial3d(mats.yellow.clone()), // Yellow for Bard
+        Transform::from_translation(bard_position),
+        Name::new("Bard"),
+    ));
+
+    info!("Spawned Warrior and Bard characters in Labyrinth arena");
 }
 
 fn spawn_starting_bosses(
