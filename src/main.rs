@@ -21,23 +21,23 @@ use bevy::window::WindowResolution;
 
 // Local crate modules - abilities
 use crate::ability::{
-    auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx, AutoShot,
-    HolyNova,
+    AutoShot, HolyNova, auto_shot_ability, holy_nova_ability, move_projectiles,
+    update_holy_nova_vfx,
 };
 
 // Local crate modules - arena system
 use crate::arena::{
-    arena_update, decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena, Arena, ArenaEntities,
-    ArenaName, CameraUpdate, CharacterMoved, CurrentArena, CurrentArenaEntity, LastActiveHero,
-    ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
-    TILE_SIZE, TOTAL_ARENAS,
+    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaEntities, ArenaName, CameraUpdate, CharacterMoved,
+    CurrentArena, CurrentArenaEntity, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
+    TILE_SIZE, TOTAL_ARENAS, arena_update, decrement_current_arena, get_local_tile_space,
+    handle_character_moved, increment_current_arena,
 };
 use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
 
 // Local crate modules - core systems
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
-use crate::character::{move_active_character, toggle_active_character, Boss, Character};
+use crate::character::{Boss, Character, move_active_character, toggle_active_character};
 use crate::class_type::ClassType;
 use crate::lights::spawn_lights;
 use crate::materials::Materials;

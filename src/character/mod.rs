@@ -9,14 +9,12 @@ use bevy::prelude::{
 
 // Local crate modules
 use crate::arena::{
-    Arena, ArenaEntities, ArenaName, CharacterMoved, CurrentArena, CurrentArenaEntity, LastActiveHero,
-    GRID_HEIGHT, GRID_WIDTH, TILE_SIZE,
+    Arena, ArenaEntities, ArenaName, CharacterMoved, CurrentArena, CurrentArenaEntity, GRID_HEIGHT,
+    GRID_WIDTH, LastActiveHero, TILE_SIZE,
 };
 use crate::materials::Materials;
 use crate::selectors::Active;
-use crate::timeline::{
-    DraftTimeline, GlobalTimelinePause, TimelineClock,
-};
+use crate::timeline::{DraftTimeline, GlobalTimelinePause, TimelineClock};
 
 /// Marker component for character entities.
 #[derive(Component, Debug)]
