@@ -49,7 +49,6 @@ fn create_test_app() -> App {
     // Add timeline resources required by move_active_character
     app.init_resource::<crate::timeline::GlobalTimelinePause>()
         .init_resource::<crate::timeline::DraftTimeline>();
-
     app
 }
 

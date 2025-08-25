@@ -21,30 +21,28 @@ use bevy::window::WindowResolution;
 
 // Local crate modules - abilities
 use crate::ability::{
-    AutoShot, HolyNova, auto_shot_ability, holy_nova_ability, move_projectiles,
-    update_holy_nova_vfx,
+    auto_shot_ability, holy_nova_ability, move_projectiles, update_holy_nova_vfx, AutoShot,
+    HolyNova,
 };
 
 // Local crate modules - arena system
 use crate::arena::{
-    ARENA_HEIGHT, ARENA_WIDTH, Arena, ArenaEntities, ArenaName, CameraUpdate, CharacterMoved,
-    CurrentArena, CurrentArenaEntity, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH, LastActiveHero,
-    TILE_SIZE, TOTAL_ARENAS, arena_update, decrement_current_arena, get_local_tile_space,
-    handle_character_moved, increment_current_arena,
+    arena_update, decrement_current_arena, get_local_tile_space, handle_character_moved, increment_current_arena, Arena, ArenaEntities,
+    ArenaName, CameraUpdate, CharacterMoved, CurrentArena, CurrentArenaEntity, LastActiveHero,
+    ARENA_HEIGHT, ARENA_WIDTH, DEBUG_COLORS, GRID_HEIGHT, GRID_WIDTH,
+    TILE_SIZE, TOTAL_ARENAS,
 };
 use crate::arena_camera::{draw_arena_border, setup_camera, toggle_camera_zoom};
 
 // Local crate modules - core systems
 use crate::audio::Audio;
 use crate::battleground::BattleGround;
-use crate::character::{Boss, Character, move_active_character, toggle_active_character};
+use crate::character::{move_active_character, toggle_active_character, Boss, Character};
 use crate::class_type::ClassType;
 use crate::lights::spawn_lights;
 use crate::materials::Materials;
-use crate::recording::RecordingPlugin;
 use crate::selectors::Active;
 use crate::timeline::{TimelineClock, TimelineManager, TimelinePlugin};
-use crate::ui::DialogUIPlugin;
 
 // Fix for web audio and asset loading
 #[cfg(target_arch = "wasm32")]
@@ -128,8 +126,6 @@ fn main() {
             ),
         )
         .add_plugins(TimelinePlugin)
-        .add_plugins(RecordingPlugin)
-        .add_plugins(DialogUIPlugin)
         .run();
 }
 
@@ -234,19 +230,22 @@ fn spawn_starting_hero(
             MeshMaterial3d(mats.blue.clone()),
             Transform::from_translation(local_position),
             ChildOf(arena_entity),
-            TimelineManager::new(), // Add multi-arena timeline storage
+            TimelineManager::new(),
+            Name::new("Dean"),
         ))
         .id();
     let sphere_radius_v2 = 0.125;
     let sphere_mesh_v2 = meshes.add(Sphere::new(sphere_radius_v2));
     let local_position_v2 = get_local_tile_space(0.0, 0.0, 0.125);
-    commands.entity(arena_entity).with_child((
+    commands.spawn((
         Character,
         HolyNova,
         Mesh3d(sphere_mesh_v2),
         MeshMaterial3d(mats.gray.clone()),
         Transform::from_translation(local_position_v2),
-        TimelineManager::new(), // Add multi-arena timeline storage
+        ChildOf(arena_entity),
+        TimelineManager::new(),
+        Name::new("Matthew"),
     ));
     println!("Character entity ID: {}", character_entity);
     // Update the arena's LastActiveHero to point to this character

@@ -46,7 +46,8 @@
       "WebFetch(domain:bevy-cheatbook.github.io)",
       "WebFetch(domain:cookbook.openai.com)",
       "Bash(timeout 10 cargo run)",
-      "Bash(timeout 3s cargo run)"
+      "Bash(timeout 3s cargo run)",
+      "WebFetch(domain:superwhisper.com)"
     ],
     "deny": []
   },
