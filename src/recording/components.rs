@@ -15,9 +15,23 @@ pub enum CountdownStatus {
 pub struct Playback; // Arena is currently in playback mode
 
 impl GlobalRecordingMode {
-    /// Start a new countdown with the default 3-second duration
+    /// Start a new countdown with the default 3-second duration, defaulting to Recording destination
     pub fn start_countdown() -> Self {
         Self::Countdown(CountdownState::new())
+    }
+
+    /// Start a countdown that will transition to Recording after completion
+    pub fn start_countdown_to_recording() -> Self {
+        Self::Countdown(CountdownState::new_with_destination(
+            CountdownDestination::Recording,
+        ))
+    }
+
+    /// Start a countdown that will transition to Idle after completion
+    pub fn start_countdown_to_idle() -> Self {
+        Self::Countdown(CountdownState::new_with_destination(
+            CountdownDestination::Idle,
+        ))
     }
 
     /// Default countdown duration of 3 seconds
@@ -38,6 +52,7 @@ impl GlobalRecordingMode {
 #[derive(Clone, Debug)]
 pub enum GlobalPauseReason {
     CommitRequested,
+    GhostType,
 }
 
 /// Global recording mode state
@@ -62,21 +77,40 @@ pub enum InterruptionReason {
     ChangeCharacter,
 }
 
+/// Destination after countdown completion
+#[derive(Debug, Clone)]
+pub enum CountdownDestination {
+    Recording,
+    Idle,
+}
+
 /// Simplified countdown state with clear separation of concerns
 #[derive(Debug, Clone)]
 pub struct CountdownState {
     remaining: Duration,
     last_displayed_second: u32,
+    destination: CountdownDestination,
 }
 
 impl CountdownState {
-    /// Create a new countdown state with 3 seconds remaining
+    /// Create a new countdown state with 3 seconds remaining, defaulting to Recording destination
     pub fn new() -> Self {
+        Self::new_with_destination(CountdownDestination::Recording)
+    }
+
+    /// Create a new countdown state with a specific destination
+    pub fn new_with_destination(destination: CountdownDestination) -> Self {
         let initial_seconds = 3;
         Self {
             remaining: Duration::from_secs(initial_seconds as u64),
             last_displayed_second: initial_seconds + 1, // Start at 4 so that 3 gets displayed
+            destination,
         }
+    }
+
+    /// Get the destination for after countdown completion
+    pub fn destination(&self) -> &CountdownDestination {
+        &self.destination
     }
 
     /// Get the current countdown seconds (for display)
