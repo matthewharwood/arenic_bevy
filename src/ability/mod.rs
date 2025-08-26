@@ -132,13 +132,90 @@ pub struct StartRadius(pub f32);
 #[derive(Component)]
 pub struct EndRadius(pub f32);
 
-/// Minimal ability type enum for timeline/testing compatibility
+/// Hunter abilities
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum AbilityType {
+pub enum HunterAbility {
     AutoShot,
-    HolyNova,
     PoisonShot,
-    Heal,
+    Sniper,
+    Trap,
 }
 
-// Note: Display implementation removed with AbilityType
+/// Cardinal abilities
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CardinalAbility {
+    HolyNova,
+    Heal,
+    Barrier,
+    Beam,
+    Resurrect,
+}
+
+/// Alchemist abilities
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AlchemistAbility {
+    AcidFlask,
+    Ironskin,
+    Siphon,
+    Transmute,
+}
+
+/// Bard abilities
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BardAbility {
+    Cleanse,
+    Dance,
+    Helix,
+    Mimic,
+}
+
+/// Forager abilities
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ForagerAbility {
+    Border,
+    Boulder,
+    Dig,
+    Mushroom,
+}
+
+/// Merchant abilities
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MerchantAbility {
+    CoinToss,
+    Dice,
+    Fortune,
+    Vault,
+}
+
+/// Thief abilities
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ThiefAbility {
+    Backstab,
+    Pickpocket,
+    ShadowStep,
+    SmokeScreen,
+}
+
+/// Warrior abilities
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WarriorAbility {
+    Bash,
+    Block,
+    Bulwark,
+    Taunt,
+}
+
+/// Ability type enum with nested class-specific abilities
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AbilityType {
+    Hunter(HunterAbility),
+    Cardinal(CardinalAbility),
+    Alchemist(AlchemistAbility),
+    Bard(BardAbility),
+    Forager(ForagerAbility),
+    Merchant(MerchantAbility),
+    Thief(ThiefAbility),
+    Warrior(WarriorAbility),
+}
+
+// Note: Sub-enums are already publicly exported via their definitions above

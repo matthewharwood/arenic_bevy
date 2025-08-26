@@ -1,70 +1,32 @@
-use bevy::prelude::{Component, Resource};
-use std::time::Duration;
+mod components;
+mod systems;
 
-/// Component for individual arenas that are in playback mode
-#[derive(Component)]
-pub struct Playback; // Arena is currently in playback mode
+pub use components::Playback;
+use crate::recording::components::{GlobalPauseReason, GlobalRecordingMode};
+use crate::recording::systems::{handle_recording_input, show_commit_dialog, tick_countdown};
+use bevy::prelude::*;
 
-/// Global recording state that affects the entire game
-#[derive(Resource, Default)]
-pub enum GlobalRecordingMode {
-    Paused(PauseReason),
-    Recording,
-    Countdown(Duration), // Store countdown time remaining
-    #[default]
-    Idle,
-}
+/// Plugin for managing recording state and input
+pub struct RecordingPlugin;
 
-impl GlobalRecordingMode {
-    /// Start a new countdown with the default 3 second duration
-    pub fn start_countdown() -> Self {
-        Self::Countdown(Self::COUNTDOWN_DURATION)
-    }
-
-    /// Default countdown duration of 3 seconds
-    pub const COUNTDOWN_DURATION: Duration = Duration::from_secs(3);
-
-    /// Update the countdown timer and return true if countdown is complete
-    pub fn tick_countdown(&mut self, delta: Duration) -> bool {
-        match self {
-            Self::Countdown(remaining) => {
-                // Log the current countdown state
-                let seconds_left = remaining.as_secs_f32().ceil() as u32;
-                let prev_seconds = (*remaining + delta).as_secs_f32().ceil() as u32;
-
-                // Only log when we cross a second boundary
-                if seconds_left != prev_seconds && seconds_left > 0 {
-                    bevy::log::info!("Countdown: {}...", seconds_left);
-                }
-
-                // Update the remaining time
-                if let Some(new_duration) = remaining.checked_sub(delta) {
-                    *remaining = new_duration;
-                    false // Still counting down
-                } else {
-                    // Countdown complete!
-                    bevy::log::info!("Countdown: GO! Recording started!");
-                    *self = Self::Recording;
-                    true // Countdown finished
-                }
-            }
-            _ => false, // Not in countdown state
-        }
-    }
-
-    /// Reset countdown to initial duration (useful for repeating)
-    pub fn reset_countdown(&mut self) {
-        *self = Self::Countdown(Self::COUNTDOWN_DURATION);
+impl Plugin for RecordingPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<GlobalRecordingMode>()
+            .add_systems(Update, handle_recording_input)
+            .add_systems(Update, show_commit_dialog.run_if(in_commit_requested_state))
+            .add_systems(Update, tick_countdown.run_if(in_countdown_state));
     }
 }
 
-/// Reasons why recording might be paused
-#[derive(Clone, Debug)]
-pub enum PauseReason {
-    /// User wants to commit the recording
-    CommitRequested,
-    /// Recording was interrupted (e.g., by system event, dialog, etc.)
-    Interrupted,
-    /// User manually paused
-    Manual,
+/// Run condition that checks if we're in the CommitRequested state
+pub fn in_commit_requested_state(recording_mode: Res<GlobalRecordingMode>) -> bool {
+    matches!(
+        *recording_mode,
+        GlobalRecordingMode::Paused(GlobalPauseReason::CommitRequested)
+    )
+}
+
+/// Run condition that checks if we're in the Countdown state
+pub fn in_countdown_state(recording_mode: Res<GlobalRecordingMode>) -> bool {
+    matches!(*recording_mode, GlobalRecordingMode::Countdown(_))
 }

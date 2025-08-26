@@ -4,7 +4,7 @@ use bevy::pbr::MeshMaterial3d;
 use bevy::prelude::*;
 
 // Local crate modules
-use crate::ability::{AbilityType, Duration, ElapsedTime, EndRadius, StartRadius};
+use crate::ability::{AbilityType, CardinalAbility, Duration, ElapsedTime, EndRadius, StartRadius};
 use crate::arena::{Arena, ArenaEntities, CurrentArena};
 use crate::audio::Audio;
 use crate::character::Character;
@@ -16,6 +16,12 @@ use crate::timeline::{
 
 #[derive(Component, Debug)]
 pub struct HolyNova;
+
+impl HolyNova {
+    pub fn new() -> Self {
+        Self
+    }
+}
 
 #[derive(Component, Debug)]
 pub struct HolyNovaVfx;
@@ -64,7 +70,10 @@ pub fn holy_nova_ability(
 
             let event = TimelineEvent {
                 timestamp,
-                event_type: EventType::Ability(AbilityType::HolyNova, None),
+                event_type: EventType::Ability(
+                    AbilityType::Cardinal(CardinalAbility::HolyNova),
+                    None,
+                ),
             };
 
             if let Err(e) = draft_timeline.add_event(event) {

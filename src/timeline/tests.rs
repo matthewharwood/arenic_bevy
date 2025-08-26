@@ -1,5 +1,5 @@
 use super::*;
-use crate::ability::AbilityType;
+use crate::ability::{AbilityType, HunterAbility};
 use crate::arena::{Arena, ArenaName};
 use std::time::Duration;
 
@@ -17,7 +17,7 @@ fn test_draft_timeline_adds_events_sorted() {
     timeline
         .add_event(TimelineEvent {
             timestamp: TimeStamp::new(2.0),
-            event_type: EventType::Ability(AbilityType::AutoShot, None),
+            event_type: EventType::Ability(AbilityType::Hunter(HunterAbility::AutoShot), None),
         })
         .expect("Failed to add event");
 
@@ -109,7 +109,7 @@ fn test_next_event_after_edge_cases() {
     draft
         .add_event(TimelineEvent {
             timestamp: TimeStamp::new(20.0),
-            event_type: EventType::Ability(AbilityType::AutoShot, None),
+            event_type: EventType::Ability(AbilityType::Hunter(HunterAbility::AutoShot), None),
         })
         .expect("Failed to add event");
     draft
@@ -185,7 +185,7 @@ fn test_timeline_manager_multi_arena_storage() {
     draft_gala
         .add_event(TimelineEvent {
             timestamp: TimeStamp::new(30.0),
-            event_type: EventType::Ability(AbilityType::AutoShot, None),
+            event_type: EventType::Ability(AbilityType::Hunter(HunterAbility::AutoShot), None),
         })
         .expect("Failed to add event");
     let timeline_gala = PublishTimeline::from_draft(draft_gala);
@@ -223,43 +223,43 @@ fn test_timeline_manager_multi_arena_storage() {
 fn test_timeline_clock_only_runs_with_playback_component() {
     // Test with arena that has Playback component
     let mut clock_with_playback = TimelineClock::new();
-    
-    // Test with arena that doesn't have Playback component  
+
+    // Test with arena that doesn't have Playback component
     let mut clock_without_playback = TimelineClock::new();
-    
+
     // Simulate what the update_timeline_clocks system does
     // It only ticks clocks for entities with the Playback component
-    
+
     // Tick the clock that "has" Playback
     clock_with_playback.tick(Duration::from_secs(10));
     assert_eq!(
-        clock_with_playback.current().as_secs(), 
-        10.0, 
+        clock_with_playback.current().as_secs(),
+        10.0,
         "Clock with Playback should advance"
     );
-    
+
     // Don't tick the clock that "doesn't have" Playback
     // (simulating the With<Playback> filter in the query)
     assert_eq!(
-        clock_without_playback.current().as_secs(), 
-        0.0, 
+        clock_without_playback.current().as_secs(),
+        0.0,
         "Clock without Playback should not advance"
     );
-    
+
     // Now simulate adding Playback component to the second clock
     // and verify it starts updating
     clock_without_playback.tick(Duration::from_secs(5));
     assert_eq!(
-        clock_without_playback.current().as_secs(), 
-        5.0, 
+        clock_without_playback.current().as_secs(),
+        5.0,
         "Clock should advance after Playback is added"
     );
-    
+
     // Continue advancing the first clock
     clock_with_playback.tick(Duration::from_secs(5));
     assert_eq!(
-        clock_with_playback.current().as_secs(), 
-        15.0, 
+        clock_with_playback.current().as_secs(),
+        15.0,
         "First clock should continue advancing"
     );
 }

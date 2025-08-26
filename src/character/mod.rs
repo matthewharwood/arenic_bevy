@@ -23,6 +23,9 @@ pub struct Character;
 #[derive(Component, Debug)]
 pub struct Boss;
 
+#[derive(Component, Debug)]
+pub struct Ghost;
+
 pub fn toggle_active_character(
     mut commands: Commands,
     keyboard_input: Res<ButtonInput<KeyCode>>,
