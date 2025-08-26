@@ -1,8 +1,10 @@
+use crate::character::Character;
 use crate::recording::components::{CountdownStatus, GlobalPauseReason};
 use crate::recording::GlobalRecordingMode;
+use crate::selectors::Active;
 use bevy::input::ButtonInput;
 use bevy::log::{debug, info};
-use bevy::prelude::{KeyCode, Res, ResMut, Time};
+use bevy::prelude::{KeyCode, Query, Res, ResMut, Time, With};
 
 /// System that ticks the countdown and transitions to Recording when complete
 pub fn tick_countdown(mut recording_mode: ResMut<GlobalRecordingMode>, time: Res<Time>) {
@@ -44,8 +46,17 @@ pub fn show_commit_dialog(recording_mode: Res<GlobalRecordingMode>) {
 pub fn handle_recording_input(
     mut recording_mode: ResMut<GlobalRecordingMode>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    active_character_q: Query<(), (With<Character>, With<Active>)>,
 ) {
     if keyboard.just_pressed(KeyCode::KeyR) {
+        // Check if there's an active character selected
+        if active_character_q.is_empty() {
+            info!(
+                "Cannot start recording: No active character selected. Press Tab to select a character."
+            );
+            return;
+        }
+
         match *recording_mode {
             GlobalRecordingMode::Idle => {
                 // Start countdown - the countdown system will handle all logging
